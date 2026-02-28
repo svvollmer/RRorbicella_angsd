@@ -113,7 +113,7 @@ rule download_sra:
     free S3 bucket (sra-pub-run-odp), so data transfer costs nothing.
     Gzip both files in parallel to halve compression time.
     """
-    container: "docker://quay.io/biocontainers/sra-tools:3.0.10--h9f5acd7_0"
+    # sra-tools container fasterq-dump has SSL/TLS issues on EC2; use host-installed version
     output:
         r1=temp("results/fastq/{sample}_1.fastq.gz"),
         r2=temp("results/fastq/{sample}_2.fastq.gz"),
