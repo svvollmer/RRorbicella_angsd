@@ -1081,6 +1081,10 @@ rule annotate_fst_outliers:
 # ============================================================================
 
 rule generate_report:
+    """
+    Full HTML report with embedded figures + separate PNGs in results/figures/.
+    Calls workflow/scripts/generate_report.py.
+    """
     input:
         filtering="results/filtering/filtering_summary.txt",
         depth="results/qc/depth_summary.txt",
@@ -1089,37 +1093,16 @@ rule generate_report:
         relatedness="results/relatedness/relatedness_summary.txt",
         fst_outliers="results/annotation/fst_outliers_annotated.csv",
     output:
-        "results/report.html",
-    run:
-        with open(input.depth) as f:
-            depth_lines = f.readlines()
-        n_snps_pass1 = sum(1 for _ in open("results/angsd/pass1_snps.txt"))
-
-        with open(output[0], 'w') as f:
-            f.write("<html><head><title>ANGSD Pipeline Report</title></head><body>\n")
-            f.write("<h1>Two-Pass ANGSD Analysis Complete</h1>\n")
-            f.write(f"<h2>Dataset: {N_SAMPLES} samples, {len(POPS)} populations</h2>\n")
-            f.write(f"<p>Samples: {', '.join(SAMPLES)}</p>\n")
-            f.write(f"<p>Populations: {', '.join(POPS)}</p>\n")
-
-            f.write("<h2>SNP Discovery</h2>\n")
-            f.write(f"<p>Pass 1 discovered: {n_snps_pass1:,} variable sites</p>\n")
-
-            f.write("<h2>Sample Depths</h2>\n")
-            f.write("<table border='1'><tr><th>Sample</th><th>Mean Depth</th></tr>\n")
-            for line in depth_lines[1:]:
-                parts = line.strip().split('\t')
-                f.write(f"<tr><td>{parts[0]}</td><td>{parts[1]}</td></tr>\n")
-            f.write("</table>\n")
-
-            f.write("<h2>Analyses Completed</h2><ul>\n")
-            f.write("<li>Two-pass genotype likelihood estimation</li>\n")
-            f.write("<li>LD decay analysis and pruning (greedy graph algorithm)</li>\n")
-            f.write("<li>PCA (LD-pruned SNPs)</li>\n")
-            f.write(f"<li>Admixture K=2-{config.get('max_k', 5)}</li>\n")
-            f.write("<li>Per-population diversity (pi, theta, Tajima's D)</li>\n")
-            if len(POPS) > 1:
-                f.write(f"<li>FST: {', '.join(f'{p[0]} vs {p[1]}' for p in POP_PAIRS)}</li>\n")
-            f.write("<li>Individual heterozygosity</li>\n")
-            f.write("<li>Relatedness/kinship (KING)</li>\n")
-            f.write("</ul></body></html>\n")
+        report="results/report.html",
+    params:
+        metadata=lambda wildcards: config.get("samples_csv", "config/samples.csv"),
+        cfg="config/config.yaml",
+    shell:
+        """
+        python workflow/scripts/generate_report.py \
+            --results_dir results/ \
+            --metadata {params.metadata} \
+            --config {params.cfg} \
+            --output {output.report} \
+            --figures_dir results/figures
+        """
