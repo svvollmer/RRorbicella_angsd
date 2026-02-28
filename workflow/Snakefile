@@ -4,19 +4,22 @@ ECOS Population Genomics Pipeline - Optimized Two-Pass ANGSD Workflow
 ================================================================================
 
 Author: Vollmer Lab, Florida Atlantic University
-Purpose: Production coral genomics pipeline for RealOmics
+Purpose: Production coral genomics pipeline for Acropora palmata
 
 Workflow:
   Stage 1: BAM Processing (mapping, filtering, QC)
   Stage 2A: SNP Discovery → GL → LD → PCA/Admixture/Relatedness
   Stage 2B: SAF → SFS → Diversity/FST (uses all sites)
 
-Key optimizations:
-- Two-pass ANGSD (discovery 2hrs → GL 30min vs single-pass 18hrs)
-- Individual depth filters prevent bad samples
-- LD pruning before PCA/Admixture (scientifically correct)
-- PCAngsd for both PCA and admixture (faster than NGSadmix)
-- Data-driven filters based on sample size
+Key design decisions:
+- Two-pass ANGSD: discovery (relaxed, whole genome) → GL (strict, SNPs only)
+- Filtered reads stored as CRAM (~50% vs BAM) with embedded reference path
+- dedup.bam is temp(): deleted once filtered.cram exists, saving disk during runs
+- Sites index built once (index_sites rule) — avoids race condition with parallel jobs
+- LD pruning via pure-Python greedy graph algorithm (no external deps)
+- LD decay reads in chunks — safe for large files (96 samples × 100K SNPs)
+- samtools coverage for depth — fast; samtools depth -a is 330M rows/sample
+- resources: mem_mb + runtime on every rule — SLURM/AWS can schedule correctly
 
 Usage:
   snakemake --snakefile workflow/Snakefile --profile profiles/local
@@ -45,19 +48,19 @@ SAMPLES = samples["sample_id"].tolist()
 POPS = samples[config.get("primary_grouping", "population")].unique().tolist()
 POP_PAIRS = list(combinations(sorted(POPS), 2))
 
-# Calculate data-driven filter defaults
+# Data-driven filter thresholds
 N_SAMPLES = len(SAMPLES)
-MIN_DEPTH_TOTAL = N_SAMPLES * 2  # 2 reads per sample minimum
-MIN_IND_DISCOVERY = int(N_SAMPLES * 0.6)  # 60% for discovery
-MIN_IND_FINAL = int(N_SAMPLES * 0.8)  # 80% for final
-SINGLETON_MAF = 1.0 / (2 * N_SAMPLES)  # Singleton frequency
+MIN_DEPTH_TOTAL   = N_SAMPLES * 2       # 2 reads per sample minimum across genome
+MIN_IND_DISCOVERY = int(N_SAMPLES * 0.6) # 60% of samples present — relaxed for discovery
+MIN_IND_FINAL     = int(N_SAMPLES * 0.8) # 80% of samples present — strict for GL
 
 def get_sra(wc):
     return samples.loc[samples["sample_id"] == wc.sample, "sra_accession"].values[0]
 
 def get_pop_samples(wc):
-    s = samples.loc[samples[config.get("primary_grouping", "population")] == wc.popname, "sample_id"].tolist()
-    return expand("results/bams/{sample}.dedup.bam", sample=s)
+    s = samples.loc[samples[config.get("primary_grouping", "population")] == wc.popname,
+                    "sample_id"].tolist()
+    return expand("results/bams/{sample}.filtered.cram", sample=s)
 
 # ============================================================================
 # FINAL OUTPUTS
@@ -99,10 +102,17 @@ rule all:
         "results/report.html",
 
 # ============================================================================
-# 1-4. DOWNLOAD, QC, MAPPING
+# 1. DOWNLOAD
 # ============================================================================
 
 rule download_sra:
+    """
+    Stream FASTQ directly from SRA — no prefetch, no intermediate .sra file.
+
+    On AWS EC2 in us-east-1, NCBI automatically routes fasterq-dump to their
+    free S3 bucket (sra-pub-run-odp), so data transfer costs nothing.
+    Gzip both files in parallel to halve compression time.
+    """
     container: "docker://quay.io/biocontainers/sra-tools:3.0.10--h9f5acd7_0"
     output:
         r1=temp("results/fastq/{sample}_1.fastq.gz"),
@@ -111,19 +121,26 @@ rule download_sra:
         acc=get_sra,
         tmpdir="tmp/{sample}",
     threads: 4
+    resources:
+        mem_mb=8000,
+        runtime=180,
     shell:
         """
-        mkdir -p {params.tmpdir}
-        prefetch {params.acc} -O {params.tmpdir}
-        fasterq-dump {params.tmpdir}/{params.acc} \
+        mkdir -p results/fastq {params.tmpdir}
+        fasterq-dump {params.acc} \
             -O results/fastq -e {threads} \
             --split-files --temp {params.tmpdir}
-        gzip results/fastq/{params.acc}_1.fastq
-        gzip results/fastq/{params.acc}_2.fastq
+        gzip results/fastq/{params.acc}_1.fastq &
+        gzip results/fastq/{params.acc}_2.fastq &
+        wait
         mv results/fastq/{params.acc}_1.fastq.gz {output.r1}
         mv results/fastq/{params.acc}_2.fastq.gz {output.r2}
         rm -rf {params.tmpdir}
         """
+
+# ============================================================================
+# 2. ADAPTER TRIMMING
+# ============================================================================
 
 rule fastp:
     container: "docker://quay.io/biocontainers/fastp:0.23.4--hadf994f_1"
@@ -136,6 +153,9 @@ rule fastp:
         html="results/qc/{sample}_fastp.html",
         json="results/qc/{sample}_fastp.json",
     threads: 4
+    resources:
+        mem_mb=4000,
+        runtime=60,
     shell:
         """
         fastp -i {input.r1} -I {input.r2} \
@@ -146,6 +166,10 @@ rule fastp:
             --cut_front --cut_tail \
             --trim_poly_g
         """
+
+# ============================================================================
+# 3. REFERENCE INDEXING
+# ============================================================================
 
 rule samtools_faidx:
     container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
@@ -162,8 +186,15 @@ rule bwa_index:
         config["reference"],
     output:
         multiext(config["reference"], ".amb", ".ann", ".bwt", ".pac", ".sa"),
+    resources:
+        mem_mb=8000,
+        runtime=60,
     shell:
         "bwa index {input}"
+
+# ============================================================================
+# 4. MAPPING + DEDUPLICATION
+# ============================================================================
 
 rule bwa_map:
     container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
@@ -175,12 +206,15 @@ rule bwa_map:
     output:
         temp("results/bams/{sample}.raw.bam"),
     threads: 16
+    resources:
+        mem_mb=24000,
+        runtime=240,
     shell:
         """
         bwa mem -t {threads} \
             -R '@RG\\tID:{wildcards.sample}\\tSM:{wildcards.sample}\\tPL:ILLUMINA' \
             {input.ref} {input.r1} {input.r2} \
-        | samtools sort -@ 4 -m 2G -o {output} -
+        | samtools sort -@ {threads} -m 1G -o {output} -
         """
 
 rule mark_duplicates:
@@ -188,10 +222,13 @@ rule mark_duplicates:
     input:
         "results/bams/{sample}.raw.bam",
     output:
-        bam="results/bams/{sample}.dedup.bam",
-        bai="results/bams/{sample}.dedup.bam.bai",
+        bam=temp("results/bams/{sample}.dedup.bam"),    # temp: deleted once filtered.cram exists
+        bai=temp("results/bams/{sample}.dedup.bam.bai"),
         metrics="results/qc/{sample}.dedup_metrics.txt",
     threads: 4
+    resources:
+        mem_mb=8000,
+        runtime=120,
     shell:
         """
         samtools sort -n -@ {threads} {input} \
@@ -211,21 +248,8 @@ rule flagstat:
     shell:
         "samtools flagstat {input} > {output}"
 
-rule multiqc:
-    container: "docker://quay.io/biocontainers/multiqc:1.21--pyhdfd78af_0"
-    input:
-        expand("results/qc/{sample}_fastp.json", sample=SAMPLES),
-        expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
-    output:
-        "results/multiqc/multiqc_report.html",
-    shell:
-        """
-        mkdir -p results/multiqc
-        echo '<html><body><h1>MultiQC Placeholder</h1><p>FastP and mapping QC complete</p></body></html>' > {output}
-        """
-
 # ============================================================================
-# 5. FILTERING
+# 5. REGION FILTERING + CRAM CONVERSION
 # ============================================================================
 
 rule make_chrom_regions:
@@ -248,6 +272,9 @@ rule make_nonrepeat_bed:
         chroms="results/filtering/chromosomes.bed",
     output:
         bed="results/filtering/nonrepeat_regions.bed",
+    resources:
+        mem_mb=8000,
+        runtime=30,
     shell:
         """
         python3 workflow/scripts/create_nonrepeat_bed.py \
@@ -256,28 +283,59 @@ rule make_nonrepeat_bed:
         """
 
 rule filter_mapped:
+    """
+    Filter by MAPQ + nonrepeat regions, then write as CRAM (~50% smaller than BAM).
+    Uses realpath to embed absolute reference path so CRAM is portable between rules.
+    dedup.bam is deleted by Snakemake after this rule completes (marked temp).
+    """
     container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
     input:
         bam="results/bams/{sample}.dedup.bam",
         bed="results/filtering/nonrepeat_regions.bed",
+        ref=config["reference"],
+        fai=config["reference"] + ".fai",
     output:
-        "results/bams/{sample}.filtered.bam",
+        cram="results/bams/{sample}.filtered.cram",
+        crai="results/bams/{sample}.filtered.cram.crai",
     params:
         mapq=config.get("minmapq", 20),
+    threads: 4
+    resources:
+        mem_mb=4000,
+        runtime=60,
     shell:
         """
-        samtools view -b -q {params.mapq} -L {input.bed} {input.bam} > {output}
-        samtools index {output}
+        REF=$(realpath {input.ref})
+        samtools view -C -T $REF \
+            -q {params.mapq} -L {input.bed} \
+            -@ {threads} -o {output.cram} {input.bam}
+        samtools index {output.cram}
         """
 
+# ============================================================================
+# 6. QC: DEPTH + MULTIQC
+# ============================================================================
+
 rule sample_depth:
+    """
+    samtools coverage is fast (one pass, per-chromosome summary).
+    samtools depth -a was 330M rows per sample — too slow.
+    Reports length-weighted mean depth across all chromosomes in the CRAM.
+    """
     container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
     input:
-        "results/bams/{sample}.filtered.bam",
+        cram="results/bams/{sample}.filtered.cram",
+        crai="results/bams/{sample}.filtered.cram.crai",
+        ref=config["reference"],
+        fai=config["reference"] + ".fai",
     output:
         "results/qc/{sample}.depth.txt",
     shell:
-        "samtools depth -a {input} | awk '{{sum+=$3}} END {{print sum/NR}}' > {output}"
+        """
+        samtools coverage --reference {input.ref} {input.cram} \
+            | awk 'NR>1 {{len+=$3-$2; dep+=$7*($3-$2)}} END {{printf "%.2f\\n", dep/len}}' \
+            > {output}
+        """
 
 rule depth_summary:
     input:
@@ -304,51 +362,66 @@ rule filtering_summary:
             out.write("Sample\tTotal_reads\tMapped_reads\tMapping_rate\tMean_depth\n")
             for sample in SAMPLES:
                 flagstat_file = f"results/qc/{sample}.flagstat.txt"
-                depth_file = f"results/qc/{sample}.depth.txt"
-
+                depth_file    = f"results/qc/{sample}.depth.txt"
                 with open(flagstat_file) as f:
-                    lines = f.readlines()
-                    total = lines[0].split()[0]
+                    lines  = f.readlines()
+                    total  = lines[0].split()[0]
                     mapped = lines[4].split()[0]
-                    rate = float(mapped) / float(total) if float(total) > 0 else 0
-
+                    rate   = float(mapped) / float(total) if float(total) > 0 else 0
                 with open(depth_file) as f:
                     depth = f.read().strip()
-
                 out.write(f"{sample}\t{total}\t{mapped}\t{rate:.4f}\t{depth}\n")
 
+rule multiqc:
+    container: "docker://quay.io/biocontainers/multiqc:1.21--pyhdfd78af_0"
+    input:
+        expand("results/qc/{sample}_fastp.json", sample=SAMPLES),
+        expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
+        expand("results/qc/{sample}.dedup_metrics.txt", sample=SAMPLES),
+    output:
+        "results/multiqc/multiqc_report.html",
+    shell:
+        """
+        mkdir -p results/multiqc
+        multiqc results/qc/ -o results/multiqc/ --force
+        """
+
 # ============================================================================
-# 6. TWO-PASS ANGSD: SNP DISCOVERY
+# 7. BAMLISTS
 # ============================================================================
 
 rule make_bamlist_all:
-    container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
     input:
-        expand("results/bams/{sample}.filtered.bam", sample=SAMPLES),
+        expand("results/bams/{sample}.filtered.cram", sample=SAMPLES),
     output:
         "results/bamlists/all.bamlist",
-    shell:
-        "ls {input} > {output}"
+    run:
+        with open(output[0], 'w') as f:
+            for path in input:
+                f.write(str(path) + '\n')
 
 rule make_bamlist_pop:
-    container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
     input:
         bams=get_pop_samples,
     output:
         "results/bamlists/{popname}.bamlist",
-    shell:
-        "echo {input.bams} | tr ' ' '\\n' > {output}"
+    run:
+        with open(output[0], 'w') as f:
+            for path in input.bams:
+                f.write(str(path) + '\n')
+
+# ============================================================================
+# 8. TWO-PASS ANGSD: SNP DISCOVERY
+# ============================================================================
 
 rule angsd_discover_snps:
     """
     PASS 1: SNP Discovery (relaxed filters, whole chromosomes)
 
-    Strategy: Process whole genome with relaxed filters to find all variable sites
-    - Uses whole chromosomes (14 regions) not fragmented repeats (398K regions)
-    - Depth filters catch multi-mapping reads (repeats)
-    - Outputs SNP list for Pass 2
+    Uses whole chromosomes so depth filters catch multi-mapping reads from repeats.
+    Relaxed minInd (60%) and SNP p-value (1e-4) to capture all variable sites.
 
-    Runtime: 1.5-2 hrs with --jobs 1, or 30-45 min with --jobs 4 (chromosome parallel)
+    Runtime: ~2h for 96 samples; ~50 min for 5 samples
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
     input:
@@ -365,11 +438,13 @@ rule angsd_discover_snps:
         min_depth=MIN_DEPTH_TOTAL,
         max_depth=1000,
     threads: 16
+    resources:
+        mem_mb=32000,
+        runtime=180,
     shell:
         """
         mkdir -p results/angsd
 
-        # Discovery with relaxed filters on whole chromosomes
         angsd -bam {input.bamlist} -ref {input.ref} \
             -out {params.out} \
             -GL 1 -doMajorMinor 1 -doMaf 2 \
@@ -385,9 +460,8 @@ rule angsd_discover_snps:
             -rf {input.chroms} \
             -nThreads {threads}
 
-        # Extract SNP positions for Pass 2
         python3 -c "
-import gzip, sys
+import gzip
 with gzip.open('{output.mafs}', 'rt') as f:
     next(f)
     with open('{output.snplist}', 'w') as out:
@@ -396,16 +470,31 @@ with gzip.open('{output.mafs}', 'rt') as f:
 "
         """
 
+rule index_sites:
+    """
+    Index the SNP list exactly once.
+
+    Without this, angsd_gl_snps, angsd_saf (one per population), and
+    individual_saf (one per sample) would all race to write the same
+    .bin and .idx files in parallel — silently corrupting the index.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
+    input:
+        "results/angsd/pass1_snps.txt",
+    output:
+        bin="results/angsd/pass1_snps.txt.bin",
+        idx="results/angsd/pass1_snps.txt.idx",
+    shell:
+        "angsd sites index {input}"
+
 rule angsd_gl_snps:
     """
     PASS 2: Genotype Likelihoods at discovered SNPs (strict filters)
 
-    Strategy: Only process SNPs from Pass 1 with stringent filters
-    - ~50-100K SNPs instead of 329 Mb genome
-    - Much faster (30 min vs hours)
-    - Creates beagle file for PCA/Admixture/LD/Relatedness
+    Only processes positions from Pass 1 — ~100x fewer sites → much faster.
+    Creates beagle file for PCA/Admixture/LD/Relatedness.
 
-    Runtime: 20-30 minutes
+    Runtime: 20-30 min for 96 samples
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
     input:
@@ -413,6 +502,7 @@ rule angsd_gl_snps:
         ref=config["reference"],
         fai=config["reference"] + ".fai",
         sites="results/angsd/pass1_snps.txt",
+        sites_idx=rules.index_sites.output,
     output:
         beagle="results/angsd/all.beagle.gz",
         mafs="results/angsd/all.mafs.gz",
@@ -421,12 +511,11 @@ rule angsd_gl_snps:
         min_ind=MIN_IND_FINAL,
         min_maf=config.get("min_maf", 0.05),
     threads: 16
+    resources:
+        mem_mb=32000,
+        runtime=120,
     shell:
         """
-        # Index sites file
-        angsd sites index {input.sites}
-
-        # Calculate GLs at discovered SNPs with strict filters
         angsd -bam {input.bamlist} -ref {input.ref} \
             -out {params.out} \
             -GL 1 -doMajorMinor 1 -doMaf 1 -doGlf 2 \
@@ -440,16 +529,17 @@ rule angsd_gl_snps:
         """
 
 # ============================================================================
-# 7. LD ANALYSIS (must run before PCA/Admixture)
+# 9. LD ANALYSIS
 # ============================================================================
 
 rule ngsld_estimate:
     """
-    Estimate LD between all SNP pairs
-    - Calculates r² for pairs within 500kb
-    - Used to identify correlated SNPs for pruning
+    Estimate pairwise LD (r²) between all SNP pairs within max_kb_dist.
 
-    Runtime: 25-35 minutes for ~75K SNPs
+    max_dist_kb: config ld_max_dist is in bp, ngsLD expects kb (bug fix: // 1000).
+    Output is marked temp() — large file, deleted after ld_decay + ld_prune complete.
+
+    Runtime: 25-35 min for ~75K SNPs, 96 samples, 500kb window
     """
     container: "docker://quay.io/biocontainers/ngsld:1.2.0--h2add14b_1"
     input:
@@ -461,6 +551,9 @@ rule ngsld_estimate:
         max_dist_kb=config.get("ld_max_dist", 500000) // 1000,
         n_samples=N_SAMPLES,
     threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=60,
     shell:
         """
         mkdir -p results/ld
@@ -485,11 +578,9 @@ with gzip.open('{input.mafs}', 'rt') as f:
 
 rule ld_decay:
     """
-    Analyze LD decay with distance
-    - Bins LD by physical distance
-    - Determines pruning window from decay curve
-
-    Runtime: 2-5 minutes
+    Analyze LD decay vs physical distance.
+    Reads LD file in 500K-row chunks — safe for multi-GB files (96 samples).
+    ngsLD output columns: pos1, pos2, dist, r2, D, D', r2_est (7 cols; pos as chr:pos).
     """
     input:
         "results/ld/ld_raw.tsv",
@@ -499,113 +590,151 @@ rule ld_decay:
     params:
         threshold=config.get("ld_decay_threshold", 0.1),
     run:
-        import pandas as pd
-        ld = pd.read_csv(input[0], sep='\t', header=None,
-                        names=['chr1', 'pos1', 'chr2', 'pos2', 'r2'])
-        ld['dist'] = abs(ld['pos2'] - ld['pos1'])
+        import numpy as np
+        import csv
 
         bins = [0, 1000, 5000, 10000, 50000, 100000, 500000]
-        ld['bin'] = pd.cut(ld['dist'], bins=bins)
-        decay = ld.groupby('bin')['r2'].agg(['mean', 'median', 'count']).reset_index()
-        decay.to_csv(output.decay, index=False)
+        bin_sum   = np.zeros(len(bins) - 1)
+        bin_count = np.zeros(len(bins) - 1)
 
-        # Determine pruning window
-        for i, row in decay.iterrows():
-            if row['mean'] < params.threshold:
-                window_kb = bins[i] / 1000
-                with open(output.window, 'w') as f:
-                    f.write(f"{window_kb}\n")
+        for chunk in pd.read_csv(
+            input[0], sep='\t', header=None, chunksize=500000,
+            names=['pos1', 'pos2', 'dist', 'r2', 'D', 'Dprime', 'r2_est'],
+            usecols=['dist', 'r2']
+        ):
+            idxs = np.digitize(chunk['dist'].values, bins) - 1
+            valid = (idxs >= 0) & (idxs < len(bins) - 1)
+            for i in range(len(bins) - 1):
+                mask = valid & (idxs == i)
+                bin_sum[i]   += chunk.loc[mask, 'r2'].sum()
+                bin_count[i] += mask.sum()
+
+        bin_labels = [f"{bins[i]}-{bins[i+1]}" for i in range(len(bins) - 1)]
+        with_data  = bin_count > 0
+        mean_r2    = np.where(with_data, bin_sum / bin_count, np.nan)
+
+        with open(output.decay, 'w', newline='') as f:
+            w = csv.writer(f)
+            w.writerow(['bin', 'mean_r2', 'count'])
+            for i in range(len(bins) - 1):
+                w.writerow([bin_labels[i],
+                             f"{mean_r2[i]:.6f}" if with_data[i] else "NA",
+                             int(bin_count[i])])
+
+        # Determine pruning window: first bin where mean r² drops below threshold
+        pruning_window_kb = bins[-2] / 1000  # default: widest bin
+        for i, r2 in enumerate(mean_r2):
+            if with_data[i] and r2 < params.threshold:
+                pruning_window_kb = bins[i] / 1000
                 break
+        with open(output.window, 'w') as f:
+            f.write(f"{pruning_window_kb}\n")
 
 rule ld_prune:
     """
-    Create LD-pruned SNP set
-    - Removes SNPs in high LD (r² > 0.3)
-    - Greedy pruning algorithm
+    Greedy graph-based LD pruning in pure Python — no external dependencies.
 
-    Runtime: 2-3 minutes
+    graph_prune.py does not exist in the ngsLD biocontainer (it was removed
+    upstream). prune_ngsLD.py requires graph_tool (heavy C++ lib, not in any
+    biocontainer). This run: block replaces both with stdlib-only Python.
+
+    Algorithm: build adjacency graph for pairs with r2 >= threshold, then
+    iteratively remove the highest-degree node until no edges remain.
+    Isolated SNPs (no pairs above threshold) are kept automatically.
+
+    Memory: for production 50-100K SNPs + 500kb window, LD file ~200 MB —
+    fits in memory comfortably. run: executes in the Snakemake process, so
+    no container or PATH issues.
     """
     input:
         ld="results/ld/ld_raw.tsv",
+        mafs="results/angsd/all.mafs.gz",
     output:
-        "results/ld/pruned_snps.txt",
+        "results/ld/pruned_keep_snps.txt",
     params:
         r2_threshold=config.get("ld_r2_threshold", 0.3),
     run:
-        import pandas as pd
-        ld = pd.read_csv(input.ld, sep='\t', header=None,
-                        names=['chr1', 'pos1', 'chr2', 'pos2', 'r2'])
+        import gzip, sys
+        from collections import defaultdict
 
-        high_ld = ld[ld['r2'] > params.r2_threshold]
+        # Full SNP universe from pass2 mafs (chr:pos matching LD file format)
+        all_snps = set()
+        with gzip.open(input.mafs, 'rt') as f:
+            next(f)  # header
+            for line in f:
+                cols = line.split('\t', 2)
+                all_snps.add(f"{cols[0]}:{cols[1]}")
 
-        # Greedy pruning
-        remove_snps = set()
-        for _, row in high_ld.iterrows():
-            snp1 = f"{row['chr1']}:{row['pos1']}"
-            snp2 = f"{row['chr2']}:{row['pos2']}"
-            if snp1 not in remove_snps and snp2 not in remove_snps:
-                remove_snps.add(snp2)
+        # Build graph: only pairs above r2 threshold
+        adj = defaultdict(set)
+        with open(input.ld) as f:
+            for line in f:
+                cols = line.split('\t', 4)
+                try:
+                    r2 = float(cols[3])
+                except (ValueError, IndexError):
+                    continue
+                if r2 >= params.r2_threshold:
+                    adj[cols[0]].add(cols[1])
+                    adj[cols[1]].add(cols[0])
 
+        # Greedy pruning: remove highest-degree node until no edges remain
+        removed = set()
+        while adj:
+            heaviest = max(adj, key=lambda n: len(adj[n]))
+            removed.add(heaviest)
+            for nb in adj.pop(heaviest):
+                if nb in adj:
+                    adj[nb].discard(heaviest)
+                    if not adj[nb]:
+                        del adj[nb]
+
+        keep = sorted(all_snps - removed)
         with open(output[0], 'w') as f:
-            for snp in sorted(remove_snps):
-                f.write(f"{snp}\n")
+            f.write('\n'.join(keep) + '\n')
+        print(f"LD pruning: kept {len(keep)}, removed {len(removed)} SNPs",
+              file=sys.stderr)
 
 rule filter_ld_beagle:
     """
-    Create LD-pruned beagle file for PCA/Admixture
-    - Removes high-LD SNPs identified by ld_prune
-    - Ensures population structure analyses use independent SNPs
-    - Critical for unbiased PCA/Admixture results
-
-    Runtime: 3-5 minutes
+    Create LD-pruned beagle file.
+    Keeps only SNPs listed in pruned_keep_snps.txt (output of ld_prune).
     """
     input:
         beagle="results/angsd/all.beagle.gz",
-        pruned="results/ld/pruned_snps.txt",
+        keep="results/ld/pruned_keep_snps.txt",
     output:
         beagle="results/angsd/all.ldpruned.beagle.gz",
     run:
-        import gzip
-        import sys
+        import gzip, sys
 
-        # Load SNPs to remove
-        with open(input.pruned) as f:
-            remove_snps = set(line.strip() for line in f)
+        with open(input.keep) as f:
+            keep_snps = set(line.strip() for line in f if line.strip())
 
-        # Filter beagle file
         with gzip.open(input.beagle, 'rt') as fin, \
              gzip.open(output.beagle, 'wt') as fout:
 
-            # Copy header
-            header = fin.readline()
-            fout.write(header)
+            fout.write(fin.readline())  # header
 
-            # Filter data lines
-            kept = 0
-            removed = 0
+            kept = removed = 0
             for line in fin:
-                parts = line.strip().split('\t')
-                marker = parts[0]  # Format: chr:pos or chr_pos
-
-                if marker not in remove_snps:
+                marker = line.split('\t', 1)[0]
+                if marker in keep_snps:
                     fout.write(line)
                     kept += 1
                 else:
                     removed += 1
 
-            print(f"LD pruning: kept {kept} SNPs, removed {removed} high-LD SNPs", file=sys.stderr)
+        print(f"LD pruning: kept {kept}, removed {removed} SNPs", file=sys.stderr)
 
 # ============================================================================
-# 8. PCA & ADMIXTURE (uses LD-pruned SNPs)
+# 10. PCA & ADMIXTURE (LD-pruned SNPs)
 # ============================================================================
 
 rule pcangsd_pca:
     """
-    PCA analysis using LD-pruned SNPs
-    - Uses independent SNPs to avoid bias from LD
-    - Estimates covariance matrix for population structure
-
-    Runtime: 10-15 minutes
+    PCA using LD-pruned SNPs.
+    Runtime: 10-15 min
     """
     container: "docker://quay.io/biocontainers/pcangsd:1.10--pyhdfd78af_1"
     input:
@@ -615,6 +744,9 @@ rule pcangsd_pca:
     params:
         out="results/pca/pcangsd",
     threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=30,
     shell:
         """
         mkdir -p results/pca
@@ -623,12 +755,8 @@ rule pcangsd_pca:
 
 rule pcangsd_admixture:
     """
-    Admixture analysis using PCAngsd
-    - Estimates ancestry proportions for K ancestral populations
-    - Uses same LD-pruned SNPs as PCA
-    - Faster than NGSadmix, handles LD better
-
-    Runtime: 8-12 minutes per K
+    Admixture analysis for K ancestral populations.
+    Runtime: 8-12 min per K
     """
     container: "docker://quay.io/biocontainers/pcangsd:1.10--pyhdfd78af_1"
     input:
@@ -639,28 +767,25 @@ rule pcangsd_admixture:
     params:
         out="results/admixture/pcangsd_K{k}",
     threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=30,
     shell:
         """
         mkdir -p results/admixture
         pcangsd -b {input} -o {params.out} --admix --admix_K {wildcards.k} -t {threads}
-
-        # Rename output to match our convention
         mv {params.out}.admix.{wildcards.k}.Q {output.Q}
         mv {params.out}.admix.{wildcards.k}.F.npy {output.F}
         """
 
 # ============================================================================
-# 9. RELATEDNESS (uses all SNPs, not LD-pruned)
+# 11. RELATEDNESS (all SNPs, not LD-pruned)
 # ============================================================================
 
 rule ngsrelate:
     """
-    Relatedness/kinship analysis
-    - Uses all SNPs (not LD-pruned) for better power
-    - Identifies clones and close relatives
-    - KING kinship estimator
-
-    Runtime: 12-18 minutes
+    Kinship/relatedness estimation. -G flag for beagle.gz input. -L for site count.
+    Runtime: 12-18 min
     """
     container: "docker://quay.io/biocontainers/ngsrelate:2.3.2--h9ee0642_0"
     input:
@@ -669,9 +794,11 @@ rule ngsrelate:
     output:
         "results/relatedness/relatedness.res",
     params:
-        out="results/relatedness/relatedness",
         n_samples=N_SAMPLES,
     threads: 8
+    resources:
+        mem_mb=8000,
+        runtime=30,
     shell:
         """
         mkdir -p results/relatedness
@@ -680,11 +807,6 @@ rule ngsrelate:
         """
 
 rule process_relatedness:
-    """
-    Process relatedness results
-    - Creates pairwise kinship matrix
-    - Flags clones and close relatives
-    """
     input:
         "results/relatedness/relatedness.res",
     output:
@@ -697,17 +819,14 @@ rule process_relatedness:
         import pandas as pd
         rel = pd.read_csv(input[0], sep='\t')
 
-        # Create matrix
-        samples_list = SAMPLES
-        matrix = pd.DataFrame(0.0, index=samples_list, columns=samples_list)
+        matrix = pd.DataFrame(0.0, index=SAMPLES, columns=SAMPLES)
         for _, row in rel.iterrows():
             i, j = int(row['a']), int(row['b'])
-            if i < len(samples_list) and j < len(samples_list):
+            if i < len(SAMPLES) and j < len(SAMPLES):
                 matrix.iloc[i, j] = row['KING']
                 matrix.iloc[j, i] = row['KING']
         matrix.to_csv(output.matrix, sep='\t')
 
-        # Summarize relationships
         with open(output.summary, 'w') as f:
             f.write("Sample_A\tSample_B\tKING\tRelationship\n")
             for _, row in rel.iterrows():
@@ -718,24 +837,21 @@ rule process_relatedness:
                     relationship = "Close_relative"
                 else:
                     continue
-
                 ia, ib = int(row['a']), int(row['b'])
                 if ia < len(SAMPLES) and ib < len(SAMPLES):
                     f.write(f"{SAMPLES[ia]}\t{SAMPLES[ib]}\t{king:.4f}\t{relationship}\n")
 
 # ============================================================================
-# 10. PER-POPULATION SAF → SFS → DIVERSITY → FST
-# (Uses ALL sites including monomorphic for unbiased estimates)
+# 12. PER-POPULATION SAF → SFS → DIVERSITY → FST
+# (Uses ALL sites at discovered positions, not SNP-filtered)
 # ============================================================================
 
 rule angsd_saf:
     """
-    Per-population site allele frequency likelihoods
-    - Uses discovered SNP list from Pass 1 (not whole genome)
-    - Processes ALL sites at those positions (no SNP filtering)
-    - Critical: includes monomorphic sites for proper diversity estimates
-
-    Runtime: 15-20 minutes per population
+    Per-population site allele frequency likelihoods.
+    No SNP filter (-SNP_pval not applied) — includes monomorphic sites at pass1 positions
+    so diversity estimates (π, θ, Tajima's D) are unbiased.
+    Runtime: 15-20 min per population
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
     input:
@@ -743,18 +859,19 @@ rule angsd_saf:
         ref=config["reference"],
         fai=config["reference"] + ".fai",
         sites="results/angsd/pass1_snps.txt",
+        sites_idx=rules.index_sites.output,
     output:
         saf="results/sfs/{popname}.saf.idx",
     params:
         out="results/sfs/{popname}",
         gl=config.get("gl_model", 1),
     threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=60,
     shell:
         """
         mkdir -p results/sfs
-        angsd sites index {input.sites}
-
-        # Calculate SAF at discovered positions (includes monomorphic)
         angsd -bam {input.bamlist} -ref {input.ref} -anc {input.ref} \
             -out {params.out} \
             -GL {params.gl} -doSaf 1 \
@@ -765,11 +882,7 @@ rule angsd_saf:
 
 rule realsfs:
     """
-    Estimate site frequency spectrum
-    - Maximum likelihood estimation via EM algorithm
-    - Includes monomorphic sites
-
-    Runtime: 8-12 minutes per population
+    1D SFS via ML (EM algorithm). Runtime: 8-12 min per population.
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
     input:
@@ -777,16 +890,15 @@ rule realsfs:
     output:
         "results/sfs/{popname}.sfs",
     threads: 8
+    resources:
+        mem_mb=8000,
+        runtime=30,
     shell:
         "realSFS {input} -P {threads} > {output}"
 
 rule thetas:
     """
-    Calculate diversity statistics
-    - Tajima's D, π (pi), Watterson's θ (theta)
-    - Per-site and genome-wide estimates
-
-    Runtime: 5-8 minutes per population
+    π, θ, Tajima's D from SFS-weighted SAF. Runtime: 5-8 min per population.
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
     input:
@@ -798,6 +910,9 @@ rule thetas:
     params:
         out="results/diversity/{popname}",
     threads: 8
+    resources:
+        mem_mb=8000,
+        runtime=30,
     shell:
         """
         mkdir -p results/diversity
@@ -807,11 +922,8 @@ rule thetas:
 
 rule realsfs_2d:
     """
-    Estimate 2D site frequency spectrum
-    - Joint SFS for two populations
-    - Used as prior for FST calculation
-
-    Runtime: 15-20 minutes
+    2D SFS (joint SFS for two populations). Used as prior for FST.
+    Runtime: 15-20 min per population pair.
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
     input:
@@ -820,6 +932,9 @@ rule realsfs_2d:
     output:
         "results/fst/{p1}_vs_{p2}.2dsfs",
     threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=30,
     shell:
         """
         mkdir -p results/fst
@@ -827,12 +942,6 @@ rule realsfs_2d:
         """
 
 rule fst_index:
-    """
-    Create FST index from 2D-SFS
-    - Prepares for global and windowed FST calculation
-
-    Runtime: 3-5 minutes
-    """
     container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
     input:
         saf1="results/sfs/{p1}.saf.idx",
@@ -847,11 +956,7 @@ rule fst_index:
 
 rule fst_global:
     """
-    Calculate global and windowed FST
-    - Genome-wide FST between populations
-    - 50kb windows with 10kb step for regional variation
-
-    Runtime: 5-8 minutes
+    Global FST + windowed FST (50kb windows, 10kb step).
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
     input:
@@ -861,40 +966,42 @@ rule fst_global:
         windows="results/fst/{p1}_vs_{p2}.fst.windows",
     shell:
         """
-        realSFS fst stats {input} > {output.fst_global}
+        realSFS fst stats  {input} > {output.fst_global}
         realSFS fst stats2 {input} -win 50000 -step 10000 -type 2 > {output.windows}
         """
 
 # ============================================================================
-# 11. INDIVIDUAL HETEROZYGOSITY
+# 13. INDIVIDUAL HETEROZYGOSITY
 # ============================================================================
 
 rule individual_saf:
     """
-    Per-individual SAF for heterozygosity estimation
-    - Uses discovered SNP positions
-    - Individual-level diversity metric
-
-    Runtime: 12-15 minutes per sample
+    Per-individual SAF for heterozygosity.
+    Reads CRAM directly — no bamlist needed for single-sample runs.
+    sites_idx dependency ensures index is built before any of the 96 parallel jobs start.
+    Runtime: 12-15 min per sample
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
     input:
-        bam="results/bams/{sample}.filtered.bam",
+        cram="results/bams/{sample}.filtered.cram",
+        crai="results/bams/{sample}.filtered.cram.crai",
         ref=config["reference"],
         fai=config["reference"] + ".fai",
         sites="results/angsd/pass1_snps.txt",
+        sites_idx=rules.index_sites.output,
     output:
         temp("results/heterozygosity/{sample}.saf.idx"),
     params:
         out="results/heterozygosity/{sample}",
         gl=config.get("gl_model", 1),
     threads: 4
+    resources:
+        mem_mb=8000,
+        runtime=30,
     shell:
         """
         mkdir -p results/heterozygosity
-        angsd sites index {input.sites}
-
-        angsd -i {input.bam} -ref {input.ref} -anc {input.ref} \
+        angsd -i {input.cram} -ref {input.ref} -anc {input.ref} \
             -GL {params.gl} -doSaf 1 \
             -sites {input.sites} \
             -minMapQ 20 -minQ 20 \
@@ -903,21 +1010,22 @@ rule individual_saf:
 
 rule individual_het:
     """
-    Estimate individual heterozygosity
-    - Genome-wide heterozygosity per sample
-
-    Runtime: 1-2 minutes per sample
+    Genome-wide heterozygosity per sample from individual SAF.
+    Runtime: 1-2 min per sample
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
     input:
         "results/heterozygosity/{sample}.saf.idx",
     output:
         "results/heterozygosity/{sample}.het",
+    resources:
+        mem_mb=4000,
+        runtime=10,
     shell:
         "realSFS {input} > {output}"
 
 # ============================================================================
-# 12. GENE ANNOTATION
+# 14. GENE ANNOTATION
 # ============================================================================
 
 rule make_gene_bed:
@@ -930,7 +1038,9 @@ rule make_gene_bed:
         """
         mkdir -p results/annotation
         if [ -f {input.gff} ]; then
-            grep -v "^#" {input.gff} | awk '$3=="gene" {{print $1"\t"$4-1"\t"$5"\t"$9}}' > {output.bed}
+            grep -v "^#" {input.gff} \
+                | awk '$3=="gene" {{print $1"\\t"$4-1"\\t"$5"\\t"$9}}' \
+                > {output.bed}
         else
             touch {output.bed}
         fi
@@ -938,9 +1048,7 @@ rule make_gene_bed:
 
 rule annotate_fst_outliers:
     """
-    Identify and annotate FST outliers
-    - Top 5% FST windows
-    - Overlaps with gene annotations
+    Flag top 5% FST windows and intersect with gene annotations.
     """
     input:
         fst=[f"results/fst/{p[0]}_vs_{p[1]}.fst.windows" for p in POP_PAIRS] if len(POPS) > 1 else [],
@@ -957,30 +1065,22 @@ rule annotate_fst_outliers:
             for fst_file in input.fst:
                 comp = fst_file.split('/')[-1].replace('.fst.windows', '')
                 df = pd.read_csv(fst_file, sep='\t', header=None,
-                               names=['region', 'chr', 'midPos', 'Nsites', 'fst'])
+                                 names=['region', 'chr', 'midPos', 'Nsites', 'fst'])
                 threshold = df['fst'].quantile(0.95)
                 out = df[df['fst'] > threshold].copy()
                 out['comparison'] = comp
                 outliers.append(out)
-
             if outliers:
-                all_outliers = pd.concat(outliers)
-                all_outliers.to_csv(output[0], index=False)
+                pd.concat(outliers).to_csv(output[0], index=False)
             else:
                 with open(output[0], 'w') as f:
                     f.write("chr,start,end,fst,comparison,overlapping_genes\n")
 
 # ============================================================================
-# 13. FINAL REPORT
+# 15. FINAL REPORT
 # ============================================================================
 
 rule generate_report:
-    """
-    Generate HTML summary report
-    - QC statistics
-    - Analysis summaries
-    - Key findings
-    """
     input:
         filtering="results/filtering/filtering_summary.txt",
         depth="results/qc/depth_summary.txt",
@@ -991,12 +1091,8 @@ rule generate_report:
     output:
         "results/report.html",
     run:
-        import os
-
-        # Read some stats
         with open(input.depth) as f:
             depth_lines = f.readlines()
-
         n_snps_pass1 = sum(1 for _ in open("results/angsd/pass1_snps.txt"))
 
         with open(output[0], 'w') as f:
@@ -1016,17 +1112,14 @@ rule generate_report:
                 f.write(f"<tr><td>{parts[0]}</td><td>{parts[1]}</td></tr>\n")
             f.write("</table>\n")
 
-            f.write("<h2>Analyses Completed</h2>\n")
-            f.write("<ul>\n")
-            f.write("<li>✓ Two-pass genotype likelihood estimation</li>\n")
-            f.write("<li>✓ LD decay analysis and pruning</li>\n")
-            f.write("<li>✓ PCA (LD-pruned SNPs)</li>\n")
-            f.write(f"<li>✓ Admixture K=2-{config.get('max_k', 5)}</li>\n")
-            f.write("<li>✓ Per-population diversity (π, θ, Tajima's D)</li>\n")
+            f.write("<h2>Analyses Completed</h2><ul>\n")
+            f.write("<li>Two-pass genotype likelihood estimation</li>\n")
+            f.write("<li>LD decay analysis and pruning (greedy graph algorithm)</li>\n")
+            f.write("<li>PCA (LD-pruned SNPs)</li>\n")
+            f.write(f"<li>Admixture K=2-{config.get('max_k', 5)}</li>\n")
+            f.write("<li>Per-population diversity (pi, theta, Tajima's D)</li>\n")
             if len(POPS) > 1:
-                f.write(f"<li>✓ FST between {' vs '.join([p[0] + '-' + p[1] for p in POP_PAIRS])}</li>\n")
-            f.write("<li>✓ Individual heterozygosity</li>\n")
-            f.write("<li>✓ Relatedness/kinship analysis</li>\n")
-            f.write("</ul>\n")
-
-            f.write("</body></html>\n")
+                f.write(f"<li>FST: {', '.join(f'{p[0]} vs {p[1]}' for p in POP_PAIRS)}</li>\n")
+            f.write("<li>Individual heterozygosity</li>\n")
+            f.write("<li>Relatedness/kinship (KING)</li>\n")
+            f.write("</ul></body></html>\n")

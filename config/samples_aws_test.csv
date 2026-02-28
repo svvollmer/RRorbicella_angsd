@@ -1,0 +1,11 @@
+sample_id,sra_accession,population,region
+Ac_FL_K1,SRR24007640,florida,Florida
+Ac_FL_K2,SRR24007629,florida,Florida
+Ac_FL_KW15,SRR24007618,florida,Florida
+Ac_FL_U31,SRR24007641,florida,Florida
+Ac_FL_U39,SRR24007636,florida,Florida
+Ac_PA_CK141,SRR24007606,panama,Panama
+Ac_PA_CK142,SRR24007605,panama,Panama
+Ac_PA_Tet5,SRR24007589,panama,Panama
+Ac_PA_Tet6,SRR24007588,panama,Panama
+Ac_PA_HS3,SRR24007668,panama,Panama

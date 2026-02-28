@@ -1,16 +1,24 @@
-# Snakemake AWS profile for EC2 instance or AWS Batch
-# For a single large EC2 instance (e.g. c6i.16xlarge = 64 vCPU, 128 GB):
+# Snakemake AWS profile — single EC2 spot instance
+#
+# Recommended instance: c6i.16xlarge (64 vCPU, 128 GB RAM)
+#   ~4 BWA jobs in parallel (16 threads each)
+#   ~48h for 96 samples, ~$38 spot at ~$0.80/hr
+#
+# Launch in us-east-1 so NCBI SRA data streams from their free S3 bucket.
 #
 # Usage:
 #   snakemake --snakefile workflow/Snakefile --profile profiles/aws
 #
-# To scale to AWS Batch, replace executor with:
-#   executor: awsbatch
-#   default-resources:
-#     vcpus: 8
-#     memory: "32000"
+# Before running, ensure config/config.yaml has:
+#   local_conda_env: (unset / commented out)
+#   samples_csv: config/samples.csv
+
 cores: 64
-jobs: 8
+jobs: 16
 use-singularity: true
+singularity-args: "--bind /home --bind /data --bind /tmp"
 keep-going: true
 latency-wait: 120
+rerun-incomplete: true
+rerun-triggers:
+  - mtime

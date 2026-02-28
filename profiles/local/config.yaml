@@ -1,6 +1,8 @@
 cores: 16
 jobs: 2
-use-singularity: true
-singularity-args: "--bind /data/coral-angsd-pipeline"
 keep-going: true
 latency-wait: 60
+rerun-incomplete: true
+rerun-triggers:
+  - mtime
+# No use-singularity: tools come from local_conda_env in config/config.yaml
