@@ -32,9 +32,12 @@ from itertools import combinations
 
 configfile: "config/config.yaml"
 
-# Ensure conda env tools and standard utilities are on PATH in every shell job
-shell.executable("/bin/bash")
-shell.prefix("export PATH=/home/minipc/miniconda3/envs/angsd-pipeline/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH; ")
+# When local_conda_env is set in config, prepend it to PATH in every shell job.
+# Leave unset on HPC/AWS — Singularity containers provide the correct PATH.
+_conda_env = config.get("local_conda_env", "")
+if _conda_env:
+    shell.executable("/bin/bash")
+    shell.prefix(f"export PATH={_conda_env}/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH; ")
 
 # Load samples
 samples = pd.read_csv(config["samples_csv"])

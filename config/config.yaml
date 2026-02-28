@@ -2,6 +2,12 @@
 # ECOS Population Genomics Pipeline — Configuration
 # ============================================================================
 
+# --- Execution environment ---
+# Set local_conda_env to the angsd-pipeline conda env path when running
+# locally without Singularity. Leave unset (or comment out) on HPC/AWS
+# where --use-singularity handles PATH inside containers.
+local_conda_env: "/home/minipc/miniconda3/envs/angsd-pipeline"
+
 # --- Input ---
 samples_csv: "config/samples_test.csv"
 reference: "reference/apalmata_genome.fasta"
