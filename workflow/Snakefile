@@ -37,8 +37,9 @@ configfile: "config/config.yaml"
 
 # When local_conda_env is set in config, prepend it to PATH in every shell job.
 # Leave unset on HPC/AWS — Singularity containers provide the correct PATH.
+import os
 _conda_env = config.get("local_conda_env", "")
-if _conda_env:
+if _conda_env and os.path.isdir(_conda_env):   # only apply if path exists on this machine
     shell.executable("/bin/bash")
     shell.prefix(f"export PATH={_conda_env}/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH; ")
 
