@@ -172,7 +172,7 @@ rule fastp:
 # ============================================================================
 
 rule samtools_faidx:
-    container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         config["reference"],
     output:
@@ -181,7 +181,7 @@ rule samtools_faidx:
         "samtools faidx {input}"
 
 rule bwa_index:
-    container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         config["reference"],
     output:
@@ -197,7 +197,7 @@ rule bwa_index:
 # ============================================================================
 
 rule bwa_map:
-    container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         r1="results/trimmed/{sample}_1.fastq.gz",
         r2="results/trimmed/{sample}_2.fastq.gz",
@@ -218,7 +218,7 @@ rule bwa_map:
         """
 
 rule mark_duplicates:
-    container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         "results/bams/{sample}.raw.bam",
     output:
@@ -240,7 +240,7 @@ rule mark_duplicates:
         """
 
 rule flagstat:
-    container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         "results/bams/{sample}.dedup.bam",
     output:
@@ -253,7 +253,7 @@ rule flagstat:
 # ============================================================================
 
 rule make_chrom_regions:
-    container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         fai=config["reference"] + ".fai",
     output:
@@ -266,7 +266,7 @@ rule make_chrom_regions:
         """
 
 rule make_nonrepeat_bed:
-    container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         ref=config["reference"],
         chroms="results/filtering/chromosomes.bed",
@@ -288,7 +288,7 @@ rule filter_mapped:
     Uses realpath to embed absolute reference path so CRAM is portable between rules.
     dedup.bam is deleted by Snakemake after this rule completes (marked temp).
     """
-    container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         bam="results/bams/{sample}.dedup.bam",
         bed="results/filtering/nonrepeat_regions.bed",
@@ -322,7 +322,7 @@ rule sample_depth:
     samtools depth -a was 330M rows per sample — too slow.
     Reports length-weighted mean depth across all chromosomes in the CRAM.
     """
-    container: "docker://quay.io/biocontainers/mulled-v2-bwa-samtools:0.7.17_1.17"
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         cram="results/bams/{sample}.filtered.cram",
         crai="results/bams/{sample}.filtered.cram.crai",
@@ -423,7 +423,7 @@ rule angsd_discover_snps:
 
     Runtime: ~2h for 96 samples; ~50 min for 5 samples
     """
-    container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
         bamlist="results/bamlists/all.bamlist",
         ref=config["reference"],
@@ -478,7 +478,7 @@ rule index_sites:
     individual_saf (one per sample) would all race to write the same
     .bin and .idx files in parallel — silently corrupting the index.
     """
-    container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
         "results/angsd/pass1_snps.txt",
     output:
@@ -496,7 +496,7 @@ rule angsd_gl_snps:
 
     Runtime: 20-30 min for 96 samples
     """
-    container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
         bamlist="results/bamlists/all.bamlist",
         ref=config["reference"],
@@ -541,7 +541,7 @@ rule ngsld_estimate:
 
     Runtime: 25-35 min for ~75K SNPs, 96 samples, 500kb window
     """
-    container: "docker://quay.io/biocontainers/ngsld:1.2.0--h2add14b_1"
+    # ngsLD has no bioconda package/biocontainer — compiled from source on host
     input:
         beagle="results/angsd/all.beagle.gz",
         mafs="results/angsd/all.mafs.gz",
@@ -736,7 +736,7 @@ rule pcangsd_pca:
     PCA using LD-pruned SNPs.
     Runtime: 10-15 min
     """
-    container: "docker://quay.io/biocontainers/pcangsd:1.10--pyhdfd78af_1"
+    container: "docker://quay.io/biocontainers/pcangsd:1.36.4--py313h5d164f8_1"
     input:
         "results/angsd/all.ldpruned.beagle.gz",
     output:
@@ -758,7 +758,7 @@ rule pcangsd_admixture:
     Admixture analysis for K ancestral populations.
     Runtime: 8-12 min per K
     """
-    container: "docker://quay.io/biocontainers/pcangsd:1.10--pyhdfd78af_1"
+    container: "docker://quay.io/biocontainers/pcangsd:1.36.4--py313h5d164f8_1"
     input:
         "results/angsd/all.ldpruned.beagle.gz",
     output:
@@ -787,7 +787,7 @@ rule ngsrelate:
     Kinship/relatedness estimation. -G flag for beagle.gz input. -L for site count.
     Runtime: 12-18 min
     """
-    container: "docker://quay.io/biocontainers/ngsrelate:2.3.2--h9ee0642_0"
+    container: "docker://quay.io/biocontainers/ngsrelate:2.0--hea85c65_0"
     input:
         beagle="results/angsd/all.beagle.gz",
         mafs="results/angsd/all.mafs.gz",
@@ -853,7 +853,7 @@ rule angsd_saf:
     so diversity estimates (π, θ, Tajima's D) are unbiased.
     Runtime: 15-20 min per population
     """
-    container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
         bamlist="results/bamlists/{popname}.bamlist",
         ref=config["reference"],
@@ -884,7 +884,7 @@ rule realsfs:
     """
     1D SFS via ML (EM algorithm). Runtime: 8-12 min per population.
     """
-    container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
         "results/sfs/{popname}.saf.idx",
     output:
@@ -900,7 +900,7 @@ rule thetas:
     """
     π, θ, Tajima's D from SFS-weighted SAF. Runtime: 5-8 min per population.
     """
-    container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
         saf="results/sfs/{popname}.saf.idx",
         sfs="results/sfs/{popname}.sfs",
@@ -925,7 +925,7 @@ rule realsfs_2d:
     2D SFS (joint SFS for two populations). Used as prior for FST.
     Runtime: 15-20 min per population pair.
     """
-    container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
         saf1="results/sfs/{p1}.saf.idx",
         saf2="results/sfs/{p2}.saf.idx",
@@ -942,7 +942,7 @@ rule realsfs_2d:
         """
 
 rule fst_index:
-    container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
         saf1="results/sfs/{p1}.saf.idx",
         saf2="results/sfs/{p2}.saf.idx",
@@ -958,7 +958,7 @@ rule fst_global:
     """
     Global FST + windowed FST (50kb windows, 10kb step).
     """
-    container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
         "results/fst/{p1}_vs_{p2}.fst.idx",
     output:
@@ -981,7 +981,7 @@ rule individual_saf:
     sites_idx dependency ensures index is built before any of the 96 parallel jobs start.
     Runtime: 12-15 min per sample
     """
-    container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
         cram="results/bams/{sample}.filtered.cram",
         crai="results/bams/{sample}.filtered.cram.crai",
@@ -1013,7 +1013,7 @@ rule individual_het:
     Genome-wide heterozygosity per sample from individual SAF.
     Runtime: 1-2 min per sample
     """
-    container: "docker://quay.io/biocontainers/angsd:0.940--h2add14b_0"
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
         "results/heterozygosity/{sample}.saf.idx",
     output:
