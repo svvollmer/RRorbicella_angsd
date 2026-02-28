@@ -32,6 +32,10 @@ from itertools import combinations
 
 configfile: "config/config.yaml"
 
+# Ensure conda env tools and standard utilities are on PATH in every shell job
+shell.executable("/bin/bash")
+shell.prefix("export PATH=/home/minipc/miniconda3/envs/angsd-pipeline/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH; ")
+
 # Load samples
 samples = pd.read_csv(config["samples_csv"])
 SAMPLES = samples["sample_id"].tolist()
@@ -379,7 +383,14 @@ rule angsd_discover_snps:
             -nThreads {threads}
 
         # Extract SNP positions for Pass 2
-        zcat {output.mafs} | tail -n +2 | awk '{{print $1"\t"$2}}' > {output.snplist}
+        python3 -c "
+import gzip, sys
+with gzip.open('{output.mafs}', 'rt') as f:
+    next(f)
+    with open('{output.snplist}', 'w') as out:
+        for line in f:
+            p = line.split('\\t'); out.write(p[0]+'\\t'+p[1]+'\\n')
+"
         """
 
 rule angsd_gl_snps:
@@ -450,9 +461,16 @@ rule ngsld_estimate:
     shell:
         """
         mkdir -p results/ld
-        N_SITES=$(zcat {input.mafs} | tail -n +2 | wc -l)
+        N_SITES=$(python3 -c "import gzip; f=gzip.open('{input.mafs}','rt'); next(f); print(sum(1 for _ in f))")
 
-        zcat {input.mafs} | tail -n +2 | awk '{{print $1"\t"$2}}' > results/ld/snp_pos.txt
+        python3 -c "
+import gzip
+with gzip.open('{input.mafs}', 'rt') as f:
+    next(f)
+    with open('results/ld/snp_pos.txt', 'w') as out:
+        for line in f:
+            p = line.split('\\t'); out.write(p[0]+'\\t'+p[1]+'\\n')
+"
 
         ngsLD --geno {input.beagle} \
             --probs --n_ind {params.n_samples} --n_sites $N_SITES \
@@ -654,7 +672,8 @@ rule ngsrelate:
     shell:
         """
         mkdir -p results/relatedness
-        ngsRelate -g {input.beagle} -n {params.n_samples} -O {params.out} -p {threads}
+        N_SITES=$(python3 -c "import gzip; f=gzip.open('{input.mafs}','rt'); next(f); print(sum(1 for _ in f))")
+        ngsRelate -G {input.beagle} -n {params.n_samples} -L $N_SITES -O {output} -p {threads}
         """
 
 rule process_relatedness:
@@ -679,7 +698,7 @@ rule process_relatedness:
         samples_list = SAMPLES
         matrix = pd.DataFrame(0.0, index=samples_list, columns=samples_list)
         for _, row in rel.iterrows():
-            i, j = int(row['ida']), int(row['idb'])
+            i, j = int(row['a']), int(row['b'])
             if i < len(samples_list) and j < len(samples_list):
                 matrix.iloc[i, j] = row['KING']
                 matrix.iloc[j, i] = row['KING']
@@ -697,9 +716,9 @@ rule process_relatedness:
                 else:
                     continue
 
-                ida, idb = int(row['ida']), int(row['idb'])
-                if ida < len(SAMPLES) and idb < len(SAMPLES):
-                    f.write(f"{SAMPLES[ida]}\t{SAMPLES[idb]}\t{king:.4f}\t{relationship}\n")
+                ia, ib = int(row['a']), int(row['b'])
+                if ia < len(SAMPLES) and ib < len(SAMPLES):
+                    f.write(f"{SAMPLES[ia]}\t{SAMPLES[ib]}\t{king:.4f}\t{relationship}\n")
 
 # ============================================================================
 # 10. PER-POPULATION SAF → SFS → DIVERSITY → FST

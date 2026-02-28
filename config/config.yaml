@@ -3,7 +3,7 @@
 # ============================================================================
 
 # --- Input ---
-samples_csv: "config/samples.csv"
+samples_csv: "config/samples_test.csv"
 reference: "reference/apalmata_genome.fasta"
 gene_annotation: "reference/apalmata_genes.gff"
 
