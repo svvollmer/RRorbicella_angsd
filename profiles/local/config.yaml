@@ -1,6 +1,6 @@
 cores: 16
 jobs: 2
 use-singularity: true
-singularity-args: "--bind /home/minipc/coral-angsd-pipeline"
+singularity-args: "--bind /data/coral-angsd-pipeline"
 keep-going: true
 latency-wait: 60
