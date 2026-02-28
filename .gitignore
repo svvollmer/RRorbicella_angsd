@@ -1,0 +1,50 @@
+# Large data outputs — never commit these
+results/
+tmp/
+reference/
+
+# Raw sequence data
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+*.sra
+
+# BAM/CRAM files
+*.bam
+*.bam.bai
+*.cram
+*.crai
+
+# Large analysis outputs
+*.saf
+*.saf.pos.gz
+*.beagle.gz
+*.mafs.gz
+*.pestPG
+
+# Singularity image cache
+.snakemake/singularity/
+
+# Snakemake metadata (optional — keep if you want to track DAG state)
+.snakemake/
+
+# Log files
+*.log
+logs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Conda/envs (use Singularity instead)
+envs/.conda/
+.snakemake/conda/
+
+# NCBI downloads
+ncbi_dataset/
+ncbi_dataset.zip
+
+# OS
+.DS_Store

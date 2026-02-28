@@ -1,0 +1,75 @@
+# ============================================================================
+# ECOS Population Genomics Pipeline — Configuration
+# ============================================================================
+
+# --- Input ---
+samples_csv: "config/samples.csv"
+reference: "reference/apalmata_genome.fasta"
+gene_annotation: "reference/apalmata_genes.gff"
+
+# --- Grouping ---
+# Which metadata columns define population groupings for FST/diversity
+grouping_variables:
+  - population
+primary_grouping: population
+min_pop_size_fst: 10       # minimum samples per group for FST (flag 10-19, skip <3)
+
+# --- ANGSD parameters ---
+gl_model: 1                # 1=SAMtools, 2=GATK
+minmapq: 20                # min mapping quality
+minq: 20                   # min base quality
+min_maf: 0.10              # min minor allele frequency
+min_ind_frac: 0.80         # fraction of individuals required per site
+snp_pval: "1e-6"           # SNP p-value threshold
+
+# --- Depth filtering ---
+# Max depth auto-calculated as mean + 2SD
+# Min depth per individual: 2 reads (hardcoded)
+min_sample_depth_flag: 10  # flag samples below this mean depth
+min_sample_depth_warn: 5   # warn if user sets below this
+
+# --- Scaffold filtering ---
+min_scaffold_size: 10000000  # 10 Mb — effectively chromosomes only
+
+# --- Repeat masking ---
+# Auto-detected from soft-masked reference (lowercase bases)
+use_repeat_mask: true
+
+# --- Mappability filter ---
+use_mappability: false       # optional, run GenMap if true
+
+# --- LD pruning ---
+ld_max_dist: 500000          # max distance for LD estimation (500 kb)
+ld_r2_threshold: 0.3         # prune pairs above this r2
+ld_decay_threshold: 0.1      # r2 level to determine pruning window
+
+# --- Admixture ---
+max_k: 5                     # test K=2 through this
+admixture_replicates: 10     # replicates per K
+
+# --- Relatedness ---
+kinship_threshold: 0.2       # flag pairs above this
+clone_threshold: 0.45        # classify as clone above this
+
+# --- QC thresholds ---
+min_mapping_rate_flag: 0.50  # flag samples below this
+het_sd_threshold: 2          # flag samples beyond this many SDs
+
+# --- HWE (optional) ---
+use_hwe_filter: false
+hwe_pval: 0.000001
+
+# --- Add-on modules ---
+addons:
+  selection_scan: false
+  demographic_modeling: false
+  local_ancestry: false
+  holobiont: false
+
+# --- Demography options (if enabled) ---
+demography:
+  tool: "fastsimcoal2"
+  models:
+    - "split_no_migration"
+    - "split_symmetric_migration"
+    - "split_bottleneck"

@@ -1,0 +1,18 @@
+# Snakemake SLURM profile for FAU HPC and Northeastern HPC
+# Adjust slurm_partition and slurm_account for your cluster before running.
+#
+# Usage:
+#   snakemake --snakefile workflow/Snakefile --profile profiles/slurm
+#
+# FAU (KoKo) partitions: general, himem, gpu
+# Northeastern (Discovery) partitions: short, long, himem
+executor: slurm
+jobs: 50
+use-singularity: true
+default-resources:
+  slurm_partition: "general"
+  mem_mb: 32000
+  runtime: 120
+  cpus_per_task: 4
+keep-going: true
+latency-wait: 120

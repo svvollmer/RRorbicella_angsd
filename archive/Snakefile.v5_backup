@@ -1,0 +1,722 @@
+import pandas as pd
+import numpy as np
+from itertools import combinations
+
+configfile: "config/config.yaml"
+
+# Load samples
+samples = pd.read_csv(config["samples_csv"])
+SAMPLES = samples["sample_id"].tolist()
+POPS = samples[config["primary_grouping"]].unique().tolist()
+POP_PAIRS = list(combinations(sorted(POPS), 2))
+
+def get_sra(wc):
+    return samples.loc[samples["sample_id"] == wc.sample, "sra_accession"].values[0]
+
+def get_pop_samples(wc):
+    s = samples.loc[samples[config["primary_grouping"]] == wc.popname, "sample_id"].tolist()
+    return expand("results/bams/{sample}.dedup.bam", sample=s)
+
+# ============================================================================
+# FINAL OUTPUTS
+# ============================================================================
+
+rule all:
+    input:
+        # QC
+        "results/multiqc/multiqc_report.html",
+        "results/filtering/filtering_summary.txt",
+        "results/qc/depth_summary.txt",
+        # Filtering
+        "results/filtering/nonrepeat_regions.bed",
+        # PCA
+        "results/pca/pcangsd.cov",
+        # Per-population diversity
+        expand("results/diversity/{popname}.thetas.idx.pestPG", popname=POPS),
+        # FST (only if 2+ populations)
+        [f"results/fst/{p[0]}_vs_{p[1]}.fst.global" for p in POP_PAIRS] if len(POPS) > 1 else [],
+        # Admixture
+        expand("results/admixture/K{k}_rep{rep}.qopt",
+		k=range(2, config.get("max_k", 5) + 1),
+		rep=range(1, config.get("admixture_replicates", 10) + 1)),
+        "results/admixture/best_k.txt",
+        # Individual heterozygosity
+        expand("results/heterozygosity/{sample}.het", sample=SAMPLES),
+        # LD
+        "results/ld/ld_decay.csv",
+        "results/ld/ld_prune_window.txt",
+        # Relatedness
+        "results/relatedness/relatedness_matrix.txt",
+        "results/relatedness/relatedness_summary.txt",
+        # Annotations
+        "results/annotation/gene_regions.bed",
+        "results/annotation/fst_outliers_annotated.csv",
+        "results/annotation/immune_gene_enrichment.txt",
+        # Final report
+        "results/report.html",
+
+# ============================================================================
+# 1. DOWNLOAD FROM SRA
+# ============================================================================
+
+rule download_sra:
+    output:
+        r1=temp("results/fastq/{sample}_1.fastq.gz"),
+        r2=temp("results/fastq/{sample}_2.fastq.gz"),
+    params:
+        acc=get_sra,
+        tmpdir="tmp/{sample}",
+    threads: 4
+    shell:
+        """
+        mkdir -p {params.tmpdir}
+        prefetch {params.acc} -O {params.tmpdir}
+        fasterq-dump {params.tmpdir}/{params.acc} \
+            -O results/fastq -e {threads} \
+            --split-files --temp {params.tmpdir}
+        gzip results/fastq/{params.acc}_1.fastq
+        gzip results/fastq/{params.acc}_2.fastq
+        mv results/fastq/{params.acc}_1.fastq.gz {output.r1}
+        mv results/fastq/{params.acc}_2.fastq.gz {output.r2}
+        rm -rf {params.tmpdir}
+        """
+
+# ============================================================================
+# 2. QC AND TRIMMING
+# ============================================================================
+
+rule fastp:
+    input:
+        r1="results/fastq/{sample}_1.fastq.gz",
+        r2="results/fastq/{sample}_2.fastq.gz",
+    output:
+        r1=temp("results/trimmed/{sample}_1.fastq.gz"),
+        r2=temp("results/trimmed/{sample}_2.fastq.gz"),
+        html="results/qc/{sample}_fastp.html",
+        json="results/qc/{sample}_fastp.json",
+    threads: 4
+    shell:
+        """
+        fastp -i {input.r1} -I {input.r2} \
+            -o {output.r1} -O {output.r2} \
+            -h {output.html} -j {output.json} \
+            --thread {threads} \
+            --detect_adapter_for_pe \
+            --cut_front --cut_tail \
+            --trim_poly_g
+        """
+
+# ============================================================================
+# 3. REFERENCE INDEXING
+# ============================================================================
+
+rule samtools_faidx:
+    input:
+        config["reference"],
+    output:
+        config["reference"] + ".fai",
+    shell:
+        "samtools faidx {input}"
+
+rule bwa_index:
+    input:
+        config["reference"],
+    output:
+        multiext(config["reference"], ".amb", ".ann", ".bwt", ".pac", ".sa"),
+    shell:
+        "bwa index {input}"
+
+# ============================================================================
+# 4. MAPPING
+# ============================================================================
+
+rule bwa_map:
+    input:
+        r1="results/trimmed/{sample}_1.fastq.gz",
+        r2="results/trimmed/{sample}_2.fastq.gz",
+        ref=config["reference"],
+        idx=multiext(config["reference"], ".amb", ".ann", ".bwt", ".pac", ".sa"),
+    output:
+        temp("results/bams/{sample}.raw.bam"),
+    threads: 16
+    shell:
+        """
+        bwa mem -t {threads} \
+            -R '@RG\\tID:{wildcards.sample}\\tSM:{wildcards.sample}\\tPL:ILLUMINA' \
+            {input.ref} {input.r1} {input.r2} \
+        | samtools sort -@ 4 -m 2G -o {output} -
+        """
+
+rule mark_duplicates:
+    input:
+        "results/bams/{sample}.raw.bam",
+    output:
+        bam="results/bams/{sample}.dedup.bam",
+        bai="results/bams/{sample}.dedup.bam.bai",
+        metrics="results/qc/{sample}.dedup_metrics.txt",
+    threads: 4
+    shell:
+        """
+        samtools sort -n -@ {threads} {input} \
+        | samtools fixmate -m - - \
+        | samtools sort -@ {threads} - \
+        | samtools markdup - {output.bam}
+        samtools index -@ {threads} {output.bam}
+        samtools flagstat {output.bam} > {output.metrics}
+        """
+
+rule flagstat:
+    input:
+        "results/bams/{sample}.dedup.bam",
+    output:
+        "results/qc/{sample}.flagstat.txt",
+    shell:
+        "samtools flagstat {input} > {output}"
+
+rule multiqc:
+    input:
+        expand("results/qc/{sample}_fastp.json", sample=SAMPLES),
+        expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
+    output:
+        "results/multiqc/multiqc_report.html",
+    shell:
+        """
+        mkdir -p results/multiqc
+        echo '<html><body><h1>MultiQC Report Placeholder</h1><p>Install multiqc for full report</p></body></html>' > {output}
+        """
+
+# ============================================================================
+# 5. FILTERING SETUP
+# ============================================================================
+
+rule make_chrom_regions:
+    input:
+        fai=config["reference"] + ".fai",
+    output:
+        bed="results/filtering/chromosomes.bed",
+    params:
+        min_size=config.get("min_scaffold_size", 10000000),
+    shell:
+        """
+        awk '$2 >= {params.min_size} {{print $1"\\t0\\t"$2}}' {input.fai} > {output.bed}
+        """
+
+rule make_nonrepeat_bed:
+    input:
+        ref=config["reference"],
+        chroms="results/filtering/chromosomes.bed",
+    output:
+        bed="results/filtering/nonrepeat_regions.bed",
+    shell:
+        """
+        python3 scripts/create_nonrepeat_bed.py \
+            {input.ref} {input.chroms} {output.bed} \
+            --min-length 100 \
+            --merge-gap 50
+        """
+
+rule extract_unmapped:
+    input:
+        "results/bams/{sample}.dedup.bam",
+    output:
+        temp("results/bams/{sample}.unmapped.bam"),
+    shell:
+        "samtools view -b -f 4 {input} > {output}"
+
+rule filter_mapped:
+    input:
+        bam="results/bams/{sample}.dedup.bam",
+        bed="results/filtering/nonrepeat_regions.bed",
+    output:
+        "results/bams/{sample}.filtered.bam",
+    params:
+        mapq=config.get("minmapq", 20),
+    shell:
+        """
+        samtools view -b -q {params.mapq} -L {input.bed} {input.bam} > {output}
+        samtools index {output}
+        """
+
+rule sample_depth:
+    input:
+        "results/bams/{sample}.filtered.bam",
+    output:
+        "results/qc/{sample}.depth.txt",
+    shell:
+        "samtools depth -a {input} | awk '{{sum+=$3}} END {{print sum/NR}}' > {output}"
+
+rule depth_summary:
+    input:
+        expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
+    output:
+        "results/qc/depth_summary.txt",
+    run:
+        with open(output[0], 'w') as out:
+            out.write("sample\\tmean_depth\\n")
+            for f in input:
+                sample = f.split('/')[-1].replace('.depth.txt', '')
+                with open(f) as fh:
+                    depth = fh.read().strip()
+                out.write(f"{sample}\\t{depth}\\n")
+
+rule filtering_summary:
+    input:
+        expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
+        expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
+    output:
+        "results/filtering/filtering_summary.txt",
+    run:
+        with open(output[0], 'w') as out:
+            out.write("Sample\\tTotal_reads\\tMapped_reads\\tMapping_rate\\tMean_depth\\n")
+            for sample in SAMPLES:
+                flagstat_file = f"results/qc/{sample}.flagstat.txt"
+                depth_file = f"results/qc/{sample}.depth.txt"
+                
+                with open(flagstat_file) as f:
+                    lines = f.readlines()
+                    total = lines[0].split()[0]
+                    mapped = lines[4].split()[0]
+                    rate = float(mapped) / float(total) if float(total) > 0 else 0
+                
+                with open(depth_file) as f:
+                    depth = f.read().strip()
+                
+                out.write(f"{sample}\\t{total}\\t{mapped}\\t{rate:.4f}\\t{depth}\\n")
+
+# ============================================================================
+# 6. ANGSD ANALYSIS
+# ============================================================================
+
+rule make_bamlist_all:
+    input:
+        expand("results/bams/{sample}.filtered.bam", sample=SAMPLES),
+    output:
+        "results/bamlists/all.bamlist",
+    shell:
+        "ls {input} > {output}"
+
+rule make_bamlist_pop:
+    input:
+        bams=get_pop_samples,
+    output:
+        "results/bamlists/{popname}.bamlist",
+    shell:
+        "echo {input.bams} | tr ' ' '\\n' > {output}"
+
+rule angsd_gl_allsites:
+    input:
+        bamlist="results/bamlists/all.bamlist",
+        ref=config["reference"],
+        fai=config["reference"] + ".fai",
+        bed="results/filtering/nonrepeat_regions.bed",
+    output:
+        beagle="results/angsd/all.beagle.gz",
+        mafs="results/angsd/all.mafs.gz",
+    params:
+        out="results/angsd/all",
+        gl=config.get("gl_model", 1),
+        minmapq=config.get("minmapq", 20),
+        minq=config.get("minq", 20),
+        minmaf=config.get("min_maf", 0.05),
+        snp_pval=config.get("snp_pval", "1e-6"),
+        min_ind=int(len(SAMPLES) * config.get("min_ind_frac", 0.8)),
+    threads: 16
+    shell:
+        """
+        angsd -bam {input.bamlist} -ref {input.ref} -out {params.out} \
+            -GL {params.gl} -doMajorMinor 1 -doMaf 1 -doGlf 2 \
+            -SNP_pval {params.snp_pval} -minMaf {params.minmaf} \
+            -minMapQ {params.minmapq} -minQ {params.minq} \
+            -minInd {params.min_ind} \
+            -rf {input.bed} \
+            -nThreads {threads}
+        """
+
+rule angsd_saf:
+    input:
+        bamlist="results/bamlists/{popname}.bamlist",
+        ref=config["reference"],
+        fai=config["reference"] + ".fai",
+        regions="results/filtering/nonrepeat_regions.bed",
+    output:
+        saf="results/sfs/{popname}.saf.idx",
+    params:
+        out="results/sfs/{popname}",
+        gl=config.get("gl_model", 1),
+        minmapq=config.get("minmapq", 20),
+        minq=config.get("minq", 20),
+    threads: 8
+    shell:
+        """
+        angsd -bam {input.bamlist} -ref {input.ref} -anc {input.ref} \
+            -out {params.out} \
+            -GL {params.gl} -doSaf 1 \
+            -minMapQ {params.minmapq} -minQ {params.minq} \
+            -rf {input.regions} \
+            -nThreads {threads}
+        """
+
+rule realsfs:
+    input:
+        "results/sfs/{popname}.saf.idx",
+    output:
+        "results/sfs/{popname}.sfs",
+    threads: 8
+    shell:
+        "realSFS {input} -P {threads} > {output}"
+
+rule thetas:
+    input:
+        saf="results/sfs/{popname}.saf.idx",
+        sfs="results/sfs/{popname}.sfs",
+    output:
+        idx="results/diversity/{popname}.thetas.idx",
+        pestpg="results/diversity/{popname}.thetas.idx.pestPG",
+    params:
+        out="results/diversity/{popname}",
+    threads: 8
+    shell:
+        """
+        realSFS saf2theta {input.saf} -sfs {input.sfs} -outname {params.out} -P {threads}
+        thetaStat do_stat {output.idx}
+        """
+
+rule realsfs_2d:
+    input:
+        saf1="results/sfs/{p1}.saf.idx",
+        saf2="results/sfs/{p2}.saf.idx",
+    output:
+        "results/fst/{p1}_vs_{p2}.2dsfs",
+    threads: 8
+    shell:
+        "realSFS {input.saf1} {input.saf2} -P {threads} > {output}"
+
+rule fst_index:
+    input:
+        saf1="results/sfs/{p1}.saf.idx",
+        saf2="results/sfs/{p2}.saf.idx",
+        sfs="results/fst/{p1}_vs_{p2}.2dsfs",
+    output:
+        "results/fst/{p1}_vs_{p2}.fst.idx",
+    params:
+        out="results/fst/{p1}_vs_{p2}",
+    shell:
+        "realSFS fst index {input.saf1} {input.saf2} -sfs {input.sfs} -fstout {params.out}"
+
+rule fst_global:
+    input:
+        "results/fst/{p1}_vs_{p2}.fst.idx",
+    output:
+        fst_global="results/fst/{p1}_vs_{p2}.fst.global",
+        windows="results/fst/{p1}_vs_{p2}.fst.windows",
+    shell:
+        """
+        realSFS fst stats {input} > {output.fst_global}
+        realSFS fst stats2 {input} -win 50000 -step 10000 -type 2 > {output.windows}
+        """
+
+rule individual_saf:
+    input:
+        bam="results/bams/{sample}.filtered.bam",
+        ref=config["reference"],
+        fai=config["reference"] + ".fai",
+    output:
+        temp("results/heterozygosity/{sample}.saf.idx"),
+    params:
+        out="results/heterozygosity/{sample}",
+        gl=config.get("gl_model", 1),
+    threads: 4
+    shell:
+        """
+        angsd -i {input.bam} -ref {input.ref} -anc {input.ref} \
+            -GL {params.gl} -doSaf 1 \
+            -minMapQ 20 -minQ 20 \
+            -nThreads {threads} -out {params.out}
+        """
+
+rule individual_het:
+    input:
+        "results/heterozygosity/{sample}.saf.idx",
+    output:
+        "results/heterozygosity/{sample}.het",
+    shell:
+        "realSFS {input} > {output}"
+
+# ============================================================================
+# 7. PCA
+# ============================================================================
+
+rule pcangsd:
+    input:
+        "results/angsd/all.beagle.gz",
+    output:
+        cov="results/pca/pcangsd.cov",
+    params:
+        out="results/pca/pcangsd",
+    threads: 8
+    shell:
+        "pcangsd -b {input} -o {params.out} -t {threads}"
+
+# ============================================================================
+# 8. ADMIXTURE
+# ============================================================================
+
+rule ngsadmix_rep:
+    input:
+        "results/angsd/all.beagle.gz",
+    output:
+        qopt="results/admixture/K{k}_rep{rep}.qopt",
+        fopt="results/admixture/K{k}_rep{rep}.fopt.gz",
+        log="results/admixture/K{k}_rep{rep}.log",
+    params:
+        out="results/admixture/K{k}_rep{rep}",
+    threads: 4
+    shell:
+        "NGSadmix -likes {input} -K {wildcards.k} -o {params.out} -P {threads} -minMaf 0.05 > {output.log} 2>&1"
+
+rule select_best_k:
+    input:
+        expand("results/admixture/K{k}_rep{rep}.log",
+               k=range(2, config.get("max_k", 5) + 1),
+               rep=range(1, config.get("admixture_replicates", 10) + 1)),
+    output:
+        "results/admixture/best_k.txt",
+    run:
+        import re
+        results = {}
+        for log in input:
+            k = int(re.search(r'K(\d+)', log).group(1))
+            with open(log) as f:
+                for line in f:
+                    if 'best like=' in line:
+                        like = float(line.split('best like=')[1].split()[0])
+                        if k not in results:
+                            results[k] = []
+                        results[k].append(like)
+        
+        with open(output[0], 'w') as out:
+            out.write("K\tmean_loglike\tstd_loglike\n")
+            for k in sorted(results.keys()):
+                mean_like = np.mean(results[k])
+                std_like = np.std(results[k])
+                out.write(f"{k}\t{mean_like}\t{std_like}\n")
+
+# ============================================================================
+# 9. LD ANALYSIS
+# ============================================================================
+
+rule ngsld_estimate:
+    input:
+        beagle="results/angsd/all.beagle.gz",
+        mafs="results/angsd/all.mafs.gz",
+    output:
+        ld_raw=temp("results/ld/ld_raw.tsv"),
+    params:
+        max_dist=config.get("ld_max_dist", 500000),
+        n_samples=len(SAMPLES),
+    threads: 8
+    shell:
+        """
+        mkdir -p results/ld
+        N_SITES=$(zcat {input.mafs} | tail -n +2 | wc -l)
+        N_IND={params.n_samples}
+        
+        zcat {input.mafs} | tail -n +2 | awk '{{print $1"\t"$2}}' > results/ld/snp_pos.txt
+        
+        ngsLD --geno {input.beagle} --out {output.ld_raw} \
+            --probs --n_ind $N_IND --n_sites $N_SITES \
+            --max_kb_dist {params.max_dist} \
+            --pos results/ld/snp_pos.txt \
+            --n_threads {threads}
+        """
+
+rule ld_decay:
+    input:
+        "results/ld/ld_raw.tsv",
+    output:
+        decay="results/ld/ld_decay.csv",
+        window="results/ld/ld_prune_window.txt",
+    params:
+        threshold=config.get("ld_decay_threshold", 0.1),
+    run:
+        import pandas as pd
+        ld = pd.read_csv(input[0], sep='\t', header=None,
+                        names=['chr1', 'pos1', 'chr2', 'pos2', 'r2'])
+        ld['dist'] = abs(ld['pos2'] - ld['pos1'])
+        
+        bins = [0, 1000, 5000, 10000, 50000, 100000, 500000]
+        ld['bin'] = pd.cut(ld['dist'], bins=bins)
+        decay = ld.groupby('bin')['r2'].agg(['mean', 'median', 'count']).reset_index()
+        decay.to_csv(output.decay, index=False)
+        
+        for i, row in decay.iterrows():
+            if row['mean'] < params.threshold:
+                window_kb = bins[i] / 1000
+                with open(output.window, 'w') as f:
+                    f.write(f"{window_kb}\n")
+                break
+
+rule ld_prune:
+    input:
+        ld="results/ld/ld_raw.tsv",
+        window="results/ld/ld_prune_window.txt",
+    output:
+        "results/ld/pruned_snps.txt",
+    params:
+        r2_threshold=config.get("ld_r2_threshold", 0.3),
+    run:
+        import pandas as pd
+        ld = pd.read_csv(input.ld, sep='\t', header=None,
+                        names=['chr1', 'pos1', 'chr2', 'pos2', 'r2'])
+        
+        high_ld = ld[ld['r2'] > params.r2_threshold]
+        
+        remove_snps = set()
+        for _, row in high_ld.iterrows():
+            snp1 = f"{row['chr1']}:{row['pos1']}"
+            snp2 = f"{row['chr2']}:{row['pos2']}"
+            if snp1 not in remove_snps and snp2 not in remove_snps:
+                remove_snps.add(snp2)
+        
+        with open(output[0], 'w') as f:
+            for snp in sorted(remove_snps):
+                f.write(f"{snp}\n")
+
+# ============================================================================
+# 10. RELATEDNESS
+# ============================================================================
+
+rule ngsrelate:
+    input:
+        beagle="results/angsd/all.beagle.gz",
+        mafs="results/angsd/all.mafs.gz",
+    output:
+        "results/relatedness/relatedness.res",
+    params:
+        out="results/relatedness/relatedness",
+        n_samples=len(SAMPLES),
+    threads: 8
+    shell:
+        """
+        mkdir -p results/relatedness
+        N_SITES=$(zcat {input.mafs} | tail -n +2 | wc -l)
+        ngsRelate -g {input.beagle} -n {params.n_samples} -O {params.out} -z $N_SITES -p {threads}
+        """
+
+rule process_relatedness:
+    input:
+        "results/relatedness/relatedness.res",
+    output:
+        matrix="results/relatedness/relatedness_matrix.txt",
+        summary="results/relatedness/relatedness_summary.txt",
+    params:
+        kinship_threshold=config.get("kinship_threshold", 0.2),
+        clone_threshold=config.get("clone_threshold", 0.45),
+    run:
+        import pandas as pd
+        rel = pd.read_csv(input[0], sep='\t')
+        
+        samples = SAMPLES
+        matrix = pd.DataFrame(0.0, index=samples, columns=samples)
+        for _, row in rel.iterrows():
+            i, j = int(row['ida']), int(row['idb'])
+            if i < len(samples) and j < len(samples):
+                matrix.iloc[i, j] = row['KING']
+                matrix.iloc[j, i] = row['KING']
+        matrix.to_csv(output.matrix, sep='\t')
+        
+        with open(output.summary, 'w') as f:
+            f.write("Sample_A\tSample_B\tKING\tRelationship\n")
+            for _, row in rel.iterrows():
+                king = row['KING']
+                if king > params.clone_threshold:
+                    relationship = "Clone/Identical"
+                elif king > params.kinship_threshold:
+                    relationship = "Close_relative"
+                else:
+                    continue
+                f.write(f"{SAMPLES[int(row['ida'])]}\t{SAMPLES[int(row['idb'])]}\t{king:.4f}\t{relationship}\n")
+
+# ============================================================================
+# 11. GENE ANNOTATION
+# ============================================================================
+
+rule make_gene_bed:
+    input:
+        gff=config.get("gene_annotation", ""),
+    output:
+        bed="results/annotation/gene_regions.bed",
+    shell:
+        """
+        mkdir -p results/annotation
+        if [ -f {input.gff} ]; then
+            grep -v "^#" {input.gff} | awk '$3=="gene" {{print $1"\t"$4-1"\t"$5"\t"$9}}' > {output.bed}
+        else
+            touch {output.bed}
+        fi
+        """
+
+rule annotate_fst_outliers:
+    input:
+        fst=[f"results/fst/{p[0]}_vs_{p[1]}.fst.windows" for p in POP_PAIRS] if len(POPS) > 1 else [],
+        genes="results/annotation/gene_regions.bed",
+    output:
+        "results/annotation/fst_outliers_annotated.csv",
+    run:
+        if len(POPS) < 2 or not input.fst:
+            with open(output[0], 'w') as f:
+                f.write("chr,start,end,fst,comparison,overlapping_genes\n")
+        else:
+            import pandas as pd
+            outliers = []
+            for fst_file in input.fst:
+                comp = fst_file.split('/')[-1].replace('.fst.windows', '')
+                df = pd.read_csv(fst_file, sep='\t', header=None,
+                               names=['region', 'chr', 'midPos', 'Nsites', 'fst'])
+                threshold = df['fst'].quantile(0.95)
+                out = df[df['fst'] > threshold]
+                out['comparison'] = comp
+                outliers.append(out)
+            
+            if outliers:
+                all_outliers = pd.concat(outliers)
+                all_outliers.to_csv(output[0], index=False)
+            else:
+                with open(output[0], 'w') as f:
+                    f.write("chr,start,end,fst,comparison,overlapping_genes\n")
+
+rule immune_gene_enrichment:
+    input:
+        outliers="results/annotation/fst_outliers_annotated.csv",
+        genes="results/annotation/gene_regions.bed",
+    output:
+        "results/annotation/immune_gene_enrichment.txt",
+    shell:
+        """
+        echo "Immune gene enrichment analysis would go here" > {output}
+        echo "Requires immune gene list" >> {output}
+        """
+
+# ============================================================================
+# 12. REPORTING
+# ============================================================================
+
+rule generate_report:
+    input:
+        filtering="results/filtering/filtering_summary.txt",
+        depth="results/qc/depth_summary.txt",
+        pca="results/pca/pcangsd.cov",
+        admix="results/admixture/best_k.txt",
+        ld="results/ld/ld_decay.csv",
+        relatedness="results/relatedness/relatedness_summary.txt",
+        fst_outliers="results/annotation/fst_outliers_annotated.csv",
+    output:
+        "results/report.html",
+    shell:
+        """
+        echo "<html><body><h1>ANGSD Analysis Complete</h1>" > {output}
+        echo "<p>All analyses finished successfully.</p>" >> {output}
+        echo "<h2>Samples: {SAMPLES}</h2>" >> {output}
+        echo "<h2>Populations: {POPS}</h2>" >> {output}
+        echo "</body></html>" >> {output}
+        """

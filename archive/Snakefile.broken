@@ -1,0 +1,1332 @@
+import pandas as pd
+import numpy as np
+from itertools import combinations
+from pathlib import Path
+
+configfile: "config/config.yaml"
+
+# ============================================================================
+# LOAD SAMPLES AND CONFIG
+# ============================================================================
+
+samples = pd.read_csv(config["samples_csv"])
+SAMPLES = samples["sample_id"].tolist()
+POPS = samples["population"].unique().tolist()
+POP_PAIRS = list(combinations(sorted(POPS), 2))
+REF = config["reference"]
+
+# Add-on modules
+ADDONS = config.get("addons", {})
+DO_SELECTION = ADDONS.get("selection_scan", False)
+DO_DEMOGRAPHY = ADDONS.get("demographic_modeling", False)
+DO_LOCAL_ANCESTRY = ADDONS.get("local_ancestry", False)
+DO_HOLOBIONT = ADDONS.get("holobiont", False)
+
+# Admixture settings
+ADMIX_REPS = config.get("admixture_replicates", 10)
+MAX_K = config.get("max_k", 5)
+K_VALUES = list(range(2, MAX_K + 1))
+
+# Min samples for FST
+MIN_POP_SIZE = config.get("min_pop_size_fst", 10)
+
+def get_sra(wc):
+    return samples.loc[samples["sample_id"] == wc.sample, "sra_accession"].values[0]
+
+def get_pop_samples(wc):
+    s = samples.loc[samples["population"] == wc.popname, "sample_id"].tolist()
+    return expand("results/bams/{sample}.dedup.bam", sample=s)
+
+def get_fst_targets():
+    """Only run FST for population pairs with enough samples"""
+    targets = []
+    for p1, p2 in POP_PAIRS:
+        n1 = len(samples[samples["population"] == p1])
+        n2 = len(samples[samples["population"] == p2])
+        if n1 >= MIN_POP_SIZE and n2 >= MIN_POP_SIZE:
+            targets.append(f"results/fst/{p1}_vs_{p2}.fst.global")
+        elif n1 >= 3 and n2 >= 3:
+            # Run but flag as low sample size
+            targets.append(f"results/fst/{p1}_vs_{p2}.fst.global")
+    return targets
+
+# ============================================================================
+# CHROMOSOME LIST — auto-detect from reference .fai
+# ============================================================================
+
+def get_chromosomes():
+    """Get chromosome names from fai, filter by min size"""
+    fai = REF + ".fai"
+    if not Path(fai).exists():
+        return []
+    min_size = config.get("min_scaffold_size", 10_000_000)
+    chroms = []
+    with open(fai) as f:
+        for line in f:
+            parts = line.strip().split("\t")
+            if int(parts[1]) >= min_size:
+                chroms.append(parts[0])
+    return chroms
+
+# ============================================================================
+# RULE ALL — master target
+# ============================================================================
+
+rule all:
+    input:
+        # QC
+        "results/multiqc/multiqc_report.html",
+        # Mapping stats
+        expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
+        # Unmapped reads
+        expand("results/unmapped/{sample}_unmapped.fastq.gz", sample=SAMPLES),
+        # Depth summary
+        "results/qc/depth_summary.csv",
+        # Repeat masking stats
+        "results/filtering/repeat_stats.txt",
+        # Filtering summary
+        "results/filtering/site_filter_summary.csv",
+        # Ts/Tv
+        "results/qc/tstv_ratio.txt",
+        # Relatedness
+        "results/relatedness/pairwise_kinship.csv",
+        "results/relatedness/unique_genotypes.csv",
+        # LD decay
+        "results/ld/ld_decay.csv",
+        # PCA (LD-pruned)
+        "results/pca/pcangsd.cov",
+        # Admixture (LD-pruned, multiple reps)
+        expand("results/admixture/K{k}_rep{r}.qopt", k=K_VALUES, r=range(1, ADMIX_REPS + 1)),
+        "results/admixture/best_k.txt",
+        # Diversity per pop
+        expand("results/diversity/{popname}.thetas.idx.pestPG", popname=POPS),
+        # FST
+        get_fst_targets(),
+        # Gene annotations
+        "results/annotation/gene_lookup.csv",
+        expand("results/annotation/fst_{p1}_vs_{p2}_outlier_genes.csv",
+               p1=[p[0] for p in POP_PAIRS], p2=[p[1] for p in POP_PAIRS]),
+        expand("results/annotation/fst_{p1}_vs_{p2}_enrichment.csv",
+               p1=[p[0] for p in POP_PAIRS], p2=[p[1] for p in POP_PAIRS]),
+        # Heterozygosity
+        expand("results/heterozygosity/{sample}.het", sample=SAMPLES),
+        # Report
+        "deliverables/report.html",
+
+# ============================================================================
+# 1. DOWNLOAD FROM SRA
+# ============================================================================
+
+rule download_sra:
+    output:
+        r1=temp("results/fastq/{sample}_1.fastq.gz"),
+        r2=temp("results/fastq/{sample}_2.fastq.gz"),
+    params:
+        acc=get_sra,
+        tmpdir="tmp/{sample}",
+    threads: 4
+    shell:
+        """
+        mkdir -p {params.tmpdir} results/fastq
+        prefetch {params.acc} -O {params.tmpdir}
+        fasterq-dump {params.tmpdir}/{params.acc} \
+            -O results/fastq -e {threads} \
+            --split-files --temp {params.tmpdir}
+        pigz -p {threads} results/fastq/{params.acc}_1.fastq
+        pigz -p {threads} results/fastq/{params.acc}_2.fastq
+        mv results/fastq/{params.acc}_1.fastq.gz {output.r1}
+        mv results/fastq/{params.acc}_2.fastq.gz {output.r2}
+        rm -rf {params.tmpdir}
+        """
+
+# ============================================================================
+# 2. QC & TRIM
+# ============================================================================
+
+rule fastp:
+    input:
+        r1="results/fastq/{sample}_1.fastq.gz",
+        r2="results/fastq/{sample}_2.fastq.gz",
+    output:
+        r1=temp("results/trimmed/{sample}_1.fastq.gz"),
+        r2=temp("results/trimmed/{sample}_2.fastq.gz"),
+        html="results/qc/{sample}_fastp.html",
+        json="results/qc/{sample}_fastp.json",
+    threads: 4
+    shell:
+        """
+        fastp -i {input.r1} -I {input.r2} \
+            -o {output.r1} -O {output.r2} \
+            --detect_adapter_for_pe --thread {threads} \
+            --html {output.html} --json {output.json}
+        """
+
+rule multiqc:
+    input:
+        expand("results/qc/{sample}_fastp.json", sample=SAMPLES),
+    output:
+        "results/multiqc/multiqc_report.html",
+    shell:
+        "multiqc results/qc -o results/multiqc --force"
+
+# ============================================================================
+# 3. REFERENCE INDEXING
+# ============================================================================
+
+rule bwa_index:
+    input:
+        REF,
+    output:
+        multiext(REF, ".amb", ".ann", ".bwt", ".pac", ".sa"),
+    shell:
+        "bwa index {input}"
+
+rule samtools_faidx:
+    input:
+        REF,
+    output:
+        REF + ".fai",
+    shell:
+        "samtools faidx {input}"
+
+# ============================================================================
+# 4. GENERATE REGIONS AND SITES FILES
+# ============================================================================
+
+rule make_chrom_regions:
+    """Extract chromosome-only regions from fai (filter small scaffolds)"""
+    input:
+        REF + ".fai",
+    output:
+        regions="results/filtering/chrom_regions.txt",
+    params:
+        min_size=config.get("min_scaffold_size", 10_000_000),
+    run:
+        with open(input[0]) as f, open(output.regions, "w") as out:
+            for line in f:
+                parts = line.strip().split("\t")
+                if int(parts[1]) >= params.min_size:
+                    out.write(f"{parts[0]}\n")
+
+rule make_nonrepeat_bed:
+    """Convert soft-masked reference to BED of non-repeat regions on chromosomes"""
+    input:
+        ref=REF,
+        fai=REF + ".fai",
+    output:
+        bed="results/filtering/nonrepeat_regions.bed",
+        repeat_stats="results/filtering/repeat_stats.txt",
+    params:
+        min_size=config.get("min_scaffold_size", 10_000_000),
+    run:
+        # Get valid chroms
+        valid_chroms = set()
+        with open(input.fai) as f:
+            for line in f:
+                parts = line.strip().split("\t")
+                if int(parts[1]) >= params.min_size:
+                    valid_chroms.add(parts[0])
+        
+        total_bp = 0
+        repeat_bp = 0
+        nonrepeat_bp = 0
+        
+        with open(input.ref) as fin, open(output.bed, "w") as fout:
+            chrom = None
+            pos = 0
+            in_upper = False
+            start = 0
+            
+            for line in fin:
+                if line.startswith(">"):
+                    # Close previous region
+                    if in_upper and chrom and chrom in valid_chroms:
+                        fout.write(f"{chrom}\t{start}\t{pos}\n")
+                        nonrepeat_bp += pos - start
+                    chrom = line.strip().split()[0][1:]
+                    pos = 0
+                    in_upper = False
+                    continue
+                
+                if chrom not in valid_chroms:
+                    pos += len(line.strip())
+                    continue
+                
+                for base in line.strip():
+                    total_bp += 1
+                    if base.isupper():
+                        if not in_upper:
+                            start = pos
+                            in_upper = True
+                    else:
+                        repeat_bp += 1
+                        if in_upper:
+                            fout.write(f"{chrom}\t{start}\t{pos}\n")
+                            nonrepeat_bp += pos - start
+                            in_upper = False
+                    pos += 1
+            
+            # Close final region
+            if in_upper and chrom and chrom in valid_chroms:
+                fout.write(f"{chrom}\t{start}\t{pos}\n")
+                nonrepeat_bp += pos - start
+        
+        with open(output.repeat_stats, "w") as out:
+            out.write(f"total_bp\t{total_bp}\n")
+            out.write(f"repeat_bp\t{repeat_bp}\n")
+            out.write(f"nonrepeat_bp\t{nonrepeat_bp}\n")
+            out.write(f"repeat_pct\t{repeat_bp/total_bp*100:.1f}\n")
+            n_regions = sum(1 for _ in open(output.bed))
+            out.write(f"n_nonrepeat_regions\t{n_regions}\n")
+
+# ============================================================================
+# 5. MAPPING — split mapped and unmapped
+# ============================================================================
+
+rule bwa_map:
+    input:
+        r1="results/trimmed/{sample}_1.fastq.gz",
+        r2="results/trimmed/{sample}_2.fastq.gz",
+        ref=REF,
+        idx=multiext(REF, ".amb", ".ann", ".bwt", ".pac", ".sa"),
+    output:
+        fullbam=temp("results/bams/{sample}.raw.bam"),
+    params:
+        rg=r"@RG\tID:{sample}\tSM:{sample}\tPL:ILLUMINA\tLB:{sample}",
+    threads: 8
+    shell:
+        """
+        bwa mem -t {threads} -R '{params.rg}' {input.ref} {input.r1} {input.r2} \
+            | samtools sort -@ 4 -m 2G -o {output.fullbam} -
+        samtools index {output.fullbam}
+        """
+
+rule extract_unmapped:
+    """Extract unmapped reads as interleaved fastq"""
+    input:
+        "results/bams/{sample}.raw.bam",
+    output:
+        "results/unmapped/{sample}_unmapped.fastq.gz",
+    threads: 4
+    shell:
+        """
+        samtools view -@ {threads} -f 4 {input} \
+            | samtools fastq -@ {threads} - \
+            | pigz -p {threads} > {output}
+        """
+
+rule filter_mapped:
+    """Keep only mapped reads on chromosomes with min mapQ"""
+    input:
+        bam="results/bams/{sample}.raw.bam",
+        regions="results/filtering/chrom_regions.txt",
+    output:
+        temp("results/bams/{sample}.mapped.bam"),
+    params:
+        minmapq=config.get("minmapq", 20),
+    threads: 4
+    shell:
+        """
+        samtools view -@ {threads} -b -F 4 \
+            -q {params.minmapq} \
+            -L {input.regions} \
+            {input.bam} > {output}
+        """
+
+rule mark_duplicates:
+    input:
+        "results/bams/{sample}.mapped.bam",
+    output:
+        bam="results/bams/{sample}.dedup.bam",
+        bai="results/bams/{sample}.dedup.bam.bai",
+    threads: 4
+    shell:
+        """
+        samtools sort -@ {threads} -m 2G {input} \
+            | samtools markdup -@ {threads} - {output.bam}
+        samtools index -@ {threads} {output.bam}
+        """
+
+rule flagstat:
+    input:
+        raw="results/bams/{sample}.raw.bam",
+        dedup="results/bams/{sample}.dedup.bam",
+    output:
+        raw="results/qc/{sample}.flagstat_raw.txt",
+        dedup="results/qc/{sample}.flagstat.txt",
+    shell:
+        """
+        samtools flagstat {input.raw} > {output.raw}
+        samtools flagstat {input.dedup} > {output.dedup}
+        """
+
+# ============================================================================
+# 6. DEPTH CALCULATION AND AUTO-FILTERING
+# ============================================================================
+
+rule sample_depth:
+    """Calculate per-sample mean depth"""
+    input:
+        bam="results/bams/{sample}.dedup.bam",
+    output:
+        "results/qc/{sample}.depth.txt",
+    shell:
+        """
+        samtools depth -a {input.bam} | \
+            awk '{{sum+=$3; n++}} END {{print sum/n, n}}' > {output}
+        """
+
+rule depth_summary:
+    """Combine all sample depths and calculate thresholds"""
+    input:
+        depths=expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
+        flagstats=expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
+    output:
+        summary="results/qc/depth_summary.csv",
+        depth_filter="results/filtering/depth_thresholds.txt",
+    run:
+        records = []
+        for sample, dpath, fpath in zip(SAMPLES, input.depths, input.flagstats):
+            with open(dpath) as f:
+                parts = f.readline().strip().split()
+                mean_depth = float(parts[0])
+                n_sites = int(parts[1])
+            
+            with open(fpath) as f:
+                lines = f.readlines()
+                total = int(lines[0].split()[0])
+                mapped = int(lines[4].split()[0]) if len(lines) > 4 else 0
+                duplicates = int(lines[3].split()[0]) if len(lines) > 3 else 0
+            
+            records.append({
+                "sample_id": sample,
+                "mean_depth": mean_depth,
+                "total_reads": total,
+                "mapped_reads": mapped,
+                "mapping_rate": mapped / total if total > 0 else 0,
+                "duplicate_rate": duplicates / total if total > 0 else 0,
+            })
+        
+        df = pd.DataFrame(records)
+        df.to_csv(output.summary, index=False)
+        
+        # Auto-calculate depth thresholds
+        total_mean = df["mean_depth"].sum()  # sum of per-sample means = expected total depth per site
+        # For max depth filter: mean + 2SD of per-sample depths * n_samples
+        mean_total = df["mean_depth"].mean() * len(df)
+        sd_total = df["mean_depth"].std() * len(df)
+        max_depth = int(mean_total + 2 * sd_total)
+        min_depth_total = len(df) * 2  # min 2 reads per sample
+        
+        with open(output.depth_filter, "w") as f:
+            f.write(f"max_total_depth\t{max_depth}\n")
+            f.write(f"min_total_depth\t{min_depth_total}\n")
+            f.write(f"mean_per_sample\t{df['mean_depth'].mean():.1f}\n")
+            f.write(f"sd_per_sample\t{df['mean_depth'].std():.1f}\n")
+
+# ============================================================================
+# 7. BAM LISTS
+# ============================================================================
+
+rule make_bamlist_all:
+    input:
+        expand("results/bams/{sample}.dedup.bam", sample=SAMPLES),
+    output:
+        "results/bamlists/all.bamlist",
+    run:
+        with open(output[0], "w") as f:
+            for bam in input:
+                f.write(bam + "\n")
+
+rule make_bamlist_pop:
+    input:
+        get_pop_samples,
+    output:
+        "results/bamlists/{popname}.bamlist",
+    run:
+        with open(output[0], "w") as f:
+            for bam in input:
+                f.write(bam + "\n")
+
+# ============================================================================
+# 8. ANGSD GENOTYPE LIKELIHOODS (all sites — for SFS/FST/diversity)
+# ============================================================================
+
+rule angsd_gl_allsites:
+    input:
+        bamlist="results/bamlists/all.bamlist",
+        ref=REF,
+        fai=REF + ".fai",
+        regions="results/filtering/chrom_regions.txt",
+        depth_filter="results/filtering/depth_thresholds.txt",
+    output:
+        beagle="results/angsd/all.beagle.gz",
+        mafs="results/angsd/all.mafs.gz",
+    params:
+        out="results/angsd/all",
+        minind=lambda wc: int(len(SAMPLES) * config.get("min_ind_frac", 0.8)),
+        minmapq=config.get("minmapq", 20),
+        minq=config.get("minq", 20),
+        maf=config.get("min_maf", 0.10),
+        gl=config.get("gl_model", 1),
+        snp_pval=config.get("snp_pval", "1e-6"),
+    threads: 16
+    run:
+        # Read auto-calculated depth threshold
+        max_depth = None
+        with open(input.depth_filter) as f:
+            for line in f:
+                if line.startswith("max_total_depth"):
+                    max_depth = int(line.strip().split("\t")[1])
+        
+        depth_flag = f"-setMaxDepth {max_depth}" if max_depth else ""
+        
+        shell(f"""
+        angsd -bam {input.bamlist} -ref {input.ref} \
+            -GL {params.gl} -doGlf 2 -doMajorMinor 1 -doMaf 1 \
+            -SNP_pval {params.snp_pval} -minMaf {params.maf} \
+            -minMapQ {params.minmapq} -minQ {params.minq} \
+            -minInd {params.minind} {depth_flag} \
+            -rf {input.regions} \
+            -nThreads {threads} -out {params.out}
+        """)
+
+# ============================================================================
+# 9. SITE FILTERING SUMMARY
+# ============================================================================
+
+rule filtering_summary:
+    input:
+        fai=REF + ".fai",
+        regions="results/filtering/chrom_regions.txt",
+        repeat_stats="results/filtering/repeat_stats.txt",
+        nonrepeat_bed="results/filtering/nonrepeat_regions.bed",
+        depth_filter="results/filtering/depth_thresholds.txt",
+        mafs="results/angsd/all.mafs.gz",
+    output:
+        "results/filtering/site_filter_summary.csv",
+    run:
+        import gzip
+        
+        # Total genome
+        total_bp = 0
+        with open(input.fai) as f:
+            for line in f:
+                total_bp += int(line.strip().split("\t")[1])
+        
+        # Chrom-filtered
+        chrom_bp = 0
+        chroms = set(open(input.regions).read().strip().split("\n"))
+        with open(input.fai) as f:
+            for line in f:
+                parts = line.strip().split("\t")
+                if parts[0] in chroms:
+                    chrom_bp += int(parts[1])
+        
+        # Non-repeat regions on chromosomes (from BED)
+        nonrepeat_bp = 0
+        with open(input.nonrepeat_bed) as f:
+            for line in f:
+                parts = line.strip().split("\t")
+                nonrepeat_bp += int(parts[2]) - int(parts[1])
+        
+        # Repeat stats
+        with open(input.repeat_stats) as f:
+            rep = {}
+            for line in f:
+                k, v = line.strip().split("\t")
+                rep[k] = v
+        
+        # SNPs after ANGSD
+        n_snps = 0
+        with gzip.open(input.mafs, "rt") as f:
+            for line in f:
+                n_snps += 1
+        n_snps -= 1  # header
+        
+        # Depth thresholds
+        with open(input.depth_filter) as f:
+            depth = {}
+            for line in f:
+                k, v = line.strip().split("\t")
+                depth[k] = v
+        
+        records = [
+            {"step": "Total genome", "sites": total_bp, "pct_remaining": "100%"},
+            {"step": "Chromosome filter (>10 Mb)", "sites": chrom_bp, "pct_remaining": f"{chrom_bp/total_bp*100:.1f}%"},
+            {"step": "Non-repeat regions (soft-mask)", "sites": nonrepeat_bp, "pct_remaining": f"{nonrepeat_bp/total_bp*100:.1f}%"},
+            {"step": f"Regions analyzed (BED intervals)", "sites": sum(1 for _ in open(input.nonrepeat_bed)), "pct_remaining": f"{rep.get('n_nonrepeat_regions', 'N/A')} intervals"},
+            {"step": f"Max depth filter ({depth['max_total_depth']}x)", "sites": "applied in ANGSD", "pct_remaining": ""},
+            {"step": f"SNPs (pval {config.get('snp_pval','1e-6')}, MAF {config.get('min_maf',0.10)}, minInd {config.get('min_ind_frac',0.80)})", "sites": n_snps, "pct_remaining": f"{n_snps/nonrepeat_bp*100:.4f}%"},
+        ]
+        pd.DataFrame(records).to_csv(output[0], index=False)
+
+# ============================================================================
+# 10. Ts/Tv RATIO
+# ============================================================================
+
+rule tstv_ratio:
+    input:
+        "results/angsd/all.mafs.gz",
+    output:
+        "results/qc/tstv_ratio.txt",
+    run:
+        import gzip
+        transitions = 0  # A<>G, C<>T
+        transversions = 0  # everything else
+        
+        with gzip.open(input[0], "rt") as f:
+            header = f.readline().strip().split("\t")
+            major_idx = header.index("major")
+            minor_idx = header.index("minor")
+            
+            for line in f:
+                parts = line.strip().split("\t")
+                major = parts[major_idx]
+                minor = parts[minor_idx]
+                pair = frozenset([major, minor])
+                if pair in [frozenset(["A","G"]), frozenset(["C","T"])]:
+                    transitions += 1
+                else:
+                    transversions += 1
+        
+        ratio = transitions / transversions if transversions > 0 else 0
+        
+        if 1.8 <= ratio <= 2.3:
+            status = "GREEN"
+        elif 1.5 <= ratio <= 2.5:
+            status = "YELLOW"
+        else:
+            status = "RED"
+        
+        with open(output[0], "w") as f:
+            f.write(f"transitions\t{transitions}\n")
+            f.write(f"transversions\t{transversions}\n")
+            f.write(f"tstv_ratio\t{ratio:.4f}\n")
+            f.write(f"status\t{status}\n")
+
+# ============================================================================
+# 11. LD ESTIMATION AND PRUNING
+# ============================================================================
+
+rule ngsld_estimate:
+    """Estimate LD from genotype likelihoods"""
+    input:
+        beagle="results/angsd/all.beagle.gz",
+        mafs="results/angsd/all.mafs.gz",
+    output:
+        ld_raw=temp("results/ld/ld_raw.tsv"),
+    params:
+        max_dist=config.get("ld_max_dist", 500000),
+    threads: 8
+    shell:
+        """
+        N_SITES=$(zcat {input.mafs} | tail -n +2 | wc -l)
+        N_IND={n_samples}
+        
+        # Create position file from mafs
+        zcat {input.mafs} | tail -n +2 | awk '{{print $1"\t"$2}}' > results/ld/snp_pos.txt
+        
+        ngsLD --geno {input.beagle} --out {output.ld_raw} \
+            --probs --n_ind $N_IND --n_sites $N_SITES \
+            --max_kb_dist {params.max_dist} \
+            --pos results/ld/snp_pos.txt \
+            --n_threads {threads}
+        """
+
+rule ld_decay:
+    """Bin LD by distance for decay plot"""
+    input:
+        "results/ld/ld_raw.tsv",
+    output:
+        decay="results/ld/ld_decay.csv",
+        window="results/ld/ld_prune_window.txt",
+    run:
+        # Read LD output
+        ld = pd.read_csv(input[0], sep="\t", header=None,
+                        names=["pos1", "pos2", "dist", "r2", "D", "Dprime", "r2_adj"],
+                        usecols=[0, 1, 2, 3])
+        ld = ld[ld["r2"] >= 0]
+        ld["dist_kb"] = ld["dist"] / 1000
+        
+        # Bin by distance
+        bins = list(range(0, int(ld["dist_kb"].max()) + 10, 10))
+        ld["bin"] = pd.cut(ld["dist_kb"], bins=bins)
+        decay = ld.groupby("bin")["r2"].agg(["mean", "median", "count"]).reset_index()
+        decay.columns = ["distance_kb_bin", "mean_r2", "median_r2", "n_pairs"]
+        decay.to_csv(output.decay, index=False)
+        
+        # Determine pruning window: where mean r2 drops below 0.1
+        threshold = config.get("ld_decay_threshold", 0.1)
+        prune_window = 50000  # default 50kb
+        for _, row in decay.iterrows():
+            if row["mean_r2"] < threshold:
+                # Extract midpoint of bin
+                try:
+                    mid = row["distance_kb_bin"].mid * 1000
+                    prune_window = int(mid)
+                except:
+                    pass
+                break
+        
+        with open(output.window, "w") as f:
+            f.write(f"{prune_window}\n")
+
+rule ld_prune:
+    """Prune SNPs based on LD"""
+    input:
+        ld="results/ld/ld_raw.tsv",
+        window="results/ld/ld_prune_window.txt",
+        mafs="results/angsd/all.mafs.gz",
+        beagle="results/angsd/all.beagle.gz",
+    output:
+        pruned_list="results/ld/pruned_snps.txt",
+        pruned_beagle="results/ld/pruned.beagle.gz",
+    params:
+        r2_threshold=config.get("ld_r2_threshold", 0.3),
+    shell:
+        """
+        WINDOW=$(cat {input.window})
+        
+        # Get list of SNPs to keep after pruning
+        # Using graph-based pruning from ngsLD utilities
+        cat {input.ld} | \
+            awk -v max_dist=$WINDOW -v max_r2={params.r2_threshold} \
+            '$3 <= max_dist && $4 > max_r2 {{print $1"\\n"$2}}' | \
+            sort -u > results/ld/linked_snps.txt
+        
+        # All SNPs
+        zcat {input.mafs} | tail -n +2 | awk '{{print NR}}' > results/ld/all_snp_idx.txt
+        
+        # SNPs to keep (not in linked list — simplified pruning)
+        zcat {input.mafs} | tail -n +2 | \
+            awk '{{print $1":"$2}}' > results/ld/all_snp_names.txt
+        
+        # Use ngsLD prune graph if available, otherwise simple distance pruning
+        python3 -c "
+import gzip
+import pandas as pd
+
+mafs = pd.read_csv('{input.mafs}', sep='\\t', compression='gzip')
+snp_ids = [f'{{c}}:{{p}}' for c, p in zip(mafs['chromo'], mafs['position'])]
+
+# Read LD pairs above threshold within window
+linked = set()
+with open('{input.ld}') as f:
+    for line in f:
+        parts = line.strip().split('\\t')
+        dist = float(parts[2])
+        r2 = float(parts[3])
+        if dist <= $WINDOW and r2 > {params.r2_threshold}:
+            linked.add(parts[1])  # remove the second SNP in each pair
+
+# Keep SNPs not in linked set
+keep_idx = [i for i, s in enumerate(snp_ids) if s not in linked]
+
+with open('{output.pruned_list}', 'w') as f:
+    for i in keep_idx:
+        f.write(f'{{i}}\\n')
+
+# Filter beagle file
+with gzip.open('{input.beagle}', 'rt') as fin, gzip.open('{output.pruned_beagle}', 'wt') as fout:
+    header = fin.readline()
+    fout.write(header)
+    keep_set = set(keep_idx)
+    for i, line in enumerate(fin):
+        if i in keep_set:
+            fout.write(line)
+        "
+        
+        echo "Pruned to $(wc -l < {output.pruned_list}) SNPs from $(zcat {input.mafs} | tail -n +2 | wc -l) total"
+        """
+
+# ============================================================================
+# 12. RELATEDNESS
+# ============================================================================
+
+rule ngsrelate:
+    input:
+        beagle="results/angsd/all.beagle.gz",
+        mafs="results/angsd/all.mafs.gz",
+    output:
+        raw="results/relatedness/ngsrelate_raw.tsv",
+    threads: 8
+    shell:
+        """
+        N_IND={n_samples}
+        N_SITES=$(zcat {input.mafs} | tail -n +2 | wc -l)
+        
+        # Extract allele frequencies from mafs
+        zcat {input.mafs} | tail -n +2 | awk '{{print $5}}' > results/relatedness/freq.txt
+        
+        ngsRelate -G {input.beagle} -n $N_IND -f results/relatedness/freq.txt \
+            -O {output.raw} -p {threads}
+        """.format(n_samples=len(SAMPLES))
+
+rule process_relatedness:
+    """Convert NgsRelate output to deliverable CSVs"""
+    input:
+        raw="results/relatedness/ngsrelate_raw.tsv",
+    output:
+        kinship="results/relatedness/pairwise_kinship.csv",
+        genotypes="results/relatedness/unique_genotypes.csv",
+        families="results/relatedness/family_groups.csv",
+        recommendations="results/relatedness/recommendations.csv",
+    params:
+        threshold=config.get("kinship_threshold", 0.2),
+        clone_threshold=config.get("clone_threshold", 0.45),
+    run:
+        rel = pd.read_csv(input.raw, sep="\t")
+        
+        # Map indices to sample names
+        sample_list = SAMPLES
+        
+        records = []
+        for _, row in rel.iterrows():
+            i = int(row["a"])
+            j = int(row["b"])
+            kin = row["rab"]  # kinship estimate
+            
+            if kin >= params.clone_threshold:
+                relationship = "clone"
+            elif kin >= 0.2:
+                relationship = "full_sibling"
+            elif kin >= 0.1:
+                relationship = "half_sibling"
+            else:
+                relationship = "unrelated"
+            
+            flag = "flagged" if kin >= params.threshold else "pass"
+            
+            records.append({
+                "sample_1": sample_list[i],
+                "sample_2": sample_list[j],
+                "kinship": round(kin, 4),
+                "relationship": relationship,
+                "flag": flag,
+            })
+        
+        kinship_df = pd.DataFrame(records)
+        kinship_df.to_csv(output.kinship, index=False)
+        
+        # Identify clone groups
+        import networkx as nx
+        G = nx.Graph()
+        G.add_nodes_from(sample_list)
+        for _, row in kinship_df[kinship_df["relationship"] == "clone"].iterrows():
+            G.add_edge(row["sample_1"], row["sample_2"])
+        
+        # Get depth info for choosing which clone to keep
+        genet_records = []
+        recommendations = []
+        
+        for i, component in enumerate(nx.connected_components(G)):
+            members = sorted(component)
+            # Keep the one with highest depth (placeholder — use depth_summary)
+            kept = members[0]
+            removed = members[1:] if len(members) > 1 else []
+            
+            genet_records.append({
+                "genotype_group": f"genet_{i+1}",
+                "samples": ",".join(members),
+                "kept_sample": kept,
+                "removed_samples": ",".join(removed) if removed else "",
+                "n_samples": len(members),
+            })
+            
+            for s in members:
+                action = "keep" if s == kept else "remove"
+                reason = "unique" if len(members) == 1 else (
+                    "kept_from_clone_group" if s == kept else f"clone_of_{kept}")
+                recommendations.append({
+                    "sample_id": s,
+                    "action": action,
+                    "reason": reason,
+                })
+        
+        pd.DataFrame(genet_records).to_csv(output.genotypes, index=False)
+        
+        # Family groups (non-clone relatives)
+        G_fam = nx.Graph()
+        G_fam.add_nodes_from(sample_list)
+        for _, row in kinship_df[
+            (kinship_df["relationship"].isin(["full_sibling", "half_sibling"]))
+        ].iterrows():
+            G_fam.add_edge(row["sample_1"], row["sample_2"])
+        
+        fam_records = []
+        for i, component in enumerate(nx.connected_components(G_fam)):
+            if len(component) > 1:
+                for s in sorted(component):
+                    fam_records.append({
+                        "family_id": f"family_{i+1}",
+                        "sample_id": s,
+                    })
+        
+        if fam_records:
+            pd.DataFrame(fam_records).to_csv(output.families, index=False)
+        else:
+            pd.DataFrame(columns=["family_id", "sample_id"]).to_csv(output.families, index=False)
+        
+        # Add flags for relatives to recommendations
+        for _, row in kinship_df[kinship_df["relationship"].isin(["full_sibling", "half_sibling"])].iterrows():
+            for s in [row["sample_1"], row["sample_2"]]:
+                found = False
+                for r in recommendations:
+                    if r["sample_id"] == s:
+                        found = True
+                        if "sibling" not in r["reason"]:
+                            r["reason"] += f"; {row['relationship']}_of_{row['sample_2'] if s == row['sample_1'] else row['sample_1']}"
+                            r["action"] = "flag"
+                if not found:
+                    recommendations.append({
+                        "sample_id": s,
+                        "action": "flag",
+                        "reason": f"{row['relationship']}",
+                    })
+        
+        pd.DataFrame(recommendations).to_csv(output.recommendations, index=False)
+
+# ============================================================================
+# 13. PCA (on LD-pruned data)
+# ============================================================================
+
+rule pcangsd:
+    input:
+        "results/ld/pruned.beagle.gz",
+    output:
+        cov="results/pca/pcangsd.cov",
+    params:
+        out="results/pca/pcangsd",
+    threads: 8
+    shell:
+        "pcangsd -b {input} -o {params.out} -t {threads} --selection --admix"
+
+# ============================================================================
+# 14. ADMIXTURE (on LD-pruned data, multiple replicates)
+# ============================================================================
+
+rule ngsadmix_rep:
+    input:
+        "results/ld/pruned.beagle.gz",
+    output:
+        qopt="results/admixture/K{k}_rep{r}.qopt",
+        log="results/admixture/K{k}_rep{r}.log",
+    params:
+        out="results/admixture/K{k}_rep{r}",
+        seed=lambda wc: int(wc.r) * 42 + int(wc.k),
+    threads: 4
+    shell:
+        """
+        NGSadmix -likes {input} -K {wildcards.k} \
+            -P {threads} -o {params.out} \
+            -minMaf 0.05 -seed {params.seed} \
+            2>&1 | tee {output.log}
+        """
+
+rule select_best_k:
+    """Evanno method across replicates"""
+    input:
+        logs=expand("results/admixture/K{k}_rep{r}.log", k=K_VALUES, r=range(1, ADMIX_REPS + 1)),
+    output:
+        best_k="results/admixture/best_k.txt",
+        k_stats="results/admixture/k_selection_stats.csv",
+    run:
+        # Parse log-likelihoods from each replicate
+        records = []
+        for k in K_VALUES:
+            for r in range(1, ADMIX_REPS + 1):
+                logpath = f"results/admixture/K{k}_rep{r}.log"
+                ll = None
+                with open(logpath) as f:
+                    for line in f:
+                        if "best like=" in line:
+                            ll = float(line.strip().split("best like=")[1].split()[0])
+                if ll:
+                    records.append({"K": k, "rep": r, "loglikelihood": ll})
+        
+        df = pd.DataFrame(records)
+        
+        # Mean and SD of log-likelihood per K
+        k_stats = df.groupby("K")["loglikelihood"].agg(["mean", "std"]).reset_index()
+        k_stats.columns = ["K", "mean_ll", "sd_ll"]
+        
+        # Evanno delta K
+        if len(k_stats) >= 3:
+            lnk = k_stats["mean_ll"].tolist()
+            sd_k = k_stats["sd_ll"].tolist()
+            
+            delta_k_vals = []
+            for i in range(1, len(lnk) - 1):
+                lpp = abs(lnk[i+1] - 2*lnk[i] + lnk[i-1])
+                dk = lpp / sd_k[i] if sd_k[i] > 0 else 0
+                delta_k_vals.append(dk)
+            
+            k_stats["delta_k"] = [None] + delta_k_vals + [None]
+            best = k_stats.loc[k_stats["delta_k"].idxmax(), "K"] if any(k_stats["delta_k"].notna()) else 2
+        else:
+            k_stats["delta_k"] = None
+            best = 2
+        
+        k_stats.to_csv(output.k_stats, index=False)
+        
+        with open(output.best_k, "w") as f:
+            f.write(f"{int(best)}\n")
+
+# ============================================================================
+# 15. SFS & DIVERSITY (per population, all sites)
+# ============================================================================
+
+rule angsd_saf:
+    input:
+        bamlist="results/bamlists/{popname}.bamlist",
+        ref=REF,
+        fai=REF + ".fai",
+        regions="results/filtering/nonrepeat_regions.bed",
+        depth_filter="results/filtering/depth_thresholds.txt",
+    output:
+        saf="results/sfs/{popname}.saf.idx",
+    params:
+        out="results/sfs/{popname}",
+        minmapq=config.get("minmapq", 20),
+        minq=config.get("minq", 20),
+        gl=config.get("gl_model", 1),
+    threads: 8
+    run:
+        max_depth = None
+        with open(input.depth_filter) as f:
+            for line in f:
+                if line.startswith("max_total_depth"):
+                    max_depth = int(line.strip().split("\t")[1])
+        depth_flag = f"-setMaxDepth {max_depth}" if max_depth else ""
+        
+        shell(f"""
+        angsd -bam {input.bamlist} -ref {input.ref} -anc {input.ref} \
+            -GL {params.gl} -doSaf 1 \
+            -minMapQ {params.minmapq} -minQ {params.minq} \
+            {depth_flag} -rf {input.regions} \
+            -nThreads {threads} -out {params.out}
+        """)
+
+rule realsfs:
+    input:
+        "results/sfs/{popname}.saf.idx",
+    output:
+        "results/sfs/{popname}.sfs",
+    threads: 8
+    shell:
+        "realSFS {input} -P {threads} > {output}"
+
+rule thetas:
+    input:
+        saf="results/sfs/{popname}.saf.idx",
+        sfs="results/sfs/{popname}.sfs",
+    output:
+        "results/diversity/{popname}.thetas.idx.pestPG",
+    params:
+        out="results/diversity/{popname}",
+    threads: 8
+    shell:
+        """
+        realSFS saf2theta {input.saf} -sfs {input.sfs} -outname {params.out} -P {threads}
+        thetaStat do_stat {params.out}.thetas.idx -win 50000 -step 10000 -outnames {params.out}.thetas.idx
+        """
+
+# ============================================================================
+# 16. FST
+# ============================================================================
+
+rule realsfs_2d:
+    input:
+        saf1="results/sfs/{p1}.saf.idx",
+        saf2="results/sfs/{p2}.saf.idx",
+    output:
+        "results/fst/{p1}_vs_{p2}.2dsfs",
+    threads: 8
+    shell:
+        "realSFS {input.saf1} {input.saf2} -P {threads} > {output}"
+
+rule fst_index:
+    input:
+        saf1="results/sfs/{p1}.saf.idx",
+        saf2="results/sfs/{p2}.saf.idx",
+        sfs="results/fst/{p1}_vs_{p2}.2dsfs",
+    output:
+        "results/fst/{p1}_vs_{p2}.fst.idx",
+    params:
+        out="results/fst/{p1}_vs_{p2}",
+    shell:
+        "realSFS fst index {input.saf1} {input.saf2} -sfs {input.sfs} -fstout {params.out}"
+
+rule fst_global:
+    input:
+        "results/fst/{p1}_vs_{p2}.fst.idx",
+    output:
+        "results/fst/{p1}_vs_{p2}.fst.global",
+    shell:
+        """
+        realSFS fst stats {input} > {output}
+        realSFS fst stats2 {input} -win 50000 -step 10000 -type 2 > {output}.windows
+        """
+
+# ============================================================================
+# 17. HETEROZYGOSITY
+# ============================================================================
+
+rule individual_saf:
+    input:
+        bam="results/bams/{sample}.dedup.bam",
+        ref=REF,
+        fai=REF + ".fai",
+        regions="results/filtering/nonrepeat_regions.bed",
+    output:
+        temp("results/heterozygosity/{sample}.saf.idx"),
+    params:
+        out="results/heterozygosity/{sample}",
+        gl=config.get("gl_model", 1),
+    threads: 4
+    shell:
+        """
+        angsd -i {input.bam} -ref {input.ref} -anc {input.ref} \
+            -GL {params.gl} -doSaf 1 \
+            -minMapQ 20 -minQ 20 \
+            -rf {input.regions} \
+            -nThreads {threads} -out {params.out}
+        """
+
+rule individual_het:
+    input:
+        "results/heterozygosity/{sample}.saf.idx",
+    output:
+        "results/heterozygosity/{sample}.het",
+    shell:
+        "realSFS {input} > {output}"
+
+# ============================================================================
+# 18. GENE ANNOTATION OF OUTLIER REGIONS
+# ============================================================================
+
+GFF = config.get("gene_annotation", "reference/apalmata_genes.gff")
+
+rule make_gene_bed:
+    """Convert GFF gene entries to BED for intersection"""
+    input:
+        gff=GFF,
+    output:
+        bed="results/annotation/genes.bed",
+        lookup="results/annotation/gene_lookup.csv",
+    run:
+        import re
+        genes = []
+        with open(input.gff) as f:
+            for line in f:
+                if line.startswith("#"):
+                    continue
+                parts = line.strip().split("\t")
+                if len(parts) < 9 or parts[2] != "gene":
+                    continue
+                chrom = parts[0]
+                start = int(parts[3]) - 1  # BED is 0-based
+                end = int(parts[4])
+                attrs = parts[8]
+                
+                name = ""
+                desc = ""
+                biotype = ""
+                m = re.search(r'Name=([^;]+)', attrs)
+                if m: name = m.group(1)
+                m = re.search(r'description=([^;]+)', attrs)
+                if m: desc = m.group(1)
+                m = re.search(r'gene_biotype=([^;]+)', attrs)
+                if m: biotype = m.group(1)
+                
+                genes.append({
+                    "chrom": chrom, "start": start, "end": end,
+                    "name": name, "description": desc, "biotype": biotype,
+                })
+        
+        df = pd.DataFrame(genes)
+        # BED file
+        df[["chrom", "start", "end", "name"]].to_csv(
+            output.bed, sep="\t", header=False, index=False)
+        # Lookup table
+        df.to_csv(output.lookup, index=False)
+
+rule annotate_fst_outliers:
+    """Find genes in FST outlier windows"""
+    input:
+        fst_windows="results/fst/{p1}_vs_{p2}.fst.global.windows",
+        gene_bed="results/annotation/genes.bed",
+        gene_lookup="results/annotation/gene_lookup.csv",
+    output:
+        outlier_windows="results/annotation/fst_{p1}_vs_{p2}_outlier_windows.csv",
+        outlier_genes="results/annotation/fst_{p1}_vs_{p2}_outlier_genes.csv",
+    params:
+        percentile=config.get("fst_outlier_percentile", 0.99),
+    run:
+        # Read windowed FST
+        fst = pd.read_csv(input.fst_windows, sep="\t", header=None,
+                         names=["region", "chr", "midpoint", "n_sites", "fst"])
+        fst = fst[fst["fst"] >= 0]
+        
+        # Get outlier threshold
+        threshold = fst["fst"].quantile(params.percentile)
+        outliers = fst[fst["fst"] >= threshold].copy()
+        
+        # Convert to BED (midpoint ± window/2)
+        win_size = config.get("win_size", 50000)
+        outliers["start"] = (outliers["midpoint"] - win_size // 2).astype(int).clip(lower=0)
+        outliers["end"] = (outliers["midpoint"] + win_size // 2).astype(int)
+        outliers.to_csv(output.outlier_windows, index=False)
+        
+        # Write temp BED for bedtools
+        outlier_bed = output.outlier_windows + ".tmp.bed"
+        outliers[["chr", "start", "end"]].to_csv(
+            outlier_bed, sep="\t", header=False, index=False)
+        
+        # Intersect with genes using bedtools
+        import subprocess
+        result = subprocess.run(
+            ["bedtools", "intersect", "-a", outlier_bed,
+             "-b", input.gene_bed, "-wa", "-wb"],
+            capture_output=True, text=True)
+        
+        # Parse results
+        gene_lookup = pd.read_csv(input.gene_lookup)
+        gene_dict = {row["name"]: row for _, row in gene_lookup.iterrows()}
+        
+        gene_records = []
+        if result.stdout.strip():
+            for line in result.stdout.strip().split("\n"):
+                parts = line.split("\t")
+                win_chr = parts[0]
+                win_start = int(parts[1])
+                win_end = int(parts[2])
+                gene_name = parts[6] if len(parts) > 6 else ""
+                
+                # Get FST for this window
+                win_fst = outliers[
+                    (outliers["chr"] == win_chr) &
+                    (outliers["start"] == win_start)
+                ]["fst"].values
+                fst_val = win_fst[0] if len(win_fst) > 0 else 0
+                
+                info = gene_dict.get(gene_name, {})
+                gene_records.append({
+                    "chromosome": win_chr,
+                    "window_start": win_start,
+                    "window_end": win_end,
+                    "fst": round(fst_val, 4),
+                    "gene_name": gene_name,
+                    "description": info.get("description", ""),
+                    "biotype": info.get("biotype", ""),
+                })
+        
+        gene_df = pd.DataFrame(gene_records)
+        gene_df.to_csv(output.outlier_genes, index=False)
+        
+        # Cleanup temp
+        import os
+        os.remove(outlier_bed)
+
+rule immune_gene_enrichment:
+    """Test if immune genes are enriched in FST outlier regions"""
+    input:
+        outlier_genes="results/annotation/fst_{p1}_vs_{p2}_outlier_genes.csv",
+        gene_lookup="results/annotation/gene_lookup.csv",
+    output:
+        enrichment="results/annotation/fst_{p1}_vs_{p2}_enrichment.csv",
+    run:
+        from scipy import stats
+        
+        all_genes = pd.read_csv(input.gene_lookup)
+        outlier_genes = pd.read_csv(input.outlier_genes)
+        
+        # Define gene categories to test
+        categories = {
+            "immune_TNF": "TNF",
+            "immune_toll": "[Tt]oll",
+            "immune_lectin": "lectin",
+            "immune_complement": "complement",
+            "immune_caspase": "caspase",
+            "immune_interferon": "interferon",
+            "immune_apoptosis": "apoptosis",
+            "immune_interleukin": "interleukin",
+            "immune_all": "TNF|[Tt]oll|lectin|complement|caspase|interferon|apoptosis|interleukin|immune",
+            "stress_response": "heat shock|HSP|stress|chaperone",
+            "signaling": "kinase|receptor|signal",
+        }
+        
+        results = []
+        total_genes = len(all_genes)
+        total_outlier = len(outlier_genes["gene_name"].unique()) if len(outlier_genes) > 0 else 0
+        
+        for cat_name, pattern in categories.items():
+            # Count in genome
+            n_genome = len(all_genes[all_genes["description"].str.contains(pattern, case=False, na=False)])
+            
+            # Count in outlier regions
+            if len(outlier_genes) > 0:
+                n_outlier = len(outlier_genes[outlier_genes["description"].str.contains(pattern, case=False, na=False)]["gene_name"].unique())
+            else:
+                n_outlier = 0
+            
+            # Fisher's exact test (2x2: outlier/not × category/not)
+            if total_genes > 0 and total_outlier > 0:
+                table = [
+                    [n_outlier, total_outlier - n_outlier],
+                    [n_genome - n_outlier, total_genes - n_genome - total_outlier + n_outlier]
+                ]
+                try:
+                    odds_ratio, pval = stats.fisher_exact(table, alternative="greater")
+                except:
+                    odds_ratio, pval = 1.0, 1.0
+            else:
+                odds_ratio, pval = 1.0, 1.0
+            
+            results.append({
+                "category": cat_name,
+                "pattern": pattern,
+                "n_in_genome": n_genome,
+                "n_in_outlier_regions": n_outlier,
+                "total_genes_genome": total_genes,
+                "total_genes_outliers": total_outlier,
+                "odds_ratio": round(odds_ratio, 3),
+                "pvalue": f"{pval:.2e}",
+                "significant": "yes" if pval < 0.05 else "no",
+            })
+        
+        pd.DataFrame(results).to_csv(output.enrichment, index=False)
+
+# ============================================================================
+# 19. GENERATE REPORT
+# ============================================================================
+
+rule generate_report:
+    input:
+        multiqc="results/multiqc/multiqc_report.html",
+        depth="results/qc/depth_summary.csv",
+        filter_summary="results/filtering/site_filter_summary.csv",
+        repeat_stats="results/filtering/repeat_stats.txt",
+        tstv="results/qc/tstv_ratio.txt",
+        kinship="results/relatedness/pairwise_kinship.csv",
+        genotypes="results/relatedness/unique_genotypes.csv",
+        ld_decay="results/ld/ld_decay.csv",
+        pca="results/pca/pcangsd.cov",
+        best_k="results/admixture/best_k.txt",
+        het=expand("results/heterozygosity/{sample}.het", sample=SAMPLES),
+        thetas=expand("results/diversity/{popname}.thetas.idx.pestPG", popname=POPS),
+        outlier_genes=expand("results/annotation/fst_{p1}_vs_{p2}_outlier_genes.csv",
+                            p1=[p[0] for p in POP_PAIRS], p2=[p[1] for p in POP_PAIRS]),
+        enrichment=expand("results/annotation/fst_{p1}_vs_{p2}_enrichment.csv",
+                         p1=[p[0] for p in POP_PAIRS], p2=[p[1] for p in POP_PAIRS]),
+    output:
+        "deliverables/report.html",
+    shell:
+        """
+        python scripts/generate_report.py \
+            --results_dir results/ \
+            --metadata {config[samples_csv]} \
+            --output {output} \
+            --output_dir deliverables/
+        """

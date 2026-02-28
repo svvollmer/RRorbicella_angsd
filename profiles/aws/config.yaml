@@ -1,0 +1,16 @@
+# Snakemake AWS profile for EC2 instance or AWS Batch
+# For a single large EC2 instance (e.g. c6i.16xlarge = 64 vCPU, 128 GB):
+#
+# Usage:
+#   snakemake --snakefile workflow/Snakefile --profile profiles/aws
+#
+# To scale to AWS Batch, replace executor with:
+#   executor: awsbatch
+#   default-resources:
+#     vcpus: 8
+#     memory: "32000"
+cores: 64
+jobs: 8
+use-singularity: true
+keep-going: true
+latency-wait: 120
