@@ -1,6 +1,6 @@
 # Coral ANGSD Pipeline
 
-Population genomics pipeline for *Acropora palmata* (elkhorn coral) using a two-pass ANGSD workflow. Designed to run on a local workstation, SLURM HPC, or AWS EC2 with Singularity containers.
+Population genomics pipeline for *Acropora cervicornis* (staghorn coral) using a two-pass ANGSD workflow. Designed to run on a local workstation, SLURM HPC, or AWS EC2 with Singularity containers.
 
 **Vollmer Lab — Florida Atlantic University**
 
@@ -8,9 +8,13 @@ Population genomics pipeline for *Acropora palmata* (elkhorn coral) using a two-
 
 ## Study System
 
-96 *A. palmata* colonies sampled across two regions:
+96 *A. cervicornis* whole-genome resequencing samples from the Vollmer Lab's *Science* paper, spanning two regions:
 - **Florida** (FL): Florida Keys reef system
 - **Panama** (PA): Caribbean Panama
+
+**Reference genome:** The *Acropora palmata* genome is used as the mapping reference, as it is higher quality than currently available *A. cervicornis* assemblies. *A. palmata* and *A. cervicornis* are sister species (hybridize to form *A. prolifera*) with high synteny, making cross-species mapping appropriate for population genomic inference.
+
+**Future liftover:** SNP coordinates are currently in *A. palmata* reference space. When a chromosome-scale *A. cervicornis* assembly becomes available, a liftover will be needed to translate positions into native *A. cervicornis* coordinates. This dataset may also serve as a reference panel for future *A. cervicornis* population genomic work.
 
 Research questions: population structure, gene flow, local adaptation, and relatedness across the Florida–Panama range.
 

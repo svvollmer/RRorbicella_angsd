@@ -1,6 +1,6 @@
 # Results
 
-Results from the *Acropora palmata* population genomics analysis (Florida vs. Panama).
+Results from the *Acropora cervicornis* population genomics analysis (Florida vs. Panama), aligned to the *A. palmata* reference genome.
 
 > **Status**: 10-sample AWS test run in progress. Full 96-sample results pending.
 > Figures will be added here after the production run completes.
@@ -9,7 +9,7 @@ Results from the *Acropora palmata* population genomics analysis (Florida vs. Pa
 
 ## 5-Sample Pilot Results
 
-Pilot run using 5 samples (Ac_FL_M10, Ac_FL_M5, Ac_PA_CK140, Ac_PA_HS1, Ac_PA_Tet1).
+Pilot run using 5 *A. cervicornis* samples (Ac_FL_M10, Ac_FL_M5, Ac_PA_CK140, Ac_PA_HS1, Ac_PA_Tet1).
 
 ### Sequencing QC
 
@@ -97,4 +97,5 @@ snakemake --snakefile workflow/Snakefile --profile profiles/aws \
   --config samples_csv=config/samples.csv
 ```
 
-Reference genome: *Acropora palmata* assembly (see `config/config.yaml` for path).
+Samples: *Acropora cervicornis* WGS data (Vollmer Lab, *Science*).
+Reference genome: *Acropora palmata* assembly used as mapping reference (see `config/config.yaml`). SNP coordinates are in *A. palmata* reference space pending liftover to a native *A. cervicornis* assembly.
