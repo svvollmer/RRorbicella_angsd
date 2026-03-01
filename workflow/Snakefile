@@ -887,35 +887,46 @@ rule process_relatedness:
 
 rule angsd_saf:
     """
-    Per-population site allele frequency likelihoods.
-    No SNP filter (-SNP_pval not applied) — includes monomorphic sites at pass1 positions
-    so diversity estimates (π, θ, Tajima's D) are unbiased.
-    Runtime: 15-20 min per population
+    Per-population site allele frequency likelihoods over ALL sites.
+
+    No -sites filter — SAF must include monomorphic sites for unbiased
+    diversity estimates (π, θ, Tajima's D). Restricting to SNPs inflates
+    diversity and biases Tajima's D positive.
+
+    A. palmata reference serves as outgroup/ancestral state for A. cervicornis
+    data, so unfolded SFS via -anc {ref} is valid.
+
+    Runtime: 30-45 min per population (whole genome)
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
         bamlist="results/bamlists/{popname}.bamlist",
         ref=config["reference"],
         fai=config["reference"] + ".fai",
-        sites="results/angsd/pass1_snps.txt",
-        sites_idx=rules.index_sites.output,
+        chroms="results/filtering/chromosomes.bed",
+        depth_thresh="results/angsd/depth_thresholds.txt",
     output:
         saf="results/sfs/{popname}.saf.idx",
     params:
         out="results/sfs/{popname}",
         gl=config.get("gl_model", 1),
+        max_depth=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('total_max')][0]),
+        max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
     threads: 8
     resources:
         mem_mb=16000,
-        runtime=60,
+        runtime=90,
     shell:
         """
         mkdir -p results/sfs
         angsd -bam {input.bamlist} -ref {input.ref} -anc {input.ref} \
             -out {params.out} \
             -GL {params.gl} -doSaf 1 \
-            -sites {input.sites} \
+            -setMaxDepth {params.max_depth} \
+            -setMaxDepthInd {params.max_depth_ind} \
+            -setMinDepthInd 2 \
             -minMapQ 20 -minQ 20 \
+            -rf {input.chroms} \
             -nThreads {threads}
         """
 
@@ -1026,24 +1037,27 @@ rule individual_saf:
         crai="results/bams/{sample}.filtered.cram.crai",
         ref=config["reference"],
         fai=config["reference"] + ".fai",
-        sites="results/angsd/pass1_snps.txt",
-        sites_idx=rules.index_sites.output,
+        chroms="results/filtering/chromosomes.bed",
+        depth_thresh="results/angsd/depth_thresholds.txt",
     output:
         temp("results/heterozygosity/{sample}.saf.idx"),
     params:
         out="results/heterozygosity/{sample}",
         gl=config.get("gl_model", 1),
+        max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
     threads: 4
     resources:
         mem_mb=8000,
-        runtime=30,
+        runtime=60,
     shell:
         """
         mkdir -p results/heterozygosity
         angsd -i {input.cram} -ref {input.ref} -anc {input.ref} \
             -GL {params.gl} -doSaf 1 \
-            -sites {input.sites} \
+            -setMaxDepthInd {params.max_depth_ind} \
+            -setMinDepthInd 2 \
             -minMapQ 20 -minQ 20 \
+            -rf {input.chroms} \
             -nThreads {threads} -out {params.out}
         """
 
