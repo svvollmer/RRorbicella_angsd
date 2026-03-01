@@ -27,7 +27,7 @@ Research questions: population structure, gene flow, local adaptation, and relat
 ANGSD works on genotype likelihoods rather than hard genotype calls, making it well-suited for low-to-moderate coverage coral resequencing data. A single-pass approach requires choosing SNP filters before knowing the data; a two-pass approach lets the data inform the filters:
 
 1. **Pass 1 — Discovery**: Scan the whole genome with relaxed filters (60% of individuals, low MAF) to identify candidate SNPs. Fast because it only outputs a SNP position list.
-2. **Pass 2 — Genotype Likelihoods**: Revisit only those SNP positions with strict filters (80% of individuals, MAF > 0.10), computing full genotype likelihood arrays (Beagle format) for downstream analysis.
+2. **Pass 2 — Genotype Likelihoods**: Revisit only those SNP positions and compute full genotype likelihood distributions (Beagle format) across all samples. Sites are retained if ≥80% of individuals have reads and the estimated allele frequency from the likelihoods exceeds 0.10. No genotypes are ever called.
 
 This avoids computing full GL arrays for every site in the genome, which would be prohibitively slow.
 
@@ -63,9 +63,9 @@ Peak disk usage during a 96-sample run is bounded by how many samples are being 
 
 | Step | Tool | What it does |
 |------|------|--------------|
-| `angsd_discover_snps` | ANGSD | Pass 1: scans all CRAMs genome-wide with relaxed filters (60% individuals, `-doMaf 1`) to identify candidate SNP positions. Max depth set to mean + 2SD of observed coverage. |
-| `angsd_gl_snps` | ANGSD | Pass 2: computes genotype likelihoods at pass-1 SNPs with strict filters (80% individuals, MAF > 0.10, max depth = mean + 2SD). Outputs Beagle-format GL matrix. |
-| `compute_depth_thresholds` | Python | Calculates per-individual and total max depth thresholds as mean + 2SD of observed sample coverage. ANGSD best practice — avoids hard-coded ceilings that fail to adapt to actual library depth. |
+| `angsd_discover_snps` | ANGSD | Pass 1: scans all CRAMs genome-wide to identify candidate SNP positions. Data quality thresholds require ≥60% of individuals to have reads at a site and depth within mean ± 2SD — ensuring sufficient data for reliable likelihood estimation without calling genotypes. |
+| `angsd_gl_snps` | ANGSD | Pass 2: computes genotype likelihood distributions (Beagle format) at pass-1 positions. Sites must have data in ≥80% of individuals and estimated allele frequency >0.10 from the likelihoods. ANGSD never calls genotypes — all downstream analyses (PCA, FST, diversity) work directly from the likelihood distributions. |
+| `compute_depth_thresholds` | Python | Calculates data-driven depth bounds (mean + 2SD of observed per-sample coverage) passed to both ANGSD passes. Sites exceeding the upper bound are excluded as likely multi-mapping artifacts from collapsed repeats. |
 | `ngsld_estimate` | ngsLD | Estimates pairwise LD (r²) between all SNP pairs within 50 kb windows. |
 | `ld_decay` | Python | Calculates the LD decay curve by distance bin to determine the pruning window size. |
 | `ld_prune` | Python | Greedy graph-based LD pruning: removes one SNP from each pair with r² > 0.3. Pure Python — no external dependency. |
