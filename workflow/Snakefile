@@ -412,7 +412,7 @@ rule filtering_summary:
                 with open(flagstat_file) as f:
                     lines  = f.readlines()
                     total  = lines[0].split()[0]
-                    mapped = lines[4].split()[0]
+                    mapped = lines[6].split()[0]   # line 6 = "X mapped (N%)" (not line 4 = duplicates)
                     rate   = float(mapped) / float(total) if float(total) > 0 else 0
                 with open(depth_file) as f:
                     depth = f.read().strip()
@@ -478,7 +478,7 @@ rule qc_report:
             with open(fpath) as f:
                 lines = f.readlines()
             total = int(lines[0].split()[0])
-            dups  = int(lines[3].split()[0])
+            dups  = int(lines[4].split()[0])   # line 4 = "X duplicates" (not line 3 = supplementary)
             stats[sample]['dup_rate'] = dups / total if total > 0 else 0.0
 
         def mean_sd(vals):
