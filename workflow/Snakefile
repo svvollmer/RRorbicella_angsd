@@ -29,6 +29,7 @@ Usage:
 ================================================================================
 """
 
+import re
 import pandas as pd
 import numpy as np
 from itertools import combinations
@@ -48,6 +49,14 @@ samples = pd.read_csv(config["samples_csv"])
 SAMPLES = samples["sample_id"].tolist()
 POPS = samples[config.get("primary_grouping", "population")].unique().tolist()
 POP_PAIRS = list(combinations(sorted(POPS), 2))
+
+# Prevent {popname} wildcard from matching "all" or other non-population strings,
+# which would create cyclic dependencies with make_bamlist_all.
+_pop_pattern = "|".join(re.escape(p) for p in POPS)
+wildcard_constraints:
+    popname=_pop_pattern,
+    popname1=_pop_pattern,
+    popname2=_pop_pattern,
 
 # Data-driven filter thresholds
 N_SAMPLES = len(SAMPLES)
@@ -73,18 +82,23 @@ rule all:
         "results/multiqc/multiqc_report.html",
         "results/filtering/filtering_summary.txt",
         "results/qc/depth_summary.txt",
+        "results/qc/samples_pass.txt",
 
         # Two-pass ANGSD outputs
         "results/angsd/pass1_snps.txt",
         "results/angsd/all.beagle.gz",
         "results/angsd/all.mafs.gz",
 
-        # LD analysis
+        # Clone filter
+        "results/relatedness/unrelated_samples.txt",
+        "results/angsd/all.unrelated.beagle.gz",
+
+        # LD analysis (clone-filtered)
         "results/ld/ld_decay.csv",
         "results/ld/ld_prune_window.txt",
-        "results/angsd/all.ldpruned.beagle.gz",
+        "results/angsd/all.unrelated.ldpruned.beagle.gz",
 
-        # PCA & Admixture (uses LD-pruned SNPs)
+        # PCA & Admixture (LD-pruned, clone-filtered)
         "results/pca/pcangsd.cov",
         expand("results/admixture/pcangsd_K{k}.Q", k=range(2, config.get("max_k", 5) + 1)),
 
@@ -208,14 +222,14 @@ rule bwa_map:
         temp("results/bams/{sample}.raw.bam"),
     threads: 16
     resources:
-        mem_mb=24000,
+        mem_mb=16000,
         runtime=240,
     shell:
         """
         bwa mem -t {threads} \
             -R '@RG\\tID:{wildcards.sample}\\tSM:{wildcards.sample}\\tPL:ILLUMINA' \
             {input.ref} {input.r1} {input.r2} \
-        | samtools sort -@ {threads} -m 1G -o {output} -
+        | samtools sort -@ 4 -m 512M -o {output} -
         """
 
 rule mark_duplicates:
@@ -418,29 +432,155 @@ rule multiqc:
         multiqc results/qc/ -o results/multiqc/ --force
         """
 
+rule qc_report:
+    """
+    Per-sample QC outlier detection across depth, mapping rate, and duplicate rate.
+    Flags samples > 2 SD from mean on any metric.
+
+    Writes:
+      - results/qc/qc_distribution.txt  : mean/SD/thresholds per metric
+      - results/qc/samples_pass.txt     : all samples with flags (PASS or reason)
+
+    QC GATE: Review samples_pass.txt, then create the approved sample list:
+      cp results/qc/samples_pass.txt results/qc/samples_approved.txt
+    Edit samples_approved.txt to remove problem samples (one sample_id per line),
+    then re-run snakemake. All ANGSD/population analyses require this file.
+    """
+    input:
+        summary="results/filtering/filtering_summary.txt",
+        dedup=expand("results/qc/{sample}.dedup_metrics.txt", sample=SAMPLES),
+    output:
+        distribution="results/qc/qc_distribution.txt",
+        pass_list="results/qc/samples_pass.txt",
+    run:
+        import math, os
+
+        # Parse filtering summary: sample, total_reads, mapped_reads, mapping_rate, mean_depth
+        stats = {}
+        with open(input.summary) as f:
+            next(f)
+            for line in f:
+                parts = line.strip().split('\t')
+                sample, total, mapped, rate, depth = parts
+                stats[sample] = {
+                    'total_reads':   int(total),
+                    'mapped_reads':  int(mapped),
+                    'mapping_rate':  float(rate),
+                    'mean_depth':    float(depth),
+                    'dup_rate':      0.0,
+                }
+
+        # Parse duplicate rate from samtools flagstat (line index 3: "X + 0 duplicates")
+        for fpath in input.dedup:
+            sample = os.path.basename(fpath).replace('.dedup_metrics.txt', '')
+            if sample not in stats:
+                continue
+            with open(fpath) as f:
+                lines = f.readlines()
+            total = int(lines[0].split()[0])
+            dups  = int(lines[3].split()[0])
+            stats[sample]['dup_rate'] = dups / total if total > 0 else 0.0
+
+        def mean_sd(vals):
+            m = sum(vals) / len(vals)
+            sd = math.sqrt(sum((v - m) ** 2 for v in vals) / len(vals))
+            return m, sd
+
+        depths    = [stats[s]['mean_depth']   for s in SAMPLES if s in stats]
+        rates     = [stats[s]['mapping_rate'] for s in SAMPLES if s in stats]
+        dup_rates = [stats[s]['dup_rate']     for s in SAMPLES if s in stats]
+
+        m_dep,  sd_dep  = mean_sd(depths)
+        m_rate, sd_rate = mean_sd(rates)
+        m_dup,  sd_dup  = mean_sd(dup_rates)
+
+        with open(output.distribution, 'w') as f:
+            f.write("metric\tmean\tsd\tmin_threshold\tmax_threshold\n")
+            f.write(f"mean_depth\t{m_dep:.2f}\t{sd_dep:.2f}\t{m_dep-2*sd_dep:.2f}\t{m_dep+2*sd_dep:.2f}\n")
+            f.write(f"mapping_rate\t{m_rate:.4f}\t{sd_rate:.4f}\t{m_rate-2*sd_rate:.4f}\tNA\n")
+            f.write(f"dup_rate\t{m_dup:.4f}\t{sd_dup:.4f}\tNA\t{m_dup+2*sd_dup:.4f}\n")
+
+        with open(output.pass_list, 'w') as f:
+            f.write("sample_id\tmean_depth\tmapping_rate\tdup_rate\tflags\n")
+            for sample in SAMPLES:
+                if sample not in stats:
+                    continue
+                s = stats[sample]
+                flags = []
+                if s['mean_depth']   < m_dep  - 2 * sd_dep:  flags.append(f"low_depth({s['mean_depth']:.1f}x)")
+                if s['mean_depth']   > m_dep  + 2 * sd_dep:  flags.append(f"high_depth({s['mean_depth']:.1f}x)")
+                if s['mapping_rate'] < m_rate - 2 * sd_rate:  flags.append(f"low_mapping({s['mapping_rate']:.3f})")
+                if s['dup_rate']     > m_dup  + 2 * sd_dup:  flags.append(f"high_dup({s['dup_rate']:.3f})")
+                flag_str = ','.join(flags) if flags else 'PASS'
+                f.write(f"{sample}\t{s['mean_depth']:.2f}\t{s['mapping_rate']:.4f}\t{s['dup_rate']:.4f}\t{flag_str}\n")
+
+        print(
+            f"\n{'='*60}\n"
+            f"QC GATE: Review results/qc/samples_pass.txt\n"
+            f"Then run:\n"
+            f"  cp results/qc/samples_pass.txt results/qc/samples_approved.txt\n"
+            f"Edit to remove flagged samples (keep sample_id column only),\n"
+            f"then re-run snakemake to continue.\n"
+            f"{'='*60}\n",
+            file=__import__('sys').stderr
+        )
+
 # ============================================================================
 # 7. BAMLISTS
 # ============================================================================
 
 rule make_bamlist_all:
+    """
+    Bamlist for ANGSD discovery + GL passes. Uses all approved samples.
+
+    QC GATE: Reads results/qc/samples_approved.txt at runtime (not a formal
+    Snakemake input so alignment can proceed before user review). If missing,
+    the job fails with instructions — re-run after creating the approved file.
+    """
     input:
-        expand("results/bams/{sample}.filtered.cram", sample=SAMPLES),
+        crams=expand("results/bams/{sample}.filtered.cram", sample=SAMPLES),
+        qc_pass="results/qc/samples_pass.txt",
     output:
         "results/bamlists/all.bamlist",
     run:
+        import os, sys
+        approved_file = "results/qc/samples_approved.txt"
+        if not os.path.exists(approved_file):
+            raise FileNotFoundError(
+                f"\n{'='*60}\n"
+                f"QC GATE: samples_approved.txt not found.\n"
+                f"Review results/qc/samples_pass.txt, then run:\n"
+                f"  cp results/qc/samples_pass.txt results/qc/samples_approved.txt\n"
+                f"Edit to remove flagged samples (one sample_id per line),\n"
+                f"then re-run snakemake.\n"
+                f"{'='*60}"
+            )
+        with open(approved_file) as f:
+            approved = set(l.strip() for l in f
+                          if l.strip() and not l.startswith('#') and not l.startswith('sample'))
         with open(output[0], 'w') as f:
-            for path in input:
-                f.write(str(path) + '\n')
+            for sample in SAMPLES:
+                if sample in approved:
+                    f.write(f"results/bams/{sample}.filtered.cram\n")
 
 rule make_bamlist_pop:
+    """
+    Per-population bamlist for SAF/FST. Uses clone-filtered approved samples only.
+    Depends on unrelated_samples.txt — created after ngsRelate by filter_clones.
+    """
     input:
         bams=get_pop_samples,
+        unrelated="results/relatedness/unrelated_samples.txt",
     output:
         "results/bamlists/{popname}.bamlist",
     run:
+        with open(input.unrelated) as f:
+            unrelated = set(l.strip() for l in f if l.strip())
         with open(output[0], 'w') as f:
             for path in input.bams:
-                f.write(str(path) + '\n')
+                sample = path.split('/')[-1].replace('.filtered.cram', '')
+                if sample in unrelated:
+                    f.write(str(path) + '\n')
 
 # ============================================================================
 # 8. TWO-PASS ANGSD: SNP DISCOVERY
@@ -582,13 +722,14 @@ rule ngsld_estimate:
     """
     # ngsLD has no bioconda package/biocontainer — compiled from source on host
     input:
-        beagle="results/angsd/all.beagle.gz",
+        beagle="results/angsd/all.unrelated.beagle.gz",
         mafs="results/angsd/all.mafs.gz",
+        unrelated="results/relatedness/unrelated_samples.txt",
     output:
         ld_raw=temp("results/ld/ld_raw.tsv"),
     params:
         max_dist_kb=config.get("ld_max_dist", 500000) // 1000,
-        n_samples=N_SAMPLES,
+        n_samples=lambda wc, input: sum(1 for l in open(input.unrelated) if l.strip()),
     threads: 8
     resources:
         mem_mb=16000,
@@ -740,10 +881,10 @@ rule filter_ld_beagle:
     Keeps only SNPs listed in pruned_keep_snps.txt (output of ld_prune).
     """
     input:
-        beagle="results/angsd/all.beagle.gz",
+        beagle="results/angsd/all.unrelated.beagle.gz",
         keep="results/ld/pruned_keep_snps.txt",
     output:
-        beagle="results/angsd/all.ldpruned.beagle.gz",
+        beagle="results/angsd/all.unrelated.ldpruned.beagle.gz",
     run:
         import gzip, sys
 
@@ -772,12 +913,12 @@ rule filter_ld_beagle:
 
 rule pcangsd_pca:
     """
-    PCA using LD-pruned SNPs.
+    PCA using LD-pruned, clone-filtered SNPs.
     Runtime: 10-15 min
     """
     container: "docker://quay.io/biocontainers/pcangsd:1.36.4--py313h5d164f8_1"
     input:
-        "results/angsd/all.ldpruned.beagle.gz",
+        "results/angsd/all.unrelated.ldpruned.beagle.gz",
     output:
         cov="results/pca/pcangsd.cov",
     params:
@@ -794,12 +935,12 @@ rule pcangsd_pca:
 
 rule pcangsd_admixture:
     """
-    Admixture analysis for K ancestral populations.
+    Admixture analysis for K ancestral populations using clone-filtered SNPs.
     Runtime: 8-12 min per K
     """
     container: "docker://quay.io/biocontainers/pcangsd:1.36.4--py313h5d164f8_1"
     input:
-        "results/angsd/all.ldpruned.beagle.gz",
+        "results/angsd/all.unrelated.ldpruned.beagle.gz",
     output:
         Q="results/admixture/pcangsd_K{k}.Q",
         F="results/admixture/pcangsd_K{k}.F.npy",
@@ -879,6 +1020,113 @@ rule process_relatedness:
                 ia, ib = int(row['a']), int(row['b'])
                 if ia < len(SAMPLES) and ib < len(SAMPLES):
                     f.write(f"{SAMPLES[ia]}\t{SAMPLES[ib]}\t{king:.4f}\t{relationship}\n")
+
+# ============================================================================
+# 11b. CLONE FILTER + BEAGLE SUBSETTING
+# ============================================================================
+
+rule filter_clones:
+    """
+    Remove one sample from each clone pair (KING >= clone_threshold, default 0.45).
+    Keeps the higher-depth sample. Close relatives (KING 0.2-0.45) are flagged
+    in relatedness_summary.txt but NOT excluded — investigator must decide.
+
+    Output: unrelated_samples.txt — one approved, unrelated sample_id per line.
+    Used by: make_bamlist_pop (SAF/FST) and subset_beagle (PCA/admixture/ngsLD).
+    """
+    input:
+        summary="results/relatedness/relatedness_summary.txt",
+        depths=expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
+    output:
+        "results/relatedness/unrelated_samples.txt",
+    params:
+        clone_threshold=config.get("clone_threshold", 0.45),
+    run:
+        import os, sys
+
+        # Use samples from the approved file if it exists, otherwise all SAMPLES
+        approved_file = "results/qc/samples_approved.txt"
+        if os.path.exists(approved_file):
+            with open(approved_file) as f:
+                approved = [l.strip() for l in f
+                            if l.strip() and not l.startswith('#') and not l.startswith('sample')]
+        else:
+            approved = list(SAMPLES)
+
+        depths = {}
+        for fpath in input.depths:
+            sample = os.path.basename(fpath).replace('.depth.txt', '')
+            with open(fpath) as f:
+                depths[sample] = float(f.read().strip())
+
+        exclude = set()
+        with open(input.summary) as f:
+            next(f)
+            for line in f:
+                parts = line.strip().split('\t')
+                if len(parts) < 4:
+                    continue
+                a, b, king, rel = parts[0], parts[1], float(parts[2]), parts[3]
+                if rel == "Clone/Identical" or king >= params.clone_threshold:
+                    # Drop the lower-depth sample; ties: exclude alphabetically later
+                    if depths.get(a, 0) >= depths.get(b, 0):
+                        exclude.add(b)
+                    else:
+                        exclude.add(a)
+
+        kept = [s for s in approved if s not in exclude]
+        with open(output[0], 'w') as f:
+            for s in kept:
+                f.write(s + '\n')
+
+        print(
+            f"Clone filter: {len(kept)} kept, {len(exclude)} excluded "
+            f"({', '.join(sorted(exclude)) or 'none'})",
+            file=sys.stderr
+        )
+
+rule subset_beagle:
+    """
+    Remove clone/related-sample columns from the full beagle file.
+
+    Beagle column layout: marker, Allele1, Allele2, then 3 cols per sample in
+    the same order as make_bamlist_all (approved samples in SAMPLES order).
+    """
+    input:
+        beagle="results/angsd/all.beagle.gz",
+        unrelated="results/relatedness/unrelated_samples.txt",
+    output:
+        beagle="results/angsd/all.unrelated.beagle.gz",
+    run:
+        import gzip, os, sys
+
+        # Approved samples determine column order (same as make_bamlist_all)
+        approved_file = "results/qc/samples_approved.txt"
+        if os.path.exists(approved_file):
+            with open(approved_file) as f:
+                approved = [l.strip() for l in f
+                            if l.strip() and not l.startswith('#') and not l.startswith('sample')]
+        else:
+            approved = list(SAMPLES)
+
+        with open(input.unrelated) as f:
+            unrelated = set(l.strip() for l in f if l.strip())
+
+        # 3 columns per sample; first 3 cols are marker/allele1/allele2
+        keep_cols = [0, 1, 2]
+        for i, sample in enumerate(approved):
+            if sample in unrelated:
+                keep_cols += [3 + i*3, 3 + i*3 + 1, 3 + i*3 + 2]
+
+        n_removed = len(approved) - len(unrelated & set(approved))
+        print(f"subset_beagle: removing {n_removed} clone samples", file=sys.stderr)
+
+        with gzip.open(input.beagle, 'rt') as fin, \
+             gzip.open(output.beagle, 'wt') as fout:
+            fout.write(fin.readline())  # header
+            for line in fin:
+                parts = line.rstrip('\n').split('\t')
+                fout.write('\t'.join(parts[i] for i in keep_cols) + '\n')
 
 # ============================================================================
 # 12. PER-POPULATION SAF → SFS → DIVERSITY → FST
