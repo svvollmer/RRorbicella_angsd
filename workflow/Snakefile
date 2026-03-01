@@ -144,7 +144,7 @@ rule download_sra:
 # ============================================================================
 
 rule fastp:
-    container: "docker://quay.io/biocontainers/fastp:0.23.4--hadf994f_1"
+    container: "docker://quay.io/biocontainers/fastp:0.23.4--h5f740d0_0"
     input:
         r1="results/fastq/{sample}_1.fastq.gz",
         r2="results/fastq/{sample}_2.fastq.gz",
