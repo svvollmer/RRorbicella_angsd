@@ -60,7 +60,7 @@ Peak disk usage during a 96-sample run is bounded by how many samples are being 
 | Step | Tool | What it does |
 |------|------|--------------|
 | `angsd_discover_snps` | ANGSD | Pass 1: scans all CRAMs genome-wide with relaxed filters (60% individuals, `-doMaf 1`) to identify candidate SNP positions. Max depth set to mean + 2SD of observed coverage. |
-| `angsd_genotype_likelihoods` | ANGSD | Pass 2: computes genotype likelihoods at pass-1 SNPs with strict filters (80% individuals, MAF > 0.10). Max depth again set to mean + 2SD. Outputs Beagle-format GL matrix. |
+| `angsd_gl_snps` | ANGSD | Pass 2: computes genotype likelihoods at pass-1 SNPs with strict filters (80% individuals, MAF > 0.10, max depth = mean + 2SD). Outputs Beagle-format GL matrix. |
 | `compute_depth_thresholds` | Python | Calculates per-individual and total max depth thresholds as mean + 2SD of observed sample coverage. ANGSD best practice — avoids hard-coded ceilings that fail to adapt to actual library depth. |
 | `ngsld_estimate` | ngsLD | Estimates pairwise LD (r²) between all SNP pairs within 50 kb windows. |
 | `ld_decay` | Python | Calculates the LD decay curve by distance bin to determine the pruning window size. |
