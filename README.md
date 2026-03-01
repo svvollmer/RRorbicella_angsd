@@ -1,115 +1,179 @@
 # Coral ANGSD Pipeline
 
-Two-pass ANGSD population genomics workflow for *Acropora palmata* (96 samples: Florida + Panama).
+Population genomics pipeline for *Acropora palmata* (elkhorn coral) using a two-pass ANGSD workflow. Designed to run on a local workstation, SLURM HPC, or AWS EC2 with Singularity containers.
 
-## What it does
+**Vollmer Lab — Florida Atlantic University**
+
+---
+
+## Study System
+
+96 *A. palmata* colonies sampled across two regions:
+- **Florida** (FL): Florida Keys reef system
+- **Panama** (PA): Caribbean Panama
+
+Research questions: population structure, gene flow, local adaptation, and relatedness across the Florida–Panama range.
+
+---
+
+## Pipeline Strategy
+
+### Why two-pass ANGSD?
+
+ANGSD works on genotype likelihoods rather than hard genotype calls, making it well-suited for low-to-moderate coverage coral resequencing data. A single-pass approach requires choosing SNP filters before knowing the data; a two-pass approach lets the data inform the filters:
+
+1. **Pass 1 — Discovery**: Scan the whole genome with relaxed filters (60% of individuals, low MAF) to identify candidate SNPs. Fast because it only outputs a SNP position list.
+2. **Pass 2 — Genotype Likelihoods**: Revisit only those SNP positions with strict filters (80% of individuals, MAF > 0.10), computing full genotype likelihood arrays (Beagle format) for downstream analysis.
+
+This avoids computing full GL arrays for every site in the genome, which would be prohibitively slow.
+
+### Disk strategy
+
+All intermediate files are marked `temp()` in Snakemake and deleted automatically once no longer needed:
 
 ```
-Stage 1: Data prep (per sample)
-  SRA download → fastp QC → BWA-MEM mapping → samtools dedup → quality filter
-  → QC metrics (flagstat, depth, multiqc)
-
-Stage 2A: Population structure (SNP-based)
-  ANGSD pass1 (SNP discovery) → ANGSD pass2 (genotype likelihoods)
-  → ngsLD (pairwise LD within 500 kb) → LD pruning (r² > 0.3)
-  → PCAngsd (PCA + admixture K=2–5) → ngsRelate (kinship)
-
-Stage 2B: Diversity & divergence (all-sites)
-  ANGSD SAF per population → realSFS (1D + 2D SFS)
-  → thetaStat (π, θ, Tajima's D) → FST global + windowed
-  → Individual heterozygosity per sample
-
-Stage 3: Annotation & report
-  GFF → gene BED → FST outliers × genes → HTML report
+FASTQ (raw)      → deleted after fastp
+FASTQ (trimmed)  → deleted after BWA
+BAM (raw)        → deleted after dedup
+BAM (dedup)      → deleted after CRAM filter
+CRAM (filtered)  → kept permanently (~50% smaller than BAM)
 ```
 
-## Dependencies
+Peak disk usage during a 96-sample run is bounded by how many samples are being processed simultaneously, not by total sample count.
 
-All tools run via Singularity containers (no local installs needed beyond Snakemake + Singularity).
+---
 
-- Snakemake ≥ 7.0
-- Singularity or Apptainer
+## Pipeline Steps
 
-## Configuration
+### Stage 1 — Read Processing
 
-| File | Purpose |
-|------|---------|
-| `config/config.yaml` | Main pipeline settings (reference path, filters, MAF, etc.) |
-| `config/samples.csv` | Full 96-sample dataset |
-| `config/samples_test.csv` | 5-sample subset (Florida + Panama) for local testing |
+| Step | Tool | What it does |
+|------|------|--------------|
+| `download_sra` | fasterq-dump | Downloads paired-end reads from NCBI SRA. On AWS EC2 (us-east-1), NCBI routes to their free S3 bucket so transfer costs nothing. Raw FASTQs deleted after trimming. |
+| `fastp` | fastp | Adapter trimming, poly-G tail removal, per-cycle quality trimming. Produces per-sample HTML/JSON QC report. |
+| `bwa_map` | BWA-MEM + samtools | Aligns trimmed reads to the *A. palmata* reference genome with read groups for downstream compatibility. |
+| `mark_duplicates` | samtools markdup | Marks PCR duplicates in-stream without removing them (ANGSD handles duplicates internally). |
+| `filter_mapped` | samtools view | Retains only properly paired, uniquely mapped reads (MAPQ ≥ 20) on chromosomes ≥ 10 Mb. Stored as CRAM with embedded reference path for portability. |
 
-## Usage
+### Stage 2A — SNP Discovery and Population Structure
 
-### Local workstation (test run, 5 samples with existing BAMs)
+| Step | Tool | What it does |
+|------|------|--------------|
+| `angsd_discover_snps` | ANGSD | Pass 1: scans all CRAMs genome-wide with relaxed filters (60% individuals) to identify candidate SNP positions. |
+| `angsd_genotype_likelihoods` | ANGSD | Pass 2: computes genotype likelihoods at pass-1 SNPs with strict filters (80% individuals, MAF > 0.10). Outputs Beagle-format GL matrix. |
+| `ngsld_estimate` | ngsLD | Estimates pairwise LD (r²) between all SNP pairs within 500 kb windows. |
+| `ld_decay` | Python | Calculates the LD decay curve by distance bin to determine the pruning window size. |
+| `ld_prune` | Python | Greedy graph-based LD pruning: removes one SNP from each pair with r² > 0.3. Pure Python — no external dependency. |
+| `pcangsd` | PCAngsd | PCA and admixture proportions (K = 2–5) directly from genotype likelihoods on LD-pruned SNPs. |
+| `ngsrelate` | ngsRelate | Estimates pairwise kinship (KING) from genotype likelihoods. Flags related pairs and putative clones. |
+
+### Stage 2B — Diversity and Differentiation
+
+| Step | Tool | What it does |
+|------|------|--------------|
+| `angsd_saf` | ANGSD | Computes site allele frequency likelihoods (SAF) per population using all sites — not just SNPs — for unbiased diversity estimates. |
+| `realSFS` | ANGSD | Optimizes 1D and 2D site frequency spectra from SAF likelihoods via expectation-maximization. |
+| `angsd_thetas` | ANGSD | Computes per-site θ and summarizes: nucleotide diversity (π), Watterson's θ, and Tajima's D per population. |
+| `fst_estimate` | realSFS | Genome-wide weighted FST between each population pair from the joint 2D SFS. |
+| `fst_windows` | realSFS | Sliding-window FST across the genome for Manhattan plots and outlier detection. |
+| `heterozygosity` | ANGSD | Per-individual heterozygosity from single-sample SAF likelihoods. |
+
+### Stage 3 — QC and Reporting
+
+| Step | Tool | What it does |
+|------|------|--------------|
+| `multiqc` | MultiQC | Aggregates fastp QC reports across all samples into a single interactive report. |
+| `depth_summary` | samtools coverage | Per-sample mean depth and breadth of coverage from CRAMs. |
+| `filtering_summary` | samtools flagstat | Read counts at each filtering stage per sample. |
+| `fst_outlier_annotation` | Python | Annotates FST outlier windows with nearby genes from the GFF annotation. |
+| `generate_report` | Python/matplotlib | Self-contained HTML report with embedded figures + separate 300 DPI PNGs saved to `results/figures/`. |
+
+---
+
+## Running the Pipeline
+
+### Requirements
+
+- [Snakemake](https://snakemake.readthedocs.io) ≥ 9.0
+- [Singularity/Apptainer](https://apptainer.org) ≥ 1.3 (for containerized rules)
+- `fasterq-dump` (SRA toolkit) installed on the host — the container version has TLS issues on EC2
+- `ngsLD` compiled from source on the host — not in bioconda
+
+### Local workstation
 
 ```bash
-# Edit config/config.yaml: set samples_csv to config/samples_test.csv
 snakemake --snakefile workflow/Snakefile --profile profiles/local
 ```
 
-### Local workstation (full 96-sample run)
+Set `local_conda_env` in `config/config.yaml` to your conda environment path.
+
+### SLURM HPC
 
 ```bash
-# Edit config/config.yaml: set samples_csv to config/samples.csv
-snakemake --snakefile workflow/Snakefile --profile profiles/local
-```
-
-### FAU HPC or Northeastern HPC (SLURM)
-
-```bash
-# Edit profiles/slurm/config.yaml: set slurm_partition for your cluster
-# FAU KoKo: general, himem, gpu
-# Northeastern Discovery: short, long, himem
-
-module load singularity  # or apptainer
 snakemake --snakefile workflow/Snakefile --profile profiles/slurm
 ```
 
-### AWS EC2 (single large instance)
+### AWS EC2
 
 ```bash
-# Launch e.g. c6i.16xlarge (64 vCPU, 128 GB RAM) with Amazon Linux 2
-# Install Snakemake + Singularity/Apptainer
-snakemake --snakefile workflow/Snakefile --profile profiles/aws
+snakemake --snakefile workflow/Snakefile \
+  --cores 16 --jobs 4 --keep-going --latency-wait 120 \
+  --rerun-incomplete --rerun-triggers mtime \
+  --use-singularity \
+  --singularity-args '--bind /home/ubuntu --bind /usr/local/bin --bind /opt' \
+  --config samples_csv=config/samples_aws_test.csv \
+  > snakemake.log 2>&1 &
 ```
 
-## Reference genome
+Comment out `local_conda_env` in `config/config.yaml` on AWS — containers provide the correct PATH.
 
-The reference and annotation files are too large for git. See `resources/README.txt` for setup.
+---
 
-Required path (set in `config/config.yaml`):
+## Configuration
+
+Key parameters in `config/config.yaml`:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `samples_csv` | `config/samples_test.csv` | Sample sheet with `sample_id`, `sra_accession`, `population` columns |
+| `reference` | `reference/apalmata_genome.fasta` | Reference genome (soft-masked for repeat detection) |
+| `min_maf` | 0.10 | Minor allele frequency threshold for pass-2 SNPs |
+| `min_ind_frac` | 0.80 | Fraction of individuals required at each site (pass 2) |
+| `ld_r2_threshold` | 0.3 | r² threshold for LD pruning |
+| `max_k` | 5 | Maximum K for admixture analysis |
+| `min_scaffold_size` | 10,000,000 | Only analyze scaffolds ≥ 10 Mb (chromosomes only) |
+
+---
+
+## Repository Structure
+
 ```
-reference/GCF_021335395.2_Apul_2.0_genomic.fna
+workflow/
+  Snakefile               # Main pipeline
+  scripts/
+    generate_report.py    # HTML report generator
+config/
+  config.yaml             # Main configuration
+  samples.csv             # 96-sample production sheet
+  samples_test.csv        # 5-sample local test
+  samples_aws_test.csv    # 10-sample AWS test
+profiles/
+  local/config.yaml       # Local workstation settings
+  slurm/config.yaml       # FAU/Northeastern HPC settings
+  aws/config.yaml         # AWS EC2 settings
+reference/                # Reference genome (not tracked in git)
+results/                  # All outputs (not tracked in git)
 ```
 
-## Dry run (check DAG without executing)
+---
 
-```bash
-snakemake --snakefile workflow/Snakefile --profile profiles/local --dry-run
-```
+## Samples
 
-## Directory structure
+See `config/samples.csv` for the full 96-sample manifest. Each row:
 
-```
-coral-angsd-pipeline/
-├── workflow/
-│   ├── Snakefile
-│   └── scripts/
-├── config/
-│   ├── config.yaml
-│   ├── samples.csv           ← 96-sample full run
-│   └── samples_test.csv      ← 5-sample test run
-├── profiles/
-│   ├── local/config.yaml
-│   ├── slurm/config.yaml
-│   └── aws/config.yaml
-├── resources/README.txt      ← reference genome setup instructions
-└── archive/                  ← old Snakefile versions
-```
-
-## Key design notes
-
-- **Two-pass ANGSD**: Pass 1 discovers SNPs (relaxed filters), Pass 2 computes genotype likelihoods only at discovered SNPs (strict filters). ~10× faster than single-pass.
-- **LD pruning before PCA/Admixture**: ngsLD computes r² within 500 kb; SNPs with r² > 0.3 are removed before PCAngsd runs.
-- **All-sites diversity**: SAF/SFS analysis uses all sites at discovered positions (not SNP-filtered), giving unbiased π and Tajima's D.
-- **Singularity containers**: Each rule uses a Biocontainers image. Run with `--use-singularity` (included in all profiles).
+| Column | Example | Description |
+|--------|---------|-------------|
+| `sample_id` | `Ac_FL_M10` | Unique identifier |
+| `sra_accession` | `SRR24007640` | NCBI SRA accession |
+| `population` | `florida` | Population label |
+| `region` | `Florida` | Collection region |
