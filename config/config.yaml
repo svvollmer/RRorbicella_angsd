@@ -9,7 +9,7 @@
 local_conda_env: "/home/minipc/miniconda3/envs/angsd-pipeline"
 
 # --- Input ---
-samples_csv: "config/samples_test.csv"
+samples_csv: "config/samples_aws_test.csv"
 reference: "reference/apalmata_genome.fasta"
 gene_annotation: "reference/apalmata_genes.gff"
 

@@ -16,7 +16,7 @@
 cores: 64
 jobs: 16
 use-singularity: true
-singularity-args: "--bind /home --bind /data --bind /tmp"
+singularity-args: "--bind /home --bind /tmp"
 keep-going: true
 latency-wait: 120
 rerun-incomplete: true
