@@ -89,8 +89,8 @@ rule all:
         "results/angsd/all.beagle.gz",
         "results/angsd/all.mafs.gz",
 
-        # Clone filter
-        "results/relatedness/unrelated_samples.txt",
+        # Clone filter (unrelated_samples.txt created by clone_approve.py, not tracked here)
+        "results/relatedness/clones_report.txt",
         "results/angsd/all.unrelated.beagle.gz",
 
         # LD analysis (clone-filtered)
@@ -565,15 +565,28 @@ rule make_bamlist_all:
 rule make_bamlist_pop:
     """
     Per-population bamlist for SAF/FST. Uses clone-filtered approved samples only.
-    Depends on unrelated_samples.txt — created after ngsRelate by filter_clones.
+
+    CLONE GATE: depends on clones_report.txt (ensures ngsRelate chain ran).
+    Reads unrelated_samples.txt at runtime — run clone_approve.py if missing.
     """
     input:
         bams=get_pop_samples,
-        unrelated="results/relatedness/unrelated_samples.txt",
+        clones_report="results/relatedness/clones_report.txt",
     output:
         "results/bamlists/{popname}.bamlist",
     run:
-        with open(input.unrelated) as f:
+        import os
+        unrelated_file = "results/relatedness/unrelated_samples.txt"
+        if not os.path.exists(unrelated_file):
+            raise FileNotFoundError(
+                f"\n{'='*60}\n"
+                f"CLONE GATE: unrelated_samples.txt not found.\n"
+                f"Run the interactive clone approval script:\n"
+                f"  python workflow/scripts/clone_approve.py\n"
+                f"Then re-run snakemake to continue.\n"
+                f"{'='*60}"
+            )
+        with open(unrelated_file) as f:
             unrelated = set(l.strip() for l in f if l.strip())
         with open(output[0], 'w') as f:
             for path in input.bams:
@@ -723,12 +736,10 @@ rule ngsld_estimate:
     input:
         beagle="results/angsd/all.unrelated.beagle.gz",
         mafs="results/angsd/all.mafs.gz",
-        unrelated="results/relatedness/unrelated_samples.txt",
     output:
         ld_raw=temp("results/ld/ld_raw.tsv"),
     params:
         max_dist_kb=config.get("ld_max_dist", 500000) // 1000,
-        n_samples=lambda wc, input: sum(1 for l in open(input.unrelated) if l.strip()),
     threads: 8
     resources:
         mem_mb=16000,
@@ -737,6 +748,7 @@ rule ngsld_estimate:
         """
         mkdir -p results/ld
         N_SITES=$(python3 -c "import gzip; f=gzip.open('{input.mafs}','rt'); next(f); print(sum(1 for _ in f))")
+        N_IND=$(python3 -c "lines=[l.strip() for l in open('results/relatedness/unrelated_samples.txt') if l.strip()]; print(len(lines))")
 
         python3 -c "
 import gzip
@@ -748,7 +760,7 @@ with gzip.open('{input.mafs}', 'rt') as f:
 "
 
         ngsLD --geno {input.beagle} \
-            --probs --n_ind {params.n_samples} --n_sites $N_SITES \
+            --probs --n_ind $N_IND --n_sites $N_SITES \
             --max_kb_dist {params.max_dist_kb} \
             --pos results/ld/snp_pos.txt \
             --n_threads {threads} \
@@ -1026,24 +1038,26 @@ rule process_relatedness:
 
 rule filter_clones:
     """
-    Remove one sample from each clone pair (KING >= clone_threshold, default 0.45).
-    Keeps the higher-depth sample. Close relatives (KING 0.2-0.45) are flagged
-    in relatedness_summary.txt but NOT excluded — investigator must decide.
+    Identify clone pairs and close relatives; write a recommendations report.
 
-    Output: unrelated_samples.txt — one approved, unrelated sample_id per line.
-    Used by: make_bamlist_pop (SAF/FST) and subset_beagle (PCA/admixture/ngsLD).
+    Does NOT auto-exclude — writes clones_report.txt with recommended exclusions
+    so the investigator can review via the interactive clone_approve.py script.
+
+    Clone GATE: after this rule runs, execute:
+      python workflow/scripts/clone_approve.py
+    which writes unrelated_samples.txt (required by downstream rules).
     """
     input:
         summary="results/relatedness/relatedness_summary.txt",
         depths=expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
     output:
-        "results/relatedness/unrelated_samples.txt",
+        "results/relatedness/clones_report.txt",
     params:
         clone_threshold=config.get("clone_threshold", 0.45),
+        kinship_threshold=config.get("kinship_threshold", 0.2),
     run:
         import os, sys
 
-        # Use samples from the approved file if it exists, otherwise all SAMPLES
         approved_file = "results/qc/samples_approved.txt"
         if os.path.exists(approved_file):
             with open(approved_file) as f:
@@ -1058,7 +1072,9 @@ rule filter_clones:
             with open(fpath) as f:
                 depths[sample] = float(f.read().strip())
 
-        exclude = set()
+        clones    = []   # (a, b, king, depth_a, depth_b, recommended_exclude)
+        relatives = []   # (a, b, king, relationship)
+
         with open(input.summary) as f:
             next(f)
             for line in f:
@@ -1066,21 +1082,40 @@ rule filter_clones:
                 if len(parts) < 4:
                     continue
                 a, b, king, rel = parts[0], parts[1], float(parts[2]), parts[3]
-                if rel == "Clone/Identical" or king >= params.clone_threshold:
-                    # Drop the lower-depth sample; ties: exclude alphabetically later
-                    if depths.get(a, 0) >= depths.get(b, 0):
-                        exclude.add(b)
-                    else:
-                        exclude.add(a)
+                da, db = depths.get(a, 0.0), depths.get(b, 0.0)
+                if king >= params.clone_threshold:
+                    rec = b if da >= db else a
+                    clones.append((a, b, king, da, db, rec))
+                elif king >= params.kinship_threshold:
+                    relatives.append((a, b, king, rel))
 
-        kept = [s for s in approved if s not in exclude]
         with open(output[0], 'w') as f:
-            for s in kept:
-                f.write(s + '\n')
+            f.write("# clones_report.txt — generated by filter_clones rule\n")
+            f.write("# Run: python workflow/scripts/clone_approve.py\n")
+            f.write(f"# clone_threshold: {params.clone_threshold}\n")
+            f.write(f"# kinship_threshold: {params.kinship_threshold}\n")
+            f.write("\n[approved]\n")
+            f.write("sample_id\tmean_depth\n")
+            for s in approved:
+                f.write(f"{s}\t{depths.get(s, 0.0):.2f}\n")
+            f.write("\n[clones]\n")
+            f.write("sample_a\tsample_b\tKING\tdepth_a\tdepth_b\trecommended_exclude\n")
+            for row in clones:
+                f.write("\t".join(str(x) for x in row) + "\n")
+            f.write("\n[relatives]\n")
+            f.write("sample_a\tsample_b\tKING\trelationship\n")
+            for row in relatives:
+                f.write("\t".join(str(x) for x in row) + "\n")
 
+        n_clones = len(clones)
+        n_rel    = len(relatives)
         print(
-            f"Clone filter: {len(kept)} kept, {len(exclude)} excluded "
-            f"({', '.join(sorted(exclude)) or 'none'})",
+            f"\n{'='*60}\n"
+            f"CLONE GATE: {n_clones} clone pair(s), {n_rel} close relative(s) found.\n"
+            f"Run the interactive clone approval script:\n"
+            f"  python workflow/scripts/clone_approve.py\n"
+            f"Then re-run snakemake to continue.\n"
+            f"{'='*60}\n",
             file=sys.stderr
         )
 
@@ -1093,13 +1128,22 @@ rule subset_beagle:
     """
     input:
         beagle="results/angsd/all.beagle.gz",
-        unrelated="results/relatedness/unrelated_samples.txt",
+        clones_report="results/relatedness/clones_report.txt",
     output:
         beagle="results/angsd/all.unrelated.beagle.gz",
     run:
         import gzip, os, sys
 
-        # Approved samples determine column order (same as make_bamlist_all)
+        unrelated_file = "results/relatedness/unrelated_samples.txt"
+        if not os.path.exists(unrelated_file):
+            raise FileNotFoundError(
+                f"\n{'='*60}\n"
+                f"CLONE GATE: unrelated_samples.txt not found.\n"
+                f"Run: python workflow/scripts/clone_approve.py\n"
+                f"Then re-run snakemake.\n"
+                f"{'='*60}"
+            )
+
         approved_file = "results/qc/samples_approved.txt"
         if os.path.exists(approved_file):
             with open(approved_file) as f:
@@ -1108,7 +1152,7 @@ rule subset_beagle:
         else:
             approved = list(SAMPLES)
 
-        with open(input.unrelated) as f:
+        with open(unrelated_file) as f:
             unrelated = set(l.strip() for l in f if l.strip())
 
         # 3 columns per sample; first 3 cols are marker/allele1/allele2
