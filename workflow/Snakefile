@@ -299,14 +299,21 @@ rule make_nonrepeat_bed:
 
 rule filter_mapped:
     """
-    Filter by MAPQ + nonrepeat regions, then write as CRAM (~50% smaller than BAM).
+    Filter by MAPQ + chromosome-level scaffolds, write as CRAM.
+
+    Reads are restricted to chromosome-level scaffolds (chromosomes.bed) but NOT
+    pre-filtered to non-repeat intervals. Repeat exclusion is handled downstream
+    by ANGSD via -sites (nonrepeat_sites.txt) and -setMaxDepth depth filters.
+    This preserves reads spanning repeat/non-repeat boundaries that would otherwise
+    be lost if filtering by read-start position against nonrepeat_regions.bed.
+
     Uses realpath to embed absolute reference path so CRAM is portable between rules.
     dedup.bam is deleted by Snakemake after this rule completes (marked temp).
     """
     container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         bam="results/bams/{sample}.dedup.bam",
-        bed="results/filtering/nonrepeat_regions.bed",
+        bed="results/filtering/chromosomes.bed",
         ref=config["reference"],
         fai=config["reference"] + ".fai",
     output:
@@ -598,13 +605,46 @@ rule make_bamlist_pop:
 # 8. TWO-PASS ANGSD: SNP DISCOVERY
 # ============================================================================
 
+rule make_angsd_sites:
+    """
+    Convert nonrepeat_regions.bed to ANGSD sites file (chr, pos 1-based) and index.
+
+    All ANGSD rules use this file via -sites to restrict analysis to non-repeat
+    positions. This replaces the former approach of pre-filtering CRAMs with -L,
+    which discarded reads whose start fell in a repeat but covered non-repeat bases.
+
+    Output: ~217M lines for A. palmata (~3 GB). Generation takes ~5 min via awk.
+    ANGSD sites index creates .idx and .bin files for O(1) position lookup.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        bed="results/filtering/nonrepeat_regions.bed",
+    output:
+        sites="results/angsd/nonrepeat_sites.txt",
+        idx="results/angsd/nonrepeat_sites.txt.idx",
+        bin="results/angsd/nonrepeat_sites.txt.bin",
+    resources:
+        mem_mb=4000,
+        runtime=30,
+    shell:
+        """
+        mkdir -p results/angsd
+        awk 'BEGIN{{OFS="\\t"}} {{for(i=$2+1; i<=$3; i++) print $1,i}}' {input.bed} \
+            > {output.sites}
+        angsd sites index {output.sites}
+        """
+
 rule angsd_discover_snps:
     """
-    PASS 1: SNP Discovery (relaxed filters, whole chromosomes)
+    PASS 1: SNP Discovery — non-repeat sites, relaxed filters.
 
-    Uses whole chromosomes so depth filters catch multi-mapping reads from repeats.
+    Uses nonrepeat_sites.txt (-sites) to restrict analysis to soft-masked
+    non-repeat positions, avoiding repeat-associated mapping artifacts.
+    Depth filters (-setMaxDepth, -setMaxDepthInd) catch any residual
+    multi-mapping pileups. -remove_bads 1 excludes duplicate/secondary/QC-fail
+    reads at the ANGSD level. -only_proper_pairs 1 excludes chimeric pairs.
+
     Relaxed minInd (60%) and SNP p-value (1e-4) to capture all variable sites.
-
     Runtime: ~2h for 96 samples; ~50 min for 5 samples
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
@@ -614,6 +654,8 @@ rule angsd_discover_snps:
         fai=config["reference"] + ".fai",
         chroms="results/filtering/chromosomes.bed",
         depth_thresh="results/angsd/depth_thresholds.txt",
+        sites="results/angsd/nonrepeat_sites.txt",
+        sites_idx="results/angsd/nonrepeat_sites.txt.idx",
     output:
         mafs="results/angsd/pass1.mafs.gz",
         snplist="results/angsd/pass1_snps.txt",
@@ -641,8 +683,10 @@ rule angsd_discover_snps:
             -setMaxDepthInd {params.max_depth_ind} \
             -minInd {params.min_ind} \
             -minMapQ 20 -minQ 20 \
+            -remove_bads 1 -only_proper_pairs 1 \
             -SNP_pval 1e-4 \
             -skipTriallelic 1 \
+            -sites {input.sites} \
             -rf {input.chroms} \
             -nThreads {threads}
 
@@ -713,6 +757,7 @@ rule angsd_gl_snps:
             -setMaxDepth {params.max_depth} \
             -setMaxDepthInd {params.max_depth_ind} \
             -minMapQ 20 -minQ 20 \
+            -remove_bads 1 -only_proper_pairs 1 \
             -SNP_pval 1e-6 \
             -minMaf {params.min_maf} \
             -skipTriallelic 1 \
@@ -1178,11 +1223,12 @@ rule subset_beagle:
 
 rule angsd_saf:
     """
-    Per-population site allele frequency likelihoods over ALL sites.
+    Per-population site allele frequency likelihoods over all non-repeat sites.
 
-    No -sites filter — SAF must include monomorphic sites for unbiased
-    diversity estimates (π, θ, Tajima's D). Restricting to SNPs inflates
-    diversity and biases Tajima's D positive.
+    Uses nonrepeat_sites.txt (-sites) to restrict to soft-masked non-repeat
+    positions. Includes monomorphic sites — required for unbiased SFS and
+    accurate diversity estimates (π, θ, Tajima's D). Restricting to SNPs
+    would inflate diversity and bias Tajima's D positive.
 
     A. palmata reference serves as outgroup/ancestral state for A. cervicornis
     data, so unfolded SFS via -anc {ref} is valid.
@@ -1196,6 +1242,8 @@ rule angsd_saf:
         fai=config["reference"] + ".fai",
         chroms="results/filtering/chromosomes.bed",
         depth_thresh="results/angsd/depth_thresholds.txt",
+        sites="results/angsd/nonrepeat_sites.txt",
+        sites_idx="results/angsd/nonrepeat_sites.txt.idx",
     output:
         saf="results/sfs/{popname}.saf.idx",
     params:
@@ -1217,6 +1265,8 @@ rule angsd_saf:
             -setMaxDepthInd {params.max_depth_ind} \
             -setMinDepthInd 2 \
             -minMapQ 20 -minQ 20 \
+            -remove_bads 1 -only_proper_pairs 1 \
+            -sites {input.sites} \
             -rf {input.chroms} \
             -nThreads {threads}
         """
@@ -1317,7 +1367,7 @@ rule fst_global:
 
 rule individual_saf:
     """
-    Per-individual SAF for heterozygosity.
+    Per-individual SAF for heterozygosity over all non-repeat sites.
     Reads CRAM directly — no bamlist needed for single-sample runs.
     sites_idx dependency ensures index is built before any of the 96 parallel jobs start.
     Runtime: 12-15 min per sample
@@ -1330,6 +1380,8 @@ rule individual_saf:
         fai=config["reference"] + ".fai",
         chroms="results/filtering/chromosomes.bed",
         depth_thresh="results/angsd/depth_thresholds.txt",
+        sites="results/angsd/nonrepeat_sites.txt",
+        sites_idx="results/angsd/nonrepeat_sites.txt.idx",
     output:
         temp("results/heterozygosity/{sample}.saf.idx"),
     params:
@@ -1348,6 +1400,8 @@ rule individual_saf:
             -setMaxDepthInd {params.max_depth_ind} \
             -setMinDepthInd 2 \
             -minMapQ 20 -minQ 20 \
+            -remove_bads 1 -only_proper_pairs 1 \
+            -sites {input.sites} \
             -rf {input.chroms} \
             -nThreads {threads} -out {params.out}
         """
