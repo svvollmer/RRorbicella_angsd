@@ -352,6 +352,37 @@ rule depth_summary:
                     depth = fh.read().strip()
                 out.write(f"{sample}\t{depth}\n")
 
+rule compute_depth_thresholds:
+    """
+    Compute data-driven depth thresholds from actual per-sample coverage.
+
+    ANGSD best practice: set -setMaxDepth and -setMaxDepthInd to mean + 2SD
+    of observed per-sample depths. Prevents multi-mapping artifacts in
+    repetitive regions from inflating depth without a hard arbitrary ceiling.
+
+    per_ind_max  = ceil(mean + 2*SD), minimum 50x
+    total_max    = N_samples * per_ind_max
+    """
+    input:
+        depths=expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
+    output:
+        "results/angsd/depth_thresholds.txt",
+    run:
+        import math
+        depths = []
+        for f in input.depths:
+            with open(f) as fh:
+                depths.append(float(fh.read().strip()))
+        mean = sum(depths) / len(depths)
+        sd = math.sqrt(sum((d - mean) ** 2 for d in depths) / len(depths))
+        per_ind_max = max(50, math.ceil(mean + 2 * sd))
+        total_max = N_SAMPLES * per_ind_max
+        with open(output[0], 'w') as out:
+            out.write(f"total_max_depth\t{total_max}\n")
+            out.write(f"per_ind_max_depth\t{per_ind_max}\n")
+            out.write(f"mean_depth\t{mean:.2f}\n")
+            out.write(f"sd_depth\t{sd:.2f}\n")
+
 rule filtering_summary:
     input:
         expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
@@ -430,6 +461,7 @@ rule angsd_discover_snps:
         ref=config["reference"],
         fai=config["reference"] + ".fai",
         chroms="results/filtering/chromosomes.bed",
+        depth_thresh="results/angsd/depth_thresholds.txt",
     output:
         mafs="results/angsd/pass1.mafs.gz",
         snplist="results/angsd/pass1_snps.txt",
@@ -437,7 +469,8 @@ rule angsd_discover_snps:
         out="results/angsd/pass1",
         min_ind=MIN_IND_DISCOVERY,
         min_depth=MIN_DEPTH_TOTAL,
-        max_depth=1000,
+        max_depth=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('total_max')][0]),
+        max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
     threads: 16
     resources:
         mem_mb=32000,
@@ -448,12 +481,12 @@ rule angsd_discover_snps:
 
         angsd -bam {input.bamlist} -ref {input.ref} \
             -out {params.out} \
-            -GL 1 -doMajorMinor 1 -doMaf 2 \
+            -GL 1 -doMajorMinor 1 -doMaf 1 \
             -doCounts 1 \
             -setMinDepth {params.min_depth} \
             -setMaxDepth {params.max_depth} \
             -setMinDepthInd 2 \
-            -setMaxDepthInd 100 \
+            -setMaxDepthInd {params.max_depth_ind} \
             -minInd {params.min_ind} \
             -minMapQ 20 -minQ 20 \
             -SNP_pval 1e-4 \
@@ -504,6 +537,7 @@ rule angsd_gl_snps:
         fai=config["reference"] + ".fai",
         sites="results/angsd/pass1_snps.txt",
         sites_idx=rules.index_sites.output,
+        depth_thresh="results/angsd/depth_thresholds.txt",
     output:
         beagle="results/angsd/all.beagle.gz",
         mafs="results/angsd/all.mafs.gz",
@@ -511,6 +545,8 @@ rule angsd_gl_snps:
         out="results/angsd/all",
         min_ind=MIN_IND_FINAL,
         min_maf=config.get("min_maf", 0.05),
+        max_depth=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('total_max')][0]),
+        max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
     threads: 16
     resources:
         mem_mb=32000,
@@ -522,6 +558,8 @@ rule angsd_gl_snps:
             -GL 1 -doMajorMinor 1 -doMaf 1 -doGlf 2 \
             -sites {input.sites} \
             -minInd {params.min_ind} \
+            -setMaxDepth {params.max_depth} \
+            -setMaxDepthInd {params.max_depth_ind} \
             -minMapQ 20 -minQ 20 \
             -SNP_pval 1e-6 \
             -minMaf {params.min_maf} \
@@ -540,7 +578,7 @@ rule ngsld_estimate:
     max_dist_kb: config ld_max_dist is in bp, ngsLD expects kb (bug fix: // 1000).
     Output is marked temp() — large file, deleted after ld_decay + ld_prune complete.
 
-    Runtime: 25-35 min for ~75K SNPs, 96 samples, 500kb window
+    Runtime: 25-35 min for ~75K SNPs, 96 samples, 50kb window
     """
     # ngsLD has no bioconda package/biocontainer — compiled from source on host
     input:

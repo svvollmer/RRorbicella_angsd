@@ -45,7 +45,7 @@ use_repeat_mask: true
 use_mappability: false       # optional, run GenMap if true
 
 # --- LD pruning ---
-ld_max_dist: 500000          # max distance for LD estimation (500 kb)
+ld_max_dist: 50000           # max distance for LD estimation (50 kb)
 ld_r2_threshold: 0.3         # prune pairs above this r2
 ld_decay_threshold: 0.1      # r2 level to determine pruning window
 
