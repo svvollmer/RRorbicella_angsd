@@ -516,11 +516,10 @@ rule qc_report:
 
         print(
             f"\n{'='*60}\n"
-            f"QC GATE: Review results/qc/samples_pass.txt\n"
-            f"Then run:\n"
-            f"  cp results/qc/samples_pass.txt results/qc/samples_approved.txt\n"
-            f"Edit to remove flagged samples (keep sample_id column only),\n"
-            f"then re-run snakemake to continue.\n"
+            f"QC GATE: {len([s for s in SAMPLES if s in stats])} samples processed.\n"
+            f"Run the interactive approval script:\n"
+            f"  python workflow/scripts/qc_approve.py\n"
+            f"Then re-run snakemake to continue.\n"
             f"{'='*60}\n",
             file=__import__('sys').stderr
         )
@@ -549,10 +548,10 @@ rule make_bamlist_all:
             raise FileNotFoundError(
                 f"\n{'='*60}\n"
                 f"QC GATE: samples_approved.txt not found.\n"
-                f"Review results/qc/samples_pass.txt, then run:\n"
-                f"  cp results/qc/samples_pass.txt results/qc/samples_approved.txt\n"
-                f"Edit to remove flagged samples (one sample_id per line),\n"
-                f"then re-run snakemake.\n"
+                f"Run the interactive QC approval script:\n"
+                f"  python workflow/scripts/qc_approve.py\n"
+                f"Review flagged samples, confirm exclusions, then\n"
+                f"re-run snakemake to continue.\n"
                 f"{'='*60}"
             )
         with open(approved_file) as f:
