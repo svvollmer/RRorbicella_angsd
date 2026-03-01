@@ -59,9 +59,10 @@ Peak disk usage during a 96-sample run is bounded by how many samples are being 
 
 | Step | Tool | What it does |
 |------|------|--------------|
-| `angsd_discover_snps` | ANGSD | Pass 1: scans all CRAMs genome-wide with relaxed filters (60% individuals) to identify candidate SNP positions. |
-| `angsd_genotype_likelihoods` | ANGSD | Pass 2: computes genotype likelihoods at pass-1 SNPs with strict filters (80% individuals, MAF > 0.10). Outputs Beagle-format GL matrix. |
-| `ngsld_estimate` | ngsLD | Estimates pairwise LD (r²) between all SNP pairs within 500 kb windows. |
+| `angsd_discover_snps` | ANGSD | Pass 1: scans all CRAMs genome-wide with relaxed filters (60% individuals, `-doMaf 1`) to identify candidate SNP positions. Max depth set to mean + 2SD of observed coverage. |
+| `angsd_genotype_likelihoods` | ANGSD | Pass 2: computes genotype likelihoods at pass-1 SNPs with strict filters (80% individuals, MAF > 0.10). Max depth again set to mean + 2SD. Outputs Beagle-format GL matrix. |
+| `compute_depth_thresholds` | Python | Calculates per-individual and total max depth thresholds as mean + 2SD of observed sample coverage. ANGSD best practice — avoids hard-coded ceilings that fail to adapt to actual library depth. |
+| `ngsld_estimate` | ngsLD | Estimates pairwise LD (r²) between all SNP pairs within 50 kb windows. |
 | `ld_decay` | Python | Calculates the LD decay curve by distance bin to determine the pruning window size. |
 | `ld_prune` | Python | Greedy graph-based LD pruning: removes one SNP from each pair with r² > 0.3. Pure Python — no external dependency. |
 | `pcangsd` | PCAngsd | PCA and admixture proportions (K = 2–5) directly from genotype likelihoods on LD-pruned SNPs. |
@@ -138,10 +139,13 @@ Key parameters in `config/config.yaml`:
 | `samples_csv` | `config/samples_test.csv` | Sample sheet with `sample_id`, `sra_accession`, `population` columns |
 | `reference` | `reference/apalmata_genome.fasta` | Reference genome (soft-masked for repeat detection) |
 | `min_maf` | 0.10 | Minor allele frequency threshold for pass-2 SNPs |
-| `min_ind_frac` | 0.80 | Fraction of individuals required at each site (pass 2) |
+| `min_ind_frac` | 0.80 | Fraction of individuals required at each site (pass 2); pass 1 uses 0.60 |
+| `ld_max_dist` | 50,000 bp | Max distance for pairwise LD estimation (50 kb) |
 | `ld_r2_threshold` | 0.3 | r² threshold for LD pruning |
-| `max_k` | 5 | Maximum K for admixture analysis |
+| `max_k` | 5 | Maximum K for PCAngsd admixture analysis (runs K=2 through max_k) |
 | `min_scaffold_size` | 10,000,000 | Only analyze scaffolds ≥ 10 Mb (chromosomes only) |
+
+**Depth filtering** (ANGSD best practice): `-setMaxDepth` and `-setMaxDepthInd` are not hardcoded. The `compute_depth_thresholds` rule calculates mean + 2SD of observed per-sample coverage after alignment and passes those values to both ANGSD passes. This prevents inflated read counts in repetitive or multi-mapping regions from driving false SNP calls without relying on an arbitrary ceiling.
 
 ---
 
