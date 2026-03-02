@@ -827,7 +827,7 @@ rule ld_decay:
     """
     Analyze LD decay vs physical distance.
     Reads LD file in 500K-row chunks — safe for multi-GB files (96 samples).
-    ngsLD output columns: pos1, pos2, dist, r2, D, D', r2_est (7 cols; pos as chr:pos).
+    ngsLD output columns: site1, site2, dist, r2_ExpG, D, Dp, r2 (7 cols; pos as chr:pos).
     """
     input:
         "results/ld/ld_raw.tsv",
@@ -838,6 +838,7 @@ rule ld_decay:
         threshold=config.get("ld_decay_threshold", 0.1),
     run:
         import numpy as np
+        import pandas as pd
         import csv
 
         bins = [0, 1000, 5000, 10000, 50000, 100000, 500000]
@@ -845,8 +846,7 @@ rule ld_decay:
         bin_count = np.zeros(len(bins) - 1)
 
         for chunk in pd.read_csv(
-            input[0], sep='\t', header=None, chunksize=500000,
-            names=['pos1', 'pos2', 'dist', 'r2', 'D', 'Dprime', 'r2_est'],
+            input[0], sep='\t', chunksize=500000,
             usecols=['dist', 'r2']
         ):
             idxs = np.digitize(chunk['dist'].values, bins) - 1
@@ -1010,7 +1010,7 @@ rule pcangsd_admixture:
         "results/angsd/all.unrelated.ldpruned.beagle.gz",
     output:
         Q="results/admixture/pcangsd_K{k}.Q",
-        F="results/admixture/pcangsd_K{k}.F.npy",
+        F="results/admixture/pcangsd_K{k}.P",
     params:
         out="results/admixture/pcangsd_K{k}",
     threads: 8
@@ -1020,9 +1020,9 @@ rule pcangsd_admixture:
     shell:
         """
         mkdir -p results/admixture
-        pcangsd -b {input} -o {params.out} --admix --admix_K {wildcards.k} -t {threads}
+        pcangsd -b {input} -o {params.out} --admix --admix-K {wildcards.k} -t {threads}
         mv {params.out}.admix.{wildcards.k}.Q {output.Q}
-        mv {params.out}.admix.{wildcards.k}.F.npy {output.F}
+        mv {params.out}.admix.{wildcards.k}.P {output.F}
         """
 
 # ============================================================================
