@@ -1271,7 +1271,7 @@ rule angsd_saf:
         mkdir -p results/sfs
         angsd -bam {input.bamlist} -ref {input.ref} -anc {input.ref} \
             -out {params.out} \
-            -GL {params.gl} -doSaf 1 \
+            -GL {params.gl} -doSaf 1 -doCounts 1 \
             -setMaxDepth {params.max_depth} \
             -setMaxDepthInd {params.max_depth_ind} \
             -setMinDepthInd 2 \
@@ -1407,7 +1407,7 @@ rule individual_saf:
         """
         mkdir -p results/heterozygosity
         angsd -i {input.cram} -ref {input.ref} -anc {input.ref} \
-            -GL {params.gl} -doSaf 1 \
+            -GL {params.gl} -doSaf 1 -doCounts 1 \
             -setMaxDepthInd {params.max_depth_ind} \
             -setMinDepthInd 2 \
             -minMapQ 20 -minQ 20 \
