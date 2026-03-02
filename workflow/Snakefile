@@ -692,7 +692,6 @@ rule angsd_discover_snps:
             -SNP_pval 1e-4 \
             -skipTriallelic 1 \
             -sites {input.sites} \
-            -rf {input.chroms} \
             -nThreads {threads}
         """
 
@@ -1279,7 +1278,6 @@ rule angsd_saf:
             -minMapQ 20 -minQ 20 \
             -remove_bads 1 -only_proper_pairs 1 \
             -sites {input.sites} \
-            -rf {input.chroms} \
             -nThreads {threads}
         """
 
@@ -1414,7 +1412,6 @@ rule individual_saf:
             -minMapQ 20 -minQ 20 \
             -remove_bads 1 -only_proper_pairs 1 \
             -sites {input.sites} \
-            -rf {input.chroms} \
             -nThreads {threads} -out {params.out}
         """
 
