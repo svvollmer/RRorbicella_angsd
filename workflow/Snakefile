@@ -1032,10 +1032,11 @@ rule ngsrelate:
     input:
         beagle="results/angsd/all.beagle.gz",
         mafs="results/angsd/all.mafs.gz",
+        bamlist="results/bamlists/all.bamlist",
     output:
         "results/relatedness/relatedness.res",
     params:
-        n_samples=N_SAMPLES,
+        n_samples=lambda wc, input: sum(1 for l in open(input.bamlist) if l.strip()),
     threads: 8
     resources:
         mem_mb=8000,
