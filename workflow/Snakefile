@@ -756,7 +756,7 @@ rule angsd_gl_snps:
         """
         angsd -bam {input.bamlist} -ref {input.ref} \
             -out {params.out} \
-            -GL 1 -doMajorMinor 1 -doMaf 1 -doGlf 2 \
+            -GL 1 -doMajorMinor 1 -doMaf 1 -doGlf 2 -doCounts 1 \
             -sites {input.sites} \
             -minInd {params.min_ind} \
             -setMaxDepth {params.max_depth} \
