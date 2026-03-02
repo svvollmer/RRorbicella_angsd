@@ -1253,8 +1253,8 @@ rule angsd_saf:
         fai=config["reference"] + ".fai",
         chroms="results/filtering/chromosomes.bed",
         depth_thresh="results/angsd/depth_thresholds.txt",
-        sites="results/angsd/nonrepeat_sites.txt",
-        sites_idx="results/angsd/nonrepeat_sites.txt.idx",
+        sites="results/angsd/pass1_snps.txt",
+        sites_idx="results/angsd/pass1_snps.txt.idx",
     output:
         saf="results/sfs/{popname}.saf.idx",
     params:
@@ -1278,6 +1278,7 @@ rule angsd_saf:
             -minMapQ 20 -minQ 20 \
             -remove_bads 1 -only_proper_pairs 1 \
             -sites {input.sites} \
+            -rf {input.chroms} \
             -nThreads {threads}
         """
 
@@ -1390,8 +1391,8 @@ rule individual_saf:
         fai=config["reference"] + ".fai",
         chroms="results/filtering/chromosomes.bed",
         depth_thresh="results/angsd/depth_thresholds.txt",
-        sites="results/angsd/nonrepeat_sites.txt",
-        sites_idx="results/angsd/nonrepeat_sites.txt.idx",
+        sites="results/angsd/pass1_snps.txt",
+        sites_idx="results/angsd/pass1_snps.txt.idx",
     output:
         temp("results/heterozygosity/{sample}.saf.idx"),
     params:
@@ -1412,6 +1413,7 @@ rule individual_saf:
             -minMapQ 20 -minQ 20 \
             -remove_bads 1 -only_proper_pairs 1 \
             -sites {input.sites} \
+            -rf {input.chroms} \
             -nThreads {threads} -out {params.out}
         """
 
