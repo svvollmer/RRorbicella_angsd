@@ -1005,6 +1005,10 @@ rule filter_ld_beagle:
     """
     Create LD-pruned beagle file.
     Keeps only SNPs listed in pruned_keep_snps.txt (output of ld_prune).
+
+    Format note: pruned_keep_snps.txt uses chr:pos (colon) from ngsLD
+    convention, but ANGSD beagle uses chr_pos (underscore) as marker IDs.
+    The keep set is converted to underscore format before matching.
     """
     input:
         beagle="results/angsd/all.unrelated.beagle.gz",
@@ -1014,8 +1018,10 @@ rule filter_ld_beagle:
     run:
         import gzip, sys
 
+        # pruned_keep_snps.txt uses chr:pos (ngsLD convention);
+        # beagle marker column uses chr_pos (ANGSD convention).
         with open(input.keep) as f:
-            keep_snps = set(line.strip() for line in f if line.strip())
+            keep_snps = set(line.strip().replace(':', '_') for line in f if line.strip())
 
         with gzip.open(input.beagle, 'rt') as fin, \
              gzip.open(output.beagle, 'wt') as fout:
@@ -1031,7 +1037,7 @@ rule filter_ld_beagle:
                 else:
                     removed += 1
 
-        print(f"LD pruning: kept {kept}, removed {removed} SNPs", file=sys.stderr)
+        print(f"filter_ld_beagle: kept {kept}, removed {removed} SNPs", file=sys.stderr)
 
 # ============================================================================
 # 10. PCA & ADMIXTURE (LD-pruned SNPs)

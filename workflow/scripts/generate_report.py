@@ -161,7 +161,9 @@ def load_windowed_fst(results_dir, p1, p2):
     path = Path(results_dir) / "fst" / f"{p1}_vs_{p2}.fst.windows"
     if not path.exists():
         return None
-    df = pd.read_csv(path, sep="\t", header=None,
+    # realSFS fst stats2 emits a 4-column header (no "fst" field name) followed
+    # by 5-column data rows.  Skip the header and supply our own column names.
+    df = pd.read_csv(path, sep="\t", header=None, skiprows=1,
                      names=["region", "chr", "midPos", "Nsites", "fst"])
     return df
 
@@ -617,11 +619,24 @@ def main():
     sfs      = {p: load_sfs(results_dir, p) for p in pops}
     n_pass1, n_pass2 = count_snps(results_dir)
 
+    # Build PCA-ordered metadata: only unrelated samples, in bamlist row order.
+    # PCA eigenvector row i corresponds to sample i in unrelated_samples.txt.
+    # Using full metadata for PCA plots causes IndexError when some samples
+    # were excluded as clones/related.
+    unrel_path = results_dir / "relatedness" / "unrelated_samples.txt"
+    if unrel_path.exists():
+        pca_sample_order = [l.strip() for l in open(unrel_path) if l.strip()]
+        pca_meta = metadata.reindex([s for s in pca_sample_order if s in metadata.index])
+    else:
+        # Fallback: clip to eigenvector count if no unrelated list available
+        n_pca = eigenvectors.shape[0] if eigenvectors is not None else len(samples)
+        pca_meta = metadata.iloc[:n_pca]
+
     print("Generating figures...")
     img_mapping  = fig_mapping_rates(filt_df, metadata, figures_dir)
     img_depth    = fig_depth(depth_df, metadata, figures_dir)
-    img_pca      = fig_pca(eigenvectors, pct_var, metadata, figures_dir)
-    img_admix    = fig_admixture(admix, metadata, figures_dir)
+    img_pca      = fig_pca(eigenvectors, pct_var, pca_meta, figures_dir)
+    img_admix    = fig_admixture(admix, pca_meta, figures_dir)
     img_het      = fig_heterozygosity(het_df, metadata, figures_dir)
     img_sfs      = fig_sfs(sfs, figures_dir)
     img_div      = fig_diversity(thetas, figures_dir)
