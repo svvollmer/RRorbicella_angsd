@@ -878,20 +878,22 @@ rule ld_decay:
 
 rule ld_prune:
     """
-    Greedy graph-based LD pruning in pure Python — no external dependencies.
+    LD pruning in pure Python — no external dependencies.
 
-    graph_prune.py does not exist in the ngsLD biocontainer (it was removed
-    upstream). prune_ngsLD.py requires graph_tool (heavy C++ lib, not in any
-    biocontainer). This run: block replaces both with stdlib-only Python.
+    Two modes selected automatically by LD file size:
 
-    Algorithm: build adjacency graph for pairs with r2 >= threshold, then
-    iteratively remove the highest-degree node until no edges remain.
-    Uses a max-heap with lazy deletion for O((E+N) log N) complexity instead
-    of O(N^2). Isolated SNPs (no pairs above threshold) are kept automatically.
+    1. Positional thinning (LD file > 2 GB): keep 1 SNP per 10 kb window,
+       scanning the mafs file in order. O(N) time, O(1) memory. Used for
+       test runs where few samples make MAF filtering less effective, bloating
+       the LD file to 10–15 GB. Results are LD-approximate but sufficient for
+       PCA/admixture QC.
 
-    Memory: for production 50-100K SNPs + 500kb window, LD file ~200 MB —
-    fits in memory comfortably. run: executes in the Snakemake process, so
-    no container or PATH issues.
+    2. Graph-based greedy pruning (LD file <= 2 GB): build adjacency graph for
+       pairs with r2 >= threshold, then iteratively remove the highest-degree
+       node using a max-heap with lazy deletion — O((E+N) log N). Used for
+       production runs where the LD file is ~200 MB.
+
+    run: executes in the Snakemake process, so no container or PATH issues.
     """
     input:
         ld="results/ld/ld_raw.tsv",
@@ -900,62 +902,104 @@ rule ld_prune:
         "results/ld/pruned_keep_snps.txt",
     params:
         r2_threshold=config.get("ld_r2_threshold", 0.3),
+        positional_window=config.get("ld_positional_window", 10000),
+        ld_size_threshold_gb=config.get("ld_size_threshold_gb", 2.0),
     run:
-        import gzip, heapq, sys
-        from collections import defaultdict
+        import gzip, os, sys
 
-        # Full SNP universe from pass2 mafs (chr:pos matching LD file format)
-        all_snps = set()
-        with gzip.open(input.mafs, 'rt') as f:
-            next(f)  # header
-            for line in f:
-                cols = line.split('\t', 2)
-                all_snps.add(f"{cols[0]}:{cols[1]}")
+        ld_size_gb = os.path.getsize(input.ld) / 1e9
 
-        # Build graph: only pairs above r2 threshold
-        adj = defaultdict(set)
-        with open(input.ld) as f:
-            for line in f:
-                cols = line.split('\t', 4)
-                try:
-                    r2 = float(cols[3])
-                except (ValueError, IndexError):
+        if ld_size_gb > params.ld_size_threshold_gb:
+            # --- Positional thinning (fast path for large test LD files) ---
+            print(
+                f"LD file is {ld_size_gb:.1f} GB (>{params.ld_size_threshold_gb} GB threshold). "
+                f"Using positional thinning ({params.positional_window // 1000} kb window) "
+                f"instead of graph-based pruning.",
+                file=sys.stderr,
+            )
+            window = params.positional_window
+            keep = []
+            last_chr = None
+            last_pos = -window - 1
+            with gzip.open(input.mafs, 'rt') as f:
+                next(f)  # skip header
+                for line in f:
+                    cols = line.split('\t', 2)
+                    chrm = cols[0]
+                    pos = int(cols[1])
+                    if chrm != last_chr or pos - last_pos >= window:
+                        keep.append(f"{chrm}:{pos}")
+                        last_chr = chrm
+                        last_pos = pos
+            keep.sort()
+            print(
+                f"Positional thinning: kept {len(keep)} SNPs from {ld_size_gb:.1f} GB LD file.",
+                file=sys.stderr,
+            )
+
+        else:
+            # --- Graph-based greedy LD pruning (production path) ---
+            import heapq
+            from collections import defaultdict
+
+            print(
+                f"LD file is {ld_size_gb:.1f} GB. Using graph-based LD pruning (r2 >= {params.r2_threshold}).",
+                file=sys.stderr,
+            )
+
+            # Full SNP universe from pass2 mafs (chr:pos matching LD file format)
+            all_snps = set()
+            with gzip.open(input.mafs, 'rt') as f:
+                next(f)  # header
+                for line in f:
+                    cols = line.split('\t', 2)
+                    all_snps.add(f"{cols[0]}:{cols[1]}")
+
+            # Build graph: only pairs above r2 threshold
+            adj = defaultdict(set)
+            with open(input.ld) as f:
+                for line in f:
+                    cols = line.split('\t', 4)
+                    try:
+                        r2 = float(cols[3])
+                    except (ValueError, IndexError):
+                        continue
+                    if r2 >= params.r2_threshold:
+                        adj[cols[0]].add(cols[1])
+                        adj[cols[1]].add(cols[0])
+
+            # Greedy pruning with max-heap (lazy deletion) — O((E+N) log N)
+            # Python heapq is a min-heap, so negate degree for max-heap behavior.
+            # Stale entries (degree changed after push) are skipped on pop.
+            removed = set()
+            heap = [(-len(v), k) for k, v in adj.items()]
+            heapq.heapify(heap)
+
+            while heap:
+                neg_deg, node = heapq.heappop(heap)
+                if node not in adj:
+                    continue  # already removed
+                actual_deg = len(adj[node])
+                if actual_deg != -neg_deg:
+                    # Stale heap entry; re-push with current degree
+                    heapq.heappush(heap, (-actual_deg, node))
                     continue
-                if r2 >= params.r2_threshold:
-                    adj[cols[0]].add(cols[1])
-                    adj[cols[1]].add(cols[0])
+                # Remove this node (highest degree among remaining)
+                removed.add(node)
+                for nb in adj.pop(node):
+                    if nb in adj:
+                        adj[nb].discard(node)
+                        if not adj[nb]:
+                            del adj[nb]
+                        else:
+                            heapq.heappush(heap, (-len(adj[nb]), nb))
 
-        # Greedy pruning with max-heap (lazy deletion) — O((E+N) log N)
-        # Python heapq is a min-heap, so negate degree for max-heap behavior.
-        # Stale entries (degree changed after push) are skipped on pop.
-        removed = set()
-        heap = [(-len(v), k) for k, v in adj.items()]
-        heapq.heapify(heap)
+            keep = sorted(all_snps - removed)
+            print(f"Graph pruning: kept {len(keep)}, removed {len(removed)} SNPs",
+                  file=sys.stderr)
 
-        while heap:
-            neg_deg, node = heapq.heappop(heap)
-            if node not in adj:
-                continue  # already removed
-            actual_deg = len(adj[node])
-            if actual_deg != -neg_deg:
-                # Stale heap entry; re-push with current degree
-                heapq.heappush(heap, (-actual_deg, node))
-                continue
-            # Remove this node (highest degree among remaining)
-            removed.add(node)
-            for nb in adj.pop(node):
-                if nb in adj:
-                    adj[nb].discard(node)
-                    if not adj[nb]:
-                        del adj[nb]
-                    else:
-                        heapq.heappush(heap, (-len(adj[nb]), nb))
-
-        keep = sorted(all_snps - removed)
         with open(output[0], 'w') as f:
             f.write('\n'.join(keep) + '\n')
-        print(f"LD pruning: kept {len(keep)}, removed {len(removed)} SNPs",
-              file=sys.stderr)
 
 rule filter_ld_beagle:
     """
