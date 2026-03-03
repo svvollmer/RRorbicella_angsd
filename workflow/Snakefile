@@ -886,7 +886,8 @@ rule ld_prune:
 
     Algorithm: build adjacency graph for pairs with r2 >= threshold, then
     iteratively remove the highest-degree node until no edges remain.
-    Isolated SNPs (no pairs above threshold) are kept automatically.
+    Uses a max-heap with lazy deletion for O((E+N) log N) complexity instead
+    of O(N^2). Isolated SNPs (no pairs above threshold) are kept automatically.
 
     Memory: for production 50-100K SNPs + 500kb window, LD file ~200 MB —
     fits in memory comfortably. run: executes in the Snakemake process, so
@@ -900,7 +901,7 @@ rule ld_prune:
     params:
         r2_threshold=config.get("ld_r2_threshold", 0.3),
     run:
-        import gzip, sys
+        import gzip, heapq, sys
         from collections import defaultdict
 
         # Full SNP universe from pass2 mafs (chr:pos matching LD file format)
@@ -924,16 +925,31 @@ rule ld_prune:
                     adj[cols[0]].add(cols[1])
                     adj[cols[1]].add(cols[0])
 
-        # Greedy pruning: remove highest-degree node until no edges remain
+        # Greedy pruning with max-heap (lazy deletion) — O((E+N) log N)
+        # Python heapq is a min-heap, so negate degree for max-heap behavior.
+        # Stale entries (degree changed after push) are skipped on pop.
         removed = set()
-        while adj:
-            heaviest = max(adj, key=lambda n: len(adj[n]))
-            removed.add(heaviest)
-            for nb in adj.pop(heaviest):
+        heap = [(-len(v), k) for k, v in adj.items()]
+        heapq.heapify(heap)
+
+        while heap:
+            neg_deg, node = heapq.heappop(heap)
+            if node not in adj:
+                continue  # already removed
+            actual_deg = len(adj[node])
+            if actual_deg != -neg_deg:
+                # Stale heap entry; re-push with current degree
+                heapq.heappush(heap, (-actual_deg, node))
+                continue
+            # Remove this node (highest degree among remaining)
+            removed.add(node)
+            for nb in adj.pop(node):
                 if nb in adj:
-                    adj[nb].discard(heaviest)
+                    adj[nb].discard(node)
                     if not adj[nb]:
                         del adj[nb]
+                    else:
+                        heapq.heappush(heap, (-len(adj[nb]), nb))
 
         keep = sorted(all_snps - removed)
         with open(output[0], 'w') as f:
