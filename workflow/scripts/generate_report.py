@@ -193,12 +193,16 @@ def load_heterozygosity(results_dir, samples):
             continue
         with open(path) as f:
             vals = [float(x) for x in f.readline().strip().split()]
-        if len(vals) >= 2:
+        if len(vals) >= 3:
+            total = vals[0] + vals[1] + vals[2]
+        elif len(vals) >= 2:
             total = vals[0] + vals[1]
-            het_rate = vals[1] / total if total > 0 else 0
-            records.append({"sample_id": sample,
-                             "heterozygosity": het_rate,
-                             "n_sites": int(total)})
+        else:
+            continue
+        het_rate = vals[1] / total if total > 0 else 0
+        records.append({"sample_id": sample,
+                         "heterozygosity": het_rate,
+                         "n_sites": int(total)})
     return pd.DataFrame(records).set_index("sample_id") if records else pd.DataFrame()
 
 

@@ -658,7 +658,6 @@ rule angsd_discover_snps:
         bamlist="results/bamlists/all.bamlist",
         ref=config["reference"],
         fai=config["reference"] + ".fai",
-        chroms="results/filtering/chromosomes.bed",
         depth_thresh="results/angsd/depth_thresholds.txt",
         sites="results/angsd/nonrepeat_sites.txt",
         sites_idx="results/angsd/nonrepeat_sites.txt.idx",
@@ -673,7 +672,7 @@ rule angsd_discover_snps:
     threads: 16
     resources:
         mem_mb=32000,
-        runtime=180,
+        runtime=480,
     shell:
         """
         mkdir -p results/angsd
@@ -761,7 +760,7 @@ rule angsd_gl_snps:
         """
         angsd -bam {input.bamlist} -ref {input.ref} \
             -out {params.out} \
-            -GL 1 -doMajorMinor 1 -doMaf 1 -doGlf 2 -doCounts 1 \
+            -GL 1 -doMajorMinor 4 -doMaf 1 -doGlf 2 -doCounts 1 \
             -sites {input.sites} \
             -minInd {params.min_ind} \
             -setMaxDepth {params.max_depth} \
@@ -1129,13 +1128,19 @@ rule process_relatedness:
         kinship_threshold=config.get("kinship_threshold", 0.2),
         clone_threshold=config.get("clone_threshold", 0.45),
     run:
+        import os
         import pandas as pd
         rel = pd.read_csv(input[0], sep='\t')
 
-        matrix = pd.DataFrame(0.0, index=SAMPLES, columns=SAMPLES)
+        with open("results/bamlists/all.bamlist") as f:
+            bamlist_samples = [
+                os.path.basename(l.strip()).replace('.filtered.cram', '').replace('.filtered.bam', '')
+                for l in f if l.strip()
+            ]
+        matrix = pd.DataFrame(0.0, index=bamlist_samples, columns=bamlist_samples)
         for _, row in rel.iterrows():
             i, j = int(row['a']), int(row['b'])
-            if i < len(SAMPLES) and j < len(SAMPLES):
+            if i < len(bamlist_samples) and j < len(bamlist_samples):
                 matrix.iloc[i, j] = row['KING']
                 matrix.iloc[j, i] = row['KING']
         matrix.to_csv(output.matrix, sep='\t')
@@ -1151,8 +1156,8 @@ rule process_relatedness:
                 else:
                     continue
                 ia, ib = int(row['a']), int(row['b'])
-                if ia < len(SAMPLES) and ib < len(SAMPLES):
-                    f.write(f"{SAMPLES[ia]}\t{SAMPLES[ib]}\t{king:.4f}\t{relationship}\n")
+                if ia < len(bamlist_samples) and ib < len(bamlist_samples):
+                    f.write(f"{bamlist_samples[ia]}\t{bamlist_samples[ib]}\t{king:.4f}\t{relationship}\n")
 
 # ============================================================================
 # 11b. CLONE FILTER + BEAGLE SUBSETTING
@@ -1288,7 +1293,8 @@ rule subset_beagle:
 
         with gzip.open(input.beagle, 'rt') as fin, \
              gzip.open(output.beagle, 'wt') as fout:
-            fout.write(fin.readline())  # header
+            header_parts = fin.readline().rstrip('\n').split('\t')
+            fout.write('\t'.join(header_parts[i] for i in keep_cols) + '\n')
             for line in fin:
                 parts = line.rstrip('\n').split('\t')
                 fout.write('\t'.join(parts[i] for i in keep_cols) + '\n')
@@ -1307,8 +1313,9 @@ rule angsd_saf:
     accurate diversity estimates (π, θ, Tajima's D). Restricting to SNPs
     would inflate diversity and bias Tajima's D positive.
 
-    A. palmata reference serves as outgroup/ancestral state for A. cervicornis
-    data, so unfolded SFS via -anc {ref} is valid.
+    Folded SFS (no -anc): A. palmata is a study population, so using it as
+    ancestral state would be circular. Minor allele frequency fold is used
+    instead (realSFS -fold 1 downstream).
 
     Runtime: 30-45 min per population (whole genome)
     """
@@ -1318,14 +1325,18 @@ rule angsd_saf:
         ref=config["reference"],
         fai=config["reference"] + ".fai",
         depth_thresh="results/angsd/depth_thresholds.txt",
-        sites="results/angsd/pass1_snps.txt",
-        sites_idx="results/angsd/pass1_snps.txt.idx",
+        sites="results/angsd/nonrepeat_sites.txt",
+        sites_idx="results/angsd/nonrepeat_sites.txt.idx",
+        sites_bin="results/angsd/nonrepeat_sites.txt.bin",
     output:
         saf="results/sfs/{popname}.saf.idx",
     params:
         out="results/sfs/{popname}",
         gl=config.get("gl_model", 1),
-        max_depth=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('total_max')][0]),
+        max_depth=lambda wc, input: (
+            len(open(input.bamlist).readlines()) *
+            int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0])
+        ),
         max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
     threads: 8
     resources:
@@ -1334,7 +1345,7 @@ rule angsd_saf:
     shell:
         """
         mkdir -p results/sfs
-        angsd -bam {input.bamlist} -ref {input.ref} -anc {input.ref} \
+        angsd -bam {input.bamlist} -ref {input.ref} \
             -out {params.out} \
             -GL {params.gl} -doSaf 1 -doCounts 1 \
             -setMaxDepth {params.max_depth} \
@@ -1360,7 +1371,7 @@ rule realsfs:
         mem_mb=8000,
         runtime=30,
     shell:
-        "realSFS {input} -P {threads} > {output}"
+        "realSFS {input} -P {threads} -fold 1 > {output}"
 
 rule thetas:
     """
@@ -1382,7 +1393,7 @@ rule thetas:
     shell:
         """
         mkdir -p results/diversity
-        realSFS saf2theta {input.saf} -sfs {input.sfs} -outname {params.out} -P {threads}
+        realSFS saf2theta {input.saf} -sfs {input.sfs} -outname {params.out} -P {threads} -fold 1
         thetaStat do_stat {output.idx}
         """
 
@@ -1404,7 +1415,7 @@ rule realsfs_2d:
     shell:
         """
         mkdir -p results/fst
-        realSFS {input.saf1} {input.saf2} -P {threads} > {output}
+        realSFS {input.saf1} {input.saf2} -P {threads} -fold 1 > {output}
         """
 
 rule fst_index:
@@ -1454,8 +1465,9 @@ rule individual_saf:
         ref=config["reference"],
         fai=config["reference"] + ".fai",
         depth_thresh="results/angsd/depth_thresholds.txt",
-        sites="results/angsd/pass1_snps.txt",
-        sites_idx="results/angsd/pass1_snps.txt.idx",
+        sites="results/angsd/nonrepeat_sites.txt",
+        sites_idx="results/angsd/nonrepeat_sites.txt.idx",
+        sites_bin="results/angsd/nonrepeat_sites.txt.bin",
     output:
         temp("results/heterozygosity/{sample}.saf.idx"),
     params:
@@ -1465,11 +1477,11 @@ rule individual_saf:
     threads: 4
     resources:
         mem_mb=8000,
-        runtime=60,
+        runtime=30,
     shell:
         """
         mkdir -p results/heterozygosity
-        angsd -i {input.cram} -ref {input.ref} -anc {input.ref} \
+        angsd -i {input.cram} -ref {input.ref} \
             -GL {params.gl} -doSaf 1 -doCounts 1 \
             -setMaxDepthInd {params.max_depth_ind} \
             -setMinDepthInd 2 \
@@ -1535,7 +1547,7 @@ rule annotate_fst_outliers:
             outliers = []
             for fst_file in input.fst:
                 comp = fst_file.split('/')[-1].replace('.fst.windows', '')
-                df = pd.read_csv(fst_file, sep='\t', header=None,
+                df = pd.read_csv(fst_file, sep='\t', header=None, skiprows=1,
                                  names=['region', 'chr', 'midPos', 'Nsites', 'fst'])
                 threshold = df['fst'].quantile(0.95)
                 out = df[df['fst'] > threshold].copy()
