@@ -1267,7 +1267,6 @@ rule angsd_saf:
         bamlist="results/bamlists/{popname}.bamlist",
         ref=config["reference"],
         fai=config["reference"] + ".fai",
-        chroms="results/filtering/chromosomes.bed",
         depth_thresh="results/angsd/depth_thresholds.txt",
         sites="results/angsd/pass1_snps.txt",
         sites_idx="results/angsd/pass1_snps.txt.idx",
@@ -1294,7 +1293,6 @@ rule angsd_saf:
             -minMapQ 20 -minQ 20 \
             -remove_bads 1 -only_proper_pairs 1 \
             -sites {input.sites} \
-            -rf {input.chroms} \
             -nThreads {threads}
         """
 
@@ -1405,7 +1403,6 @@ rule individual_saf:
         crai="results/bams/{sample}.filtered.cram.crai",
         ref=config["reference"],
         fai=config["reference"] + ".fai",
-        chroms="results/filtering/chromosomes.bed",
         depth_thresh="results/angsd/depth_thresholds.txt",
         sites="results/angsd/pass1_snps.txt",
         sites_idx="results/angsd/pass1_snps.txt.idx",
@@ -1429,7 +1426,6 @@ rule individual_saf:
             -minMapQ 20 -minQ 20 \
             -remove_bads 1 -only_proper_pairs 1 \
             -sites {input.sites} \
-            -rf {input.chroms} \
             -nThreads {threads} -out {params.out}
         """
 
