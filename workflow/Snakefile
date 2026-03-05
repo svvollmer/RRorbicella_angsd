@@ -128,11 +128,10 @@ rule all:
 
 rule download_sra:
     """
-    Stream FASTQ directly from SRA — no prefetch, no intermediate .sra file.
-
-    On AWS EC2 in us-east-1, NCBI automatically routes fasterq-dump to their
-    free S3 bucket (sra-pub-run-odp), so data transfer costs nothing.
-    Gzip both files in parallel to halve compression time.
+    Download SRA file directly from NCBI's public S3 bucket (sra-pub-run-odp),
+    then convert locally with fasterq-dump. This bypasses NCBI's SDL resolver
+    and the streaming SSL/network issues that plague fasterq-dump on EC2.
+    Data transfer is free (S3 → EC2 same-region, requester-pays not required).
     """
     # sra-tools container fasterq-dump has SSL/TLS issues on EC2; use host-installed version
     output:
@@ -144,13 +143,19 @@ rule download_sra:
     threads: 4
     resources:
         mem_mb=8000,
-        runtime=180,
+        runtime=360,
     shell:
         """
-        mkdir -p results/fastq {params.tmpdir}
-        fasterq-dump {params.acc} \
+        export PATH=/usr/local/bin:$PATH
+        mkdir -p {params.tmpdir}
+        # Download SRA file directly from public S3 — avoids NCBI resolver/SSL issues
+        aws s3 cp s3://sra-pub-run-odp/sra/{params.acc}/{params.acc} \
+            {params.tmpdir}/{params.acc} --no-sign-request
+        # Convert local SRA file to FASTQ
+        fasterq-dump {params.tmpdir}/{params.acc} \
             -O results/fastq -e {threads} \
             --split-files --temp {params.tmpdir}
+        rm -f {params.tmpdir}/{params.acc}
         gzip results/fastq/{params.acc}_1.fastq &
         gzip results/fastq/{params.acc}_2.fastq &
         wait
