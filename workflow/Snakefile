@@ -147,7 +147,7 @@ rule download_sra:
     shell:
         """
         export PATH=/usr/local/bin:$PATH
-        mkdir -p {params.tmpdir}
+        mkdir -p results/fastq {params.tmpdir}
         # Download SRA file directly from public S3 — avoids NCBI resolver/SSL issues
         aws s3 cp s3://sra-pub-run-odp/sra/{params.acc}/{params.acc} \
             {params.tmpdir}/{params.acc} --no-sign-request
