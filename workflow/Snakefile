@@ -146,7 +146,7 @@ rule download_sra:
         runtime=360,
     shell:
         """
-        export PATH=/usr/local/bin:$PATH
+        export PATH=/usr/local/bin:$HOME/miniforge3/bin:$PATH
         mkdir -p results/fastq {params.tmpdir}
         # Download SRA file directly from public S3 — avoids NCBI resolver/SSL issues
         aws s3 cp s3://sra-pub-run-odp/sra/{params.acc}/{params.acc} \
