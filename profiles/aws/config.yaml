@@ -22,3 +22,6 @@ latency-wait: 120
 rerun-incomplete: true
 rerun-triggers:
   - mtime
+scheduler: greedy
+resources:
+  - download_slots=4

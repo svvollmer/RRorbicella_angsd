@@ -144,6 +144,7 @@ rule download_sra:
     resources:
         mem_mb=8000,
         runtime=360,
+        download_slots=1,
     shell:
         """
         export PATH=/usr/local/bin:$HOME/miniforge3/bin:$PATH
