@@ -1319,9 +1319,9 @@ rule angsd_saf:
     accurate diversity estimates (π, θ, Tajima's D). Restricting to SNPs
     would inflate diversity and bias Tajima's D positive.
 
-    Folded SFS (no -anc): A. palmata is a study population, so using it as
-    ancestral state would be circular. Minor allele frequency fold is used
-    instead (realSFS -fold 1 downstream).
+    Folded SFS: ANGSD 0.940 requires -anc for -doSaf 1 even when folding.
+    Reference is used as ancestral (-anc = -ref); SFS is then folded
+    downstream with realSFS -fold 1 so polarization does not matter.
 
     Runtime: 30-45 min per population (whole genome)
     """
@@ -1351,7 +1351,7 @@ rule angsd_saf:
     shell:
         """
         mkdir -p results/sfs
-        angsd -bam {input.bamlist} -ref {input.ref} \
+        angsd -bam {input.bamlist} -ref {input.ref} -anc {input.ref} \
             -out {params.out} \
             -GL {params.gl} -doSaf 1 -doCounts 1 \
             -setMaxDepth {params.max_depth} \
