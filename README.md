@@ -120,17 +120,63 @@ snakemake --snakefile workflow/Snakefile --profile profiles/slurm
 
 ### AWS EC2
 
+Use `scripts/run_pipeline.sh` — it handles pre-flight checks, auto-retry on transient failures
+(up to 20 retries, 5 min apart), S3 sync, SNS notifications, and auto-stop:
+
 ```bash
-snakemake --snakefile workflow/Snakefile \
-  --cores 16 --jobs 4 --keep-going --latency-wait 120 \
-  --rerun-incomplete --rerun-triggers mtime \
-  --use-singularity \
-  --singularity-args '--bind /home/ubuntu --bind /usr/local/bin --bind /opt' \
-  --config samples_csv=config/samples_aws_test.csv \
-  > snakemake.log 2>&1 &
+cd ~/coral-angsd-pipeline
+nohup bash scripts/run_pipeline.sh >> logs/run.log 2>&1 &
 ```
 
-Comment out `local_conda_env` in `config/config.yaml` on AWS — containers provide the correct PATH.
+Set up a fresh instance first with:
+
+```bash
+bash scripts/aws_setup.sh
+```
+
+#### EC2 cost options
+
+The pipeline currently runs on an on-demand EC2 instance. Two options exist to reduce cost
+significantly for future runs:
+
+**Option 1 — EC2 Spot Instance (~70% cheaper, minimal changes)**
+
+Request a spot instance at launch instead of on-demand. Current spot pricing (us-east-1):
+
+| Instance | On-demand | Spot | Savings |
+|----------|-----------|------|---------|
+| c6i.16xlarge | $2.72/hr | ~$0.83–0.95/hr | ~70% |
+| c6i.8xlarge  | $1.36/hr | ~$0.41–0.58/hr | ~65% |
+
+With `rerun-incomplete: true` in the AWS profile and results syncing to S3, a spot interruption
+means launching a fresh instance and restarting — Snakemake picks up from completed jobs.
+To make this fully automatic, pair with an EC2 Auto Scaling Group (min/max/desired = 1, spot)
+so AWS replaces an interrupted instance without manual intervention.
+
+To request spot at launch via CLI:
+
+```bash
+aws ec2 run-instances \
+  --instance-market-options '{"MarketType":"spot"}' \
+  --instance-type c6i.16xlarge \
+  ...
+```
+
+**Option 2 — AWS Batch with Spot (more setup, per-job retry)**
+
+Snakemake's `--executor awsbatch` submits each rule as an individual Batch job on spot instances.
+Batch handles interruptions and retries at the job level, so a spot interruption only restarts
+the affected job (not the whole pipeline).
+
+Blockers to resolve before using Batch:
+1. `download_sra` has no container — fasterq-dump has TLS issues in containers on EC2.
+   Needs a custom Docker image with SRA toolkit + AWS CLI baked in, pushed to ECR.
+2. All I/O must go through S3 — Snakemake's S3 storage plugin already partially set up
+   (`profiles/aws/config.yaml`), but every rule's inputs/outputs need to be S3-backed.
+3. Compute environment setup: Batch job queue, spot compute environment, IAM roles.
+
+Both options require that the S3 bucket (`coral-angsd-728009587639`) remains the central
+store for results between runs — which is already the case.
 
 ---
 
