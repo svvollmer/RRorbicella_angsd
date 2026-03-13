@@ -50,7 +50,7 @@ declare -A SEGMENT_NAMES=(
 # Files to sync FROM S3 before each segment (in addition to pipeline code)
 declare -A S3_SYNC_IN=(
     [1]="reference/"
-    [2]="results/bams/ results/qc/ results/filtering/ results/angsd/nonrepeat_sites.txt results/angsd/nonrepeat_sites.txt.bin results/angsd/nonrepeat_sites.txt.idx reference/"
+    [2]="results/bams/ results/qc/ results/filtering/ results/angsd/nonrepeat_sites.txt results/angsd/nonrepeat_sites.txt.bin results/angsd/nonrepeat_sites.txt.idx results/angsd/pass1.mafs.gz results/angsd/pass1_snps.txt results/angsd/pass1_snps.txt.bin results/angsd/pass1_snps.txt.idx results/angsd/depth_thresholds.txt reference/"
     [3]="results/angsd/all.unrelated.beagle.gz results/angsd/all.mafs.gz results/relatedness/unrelated_samples.txt"
     [4]="results/bams/ results/angsd/nonrepeat_sites.txt results/angsd/nonrepeat_sites.txt.bin results/angsd/nonrepeat_sites.txt.idx results/angsd/depth_thresholds.txt results/filtering/ results/relatedness/unrelated_samples.txt results/admixture/lineage_assignments.txt reference/"
     [5]="results/pca/ results/admixture/ results/ld/ results/diversity/ results/fst/ results/qc/ results/filtering/ results/relatedness/ results/heterozygosity/ results/angsd/pass1_snps.txt results/angsd/all.mafs.gz"
