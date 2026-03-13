@@ -1,0 +1,344 @@
+"""
+================================================================================
+Snakefile.diversity — Segment 4: SAF, SFS, Diversity, FST
+================================================================================
+
+Input:  results/bams/*.filtered.cram  (from Segment 1)
+        results/relatedness/unrelated_samples.txt  (from Segment 2)
+        results/admixture/lineage_assignments.txt  (from Gate 3)
+
+FST comparisons are defined in config.yaml under fst_comparisons.
+Each comparison is a [group1, group2] pair. Groups can be populations
+(florida, panama) or lineage groups (lineageA_florida, lineageB_panama, etc.)
+defined in lineage_assignments.txt.
+
+Lineage group bamlists are built dynamically from lineage_assignments.txt.
+Monomorphic sites are included in SAF (no MAF filter) for unbiased SFS/diversity.
+realSFS 2D uses -maxIter 200 to prevent unbounded EM runtime.
+
+Output: results/diversity/*.thetas.idx.pestPG
+        results/fst/*.fst.global + *.fst.windows
+        results/heterozygosity/*.het
+
+Instance: c6i.16xlarge on-demand (~4 hrs)
+================================================================================
+"""
+
+include: "common.smk"
+
+import os
+
+# ---------------------------------------------------------------------------
+# Load lineage assignments (written by lineage_assign.py after Gate 3)
+# Returns dict: sample_id -> lineage label (e.g. "lineageA", "lineageB", "admixed")
+# ---------------------------------------------------------------------------
+LINEAGE_FILE = "results/admixture/lineage_assignments.txt"
+
+def load_lineage_assignments():
+    if not os.path.exists(LINEAGE_FILE):
+        return {}
+    assignments = {}
+    with open(LINEAGE_FILE) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split('\t')
+            if len(parts) >= 2:
+                assignments[parts[0]] = parts[1]
+    return assignments
+
+LINEAGE_ASSIGNMENTS = load_lineage_assignments()
+
+# ---------------------------------------------------------------------------
+# Build group lists: populations + lineage×population groups
+# Lineage groups are only active when lineage_assignments.txt exists.
+# ---------------------------------------------------------------------------
+
+def get_group_samples(group):
+    """
+    Return sample IDs for a given group name.
+    Group can be a population (e.g. 'florida') or lineage group
+    (e.g. 'lineageA_florida', 'lineageB_all').
+    """
+    if '_all' in group:
+        lineage = group.replace('_all', '')
+        return [s for s, lin in LINEAGE_ASSIGNMENTS.items()
+                if lin == lineage and s in SAMPLES]
+
+    # Try lineage_population format
+    for pop in POPS:
+        prefix = f"lineageA_{pop}", f"lineageB_{pop}"
+        for pfx in prefix:
+            if group == pfx:
+                lineage = 'lineageA' if group.startswith('lineageA') else 'lineageB'
+                return [
+                    s for s in SAMPLES
+                    if LINEAGE_ASSIGNMENTS.get(s) == lineage
+                    and samples.loc[samples["sample_id"] == s,
+                                    config.get("primary_grouping", "population")].values[0] == pop
+                ]
+
+    # Plain population
+    return samples.loc[
+        samples[config.get("primary_grouping", "population")] == group,
+        "sample_id"
+    ].tolist()
+
+
+# FST comparisons from config
+FST_COMPARISONS = config.get("fst_comparisons", [[p[0], p[1]] for p in POP_PAIRS])
+
+# All groups that need SAF files
+ALL_SAF_GROUPS = list({g for pair in FST_COMPARISONS for g in pair} | set(POPS))
+
+# ---------------------------------------------------------------------------
+# Segment 4 targets
+# ---------------------------------------------------------------------------
+rule all:
+    input:
+        expand("results/sfs/{group}.saf.idx",      group=ALL_SAF_GROUPS),
+        expand("results/sfs/{group}.sfs",           group=ALL_SAF_GROUPS),
+        expand("results/diversity/{group}.thetas.idx.pestPG", group=ALL_SAF_GROUPS),
+        [f"results/fst/{pair[0]}_vs_{pair[1]}.fst.global"
+         for pair in FST_COMPARISONS],
+        expand("results/heterozygosity/{sample}.het", sample=SAMPLES),
+
+# ============================================================================
+# 15. BAMLISTS (population + lineage groups)
+# ============================================================================
+
+rule make_bamlist_group:
+    """
+    Per-group bamlist for SAF/FST. Uses unrelated + approved samples.
+    Supports both plain population groups and lineage groups.
+    """
+    output:
+        "results/bamlists/{group}.bamlist",
+    wildcard_constraints:
+        group="[a-zA-Z0-9_]+",
+    run:
+        import os
+        unrelated_file = "results/relatedness/unrelated_samples.txt"
+        if not os.path.exists(unrelated_file):
+            raise FileNotFoundError(
+                f"\n{'='*60}\n"
+                f"CLONE GATE: unrelated_samples.txt not found.\n"
+                f"Run: python workflow/scripts/clone_approve.py\n"
+                f"{'='*60}"
+            )
+        with open(unrelated_file) as f:
+            unrelated = set(l.strip() for l in f if l.strip())
+
+        group_samples = get_group_samples(wildcards.group)
+        if not group_samples:
+            raise ValueError(f"No samples found for group '{wildcards.group}'. "
+                             f"Check fst_comparisons in config and lineage_assignments.txt.")
+
+        with open(output[0], 'w') as f:
+            for sample in group_samples:
+                if sample in unrelated:
+                    f.write(f"results/bams/{sample}.filtered.cram\n")
+
+# ============================================================================
+# 16. SAF (site allele frequency likelihoods — all non-repeat sites)
+# ============================================================================
+
+rule angsd_saf:
+    """
+    Per-group SAF over all non-repeat sites (monomorphic + variable).
+    No MAF filter — required for unbiased SFS and accurate π/θ/D.
+    Folded SFS: reference used as ancestral (-anc = -ref); folded downstream.
+    Runtime: 30-45 min per group.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        bamlist="results/bamlists/{group}.bamlist",
+        ref=config["reference"],
+        fai=config["reference"] + ".fai",
+        depth_thresh="results/angsd/depth_thresholds.txt",
+        sites="results/angsd/nonrepeat_sites.txt",
+        sites_idx="results/angsd/nonrepeat_sites.txt.idx",
+        sites_bin="results/angsd/nonrepeat_sites.txt.bin",
+    output:
+        saf="results/sfs/{group}.saf.idx",
+    wildcard_constraints:
+        group="[a-zA-Z0-9_]+",
+    params:
+        out="results/sfs/{group}",
+        gl=config.get("gl_model", 1),
+        max_depth=lambda wc, input: (
+            sum(1 for l in open(input.bamlist) if l.strip()) *
+            int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0])
+        ),
+        max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
+    threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=90,
+    shell:
+        """
+        mkdir -p results/sfs
+        angsd -bam {input.bamlist} -ref {input.ref} -anc {input.ref} \
+            -out {params.out} \
+            -GL {params.gl} -doSaf 1 -doCounts 1 \
+            -setMaxDepth {params.max_depth} \
+            -setMaxDepthInd {params.max_depth_ind} \
+            -setMinDepthInd 2 \
+            -minMapQ 20 -minQ 20 \
+            -remove_bads 1 -only_proper_pairs 1 \
+            -sites {input.sites} \
+            -nThreads {threads}
+        """
+
+# ============================================================================
+# 17. 1D SFS + DIVERSITY
+# ============================================================================
+
+rule realsfs:
+    """1D SFS via ML (EM algorithm). Runtime: 8-12 min per group."""
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        "results/sfs/{group}.saf.idx",
+    output:
+        "results/sfs/{group}.sfs",
+    wildcard_constraints:
+        group="[a-zA-Z0-9_]+",
+    threads: 8
+    resources:
+        mem_mb=8000,
+        runtime=30,
+    shell:
+        "realSFS {input} -P {threads} -fold 1 > {output}"
+
+rule thetas:
+    """π, θ, Tajima's D from SFS-weighted SAF. Runtime: 5-8 min per group."""
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        saf="results/sfs/{group}.saf.idx",
+        sfs="results/sfs/{group}.sfs",
+    output:
+        idx="results/diversity/{group}.thetas.idx",
+        pestpg="results/diversity/{group}.thetas.idx.pestPG",
+    wildcard_constraints:
+        group="[a-zA-Z0-9_]+",
+    params:
+        out="results/diversity/{group}",
+    threads: 8
+    resources:
+        mem_mb=8000,
+        runtime=30,
+    shell:
+        """
+        mkdir -p results/diversity
+        realSFS saf2theta {input.saf} -sfs {input.sfs} -outname {params.out} -P {threads} -fold 1
+        thetaStat do_stat {output.idx}
+        """
+
+# ============================================================================
+# 18. 2D SFS + FST
+# ============================================================================
+
+rule realsfs_2d:
+    """
+    2D joint SFS for two groups. Used as prior for FST.
+    -maxIter 200 caps EM iterations — prevents 20+ hr runs without convergence.
+    Runtime: 15-30 min per pair.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        saf1="results/sfs/{g1}.saf.idx",
+        saf2="results/sfs/{g2}.saf.idx",
+    output:
+        "results/fst/{g1}_vs_{g2}.2dsfs",
+    threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=60,
+    shell:
+        """
+        mkdir -p results/fst
+        realSFS {input.saf1} {input.saf2} -P {threads} -fold 1 -maxIter 200 > {output}
+        """
+
+rule fst_index:
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        saf1="results/sfs/{g1}.saf.idx",
+        saf2="results/sfs/{g2}.saf.idx",
+        sfs="results/fst/{g1}_vs_{g2}.2dsfs",
+    output:
+        "results/fst/{g1}_vs_{g2}.fst.idx",
+    params:
+        out="results/fst/{g1}_vs_{g2}",
+    shell:
+        "realSFS fst index {input.saf1} {input.saf2} -sfs {input.sfs} -fstout {params.out}"
+
+rule fst_global:
+    """Global FST + windowed FST (50kb windows, 10kb step)."""
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        "results/fst/{g1}_vs_{g2}.fst.idx",
+    output:
+        fst_global="results/fst/{g1}_vs_{g2}.fst.global",
+        windows="results/fst/{g1}_vs_{g2}.fst.windows",
+    shell:
+        """
+        realSFS fst stats  {input} > {output.fst_global}
+        realSFS fst stats2 {input} -win 50000 -step 10000 -type 2 > {output.windows}
+        """
+
+# ============================================================================
+# 19. INDIVIDUAL HETEROZYGOSITY
+# ============================================================================
+
+rule individual_saf:
+    """
+    Per-individual SAF for heterozygosity over all non-repeat sites.
+    Runtime: 12-15 min per sample.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        cram="results/bams/{sample}.filtered.cram",
+        crai="results/bams/{sample}.filtered.cram.crai",
+        ref=config["reference"],
+        fai=config["reference"] + ".fai",
+        depth_thresh="results/angsd/depth_thresholds.txt",
+        sites="results/angsd/nonrepeat_sites.txt",
+        sites_idx="results/angsd/nonrepeat_sites.txt.idx",
+        sites_bin="results/angsd/nonrepeat_sites.txt.bin",
+    output:
+        temp("results/heterozygosity/{sample}.saf.idx"),
+    params:
+        out="results/heterozygosity/{sample}",
+        gl=config.get("gl_model", 1),
+        max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
+    threads: 4
+    resources:
+        mem_mb=8000,
+        runtime=30,
+    shell:
+        """
+        mkdir -p results/heterozygosity
+        angsd -i {input.cram} -ref {input.ref} -anc {input.ref} \
+            -GL {params.gl} -doSaf 1 -doCounts 1 \
+            -setMaxDepthInd {params.max_depth_ind} \
+            -setMinDepthInd 2 \
+            -minMapQ 20 -minQ 20 \
+            -remove_bads 1 -only_proper_pairs 1 \
+            -sites {input.sites} \
+            -nThreads {threads} -out {params.out}
+        """
+
+rule individual_het:
+    """Genome-wide heterozygosity per sample from individual SAF. ~1-2 min."""
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        "results/heterozygosity/{sample}.saf.idx",
+    output:
+        "results/heterozygosity/{sample}.het",
+    resources:
+        mem_mb=4000,
+        runtime=10,
+    shell:
+        "realSFS {input} > {output}"

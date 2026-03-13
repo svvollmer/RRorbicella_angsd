@@ -1,0 +1,311 @@
+"""
+================================================================================
+Snakefile.structure — Segment 3: LD Pruning, PCA, Admixture, Gate 3
+================================================================================
+
+Input:  results/angsd/all.unrelated.beagle.gz  (from Segment 2)
+
+Gate 3 (Lineage): After admixture completes, assign lineages from K=2 Q-file:
+    python workflow/scripts/lineage_assign.py --q-threshold 0.80
+    → writes results/admixture/lineage_assignments.txt
+    → re-run snakemake to confirm gate file is present, then start Segment 4
+
+Output: results/pca/pcangsd.cov
+        results/admixture/pcangsd_K{k}.Q  (K=2..max_k)
+        results/admixture/lineage_assignments.txt  (from gate script)
+
+Then start Segment 4:
+    snakemake --snakefile workflow/Snakefile.diversity --profile profiles/aws
+
+Instance: c6i.8xlarge on-demand (~3 hrs)
+================================================================================
+"""
+
+include: "common.smk"
+
+# ---------------------------------------------------------------------------
+# Segment 3 targets
+# ---------------------------------------------------------------------------
+rule all:
+    input:
+        "results/ld/ld_decay.csv",
+        "results/ld/ld_prune_window.txt",
+        "results/angsd/all.unrelated.ldpruned.beagle.gz",
+        "results/pca/pcangsd.cov",
+        expand("results/admixture/pcangsd_K{k}.Q", k=range(2, config.get("max_k", 5) + 1)),
+
+# ============================================================================
+# 13. LD ANALYSIS
+# ============================================================================
+
+rule ngsld_estimate:
+    """
+    Pairwise LD (r²) between all SNP pairs within max_kb_dist.
+    max_dist_kb: config ld_max_dist is in bp, ngsLD expects kb.
+    Output is temp() — deleted after ld_decay + ld_prune complete.
+    Runtime: 25-35 min for ~75K SNPs, 96 samples, 50kb window.
+    """
+    input:
+        beagle="results/angsd/all.unrelated.beagle.gz",
+        mafs="results/angsd/all.mafs.gz",
+    output:
+        ld_raw=temp("results/ld/ld_raw.tsv"),
+    params:
+        max_dist_kb=config.get("ld_max_dist", 50000) // 1000,
+    threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=60,
+    shell:
+        """
+        mkdir -p results/ld
+        N_SITES=$(python3 -c "import gzip; f=gzip.open('{input.mafs}','rt'); next(f); print(sum(1 for _ in f))")
+        N_IND=$(python3 -c "lines=[l.strip() for l in open('results/relatedness/unrelated_samples.txt') if l.strip()]; print(len(lines))")
+
+        python3 -c "
+import gzip
+with gzip.open('{input.mafs}', 'rt') as f:
+    next(f)
+    with open('results/ld/snp_pos.txt', 'w') as out:
+        for line in f:
+            p = line.split('\\t'); out.write(p[0]+'\\t'+p[1]+'\\n')
+"
+
+        ngsLD --geno {input.beagle} \
+            --probs --n_ind $N_IND --n_sites $N_SITES \
+            --max_kb_dist {params.max_dist_kb} \
+            --pos results/ld/snp_pos.txt \
+            --n_threads {threads} \
+            > {output.ld_raw}
+        """
+
+rule ld_decay:
+    """
+    LD decay vs physical distance. Reads in 500K-row chunks for safety.
+    ngsLD columns: site1, site2, dist, r2_ExpG, D, Dp, r2.
+    """
+    input:
+        "results/ld/ld_raw.tsv",
+    output:
+        decay="results/ld/ld_decay.csv",
+        window="results/ld/ld_prune_window.txt",
+    params:
+        threshold=config.get("ld_decay_threshold", 0.1),
+    run:
+        import numpy as np
+        import pandas as pd
+        import csv
+
+        bins      = [0, 1000, 5000, 10000, 50000, 100000, 500000]
+        bin_sum   = np.zeros(len(bins) - 1)
+        bin_count = np.zeros(len(bins) - 1)
+
+        for chunk in pd.read_csv(
+            input[0], sep='\t', chunksize=500000, usecols=['dist', 'r2']
+        ):
+            idxs  = np.digitize(chunk['dist'].values, bins) - 1
+            valid = (idxs >= 0) & (idxs < len(bins) - 1)
+            for i in range(len(bins) - 1):
+                mask = valid & (idxs == i)
+                bin_sum[i]   += chunk.loc[mask, 'r2'].sum()
+                bin_count[i] += mask.sum()
+
+        bin_labels = [f"{bins[i]}-{bins[i+1]}" for i in range(len(bins) - 1)]
+        with_data  = bin_count > 0
+        mean_r2    = np.where(with_data, bin_sum / bin_count, np.nan)
+
+        with open(output.decay, 'w', newline='') as f:
+            w = csv.writer(f)
+            w.writerow(['bin', 'mean_r2', 'count'])
+            for i in range(len(bins) - 1):
+                w.writerow([bin_labels[i],
+                             f"{mean_r2[i]:.6f}" if with_data[i] else "NA",
+                             int(bin_count[i])])
+
+        pruning_window_kb = bins[-2] / 1000
+        for i, r2 in enumerate(mean_r2):
+            if with_data[i] and r2 < params.threshold:
+                pruning_window_kb = bins[i] / 1000
+                break
+        with open(output.window, 'w') as f:
+            f.write(f"{pruning_window_kb}\n")
+
+rule ld_prune:
+    """
+    LD pruning in pure Python.
+
+    Two modes selected by LD file size:
+    1. Positional thinning (> ld_size_threshold_gb): 1 SNP per positional window.
+       O(N) time. Used for test runs where MAF filtering is less effective.
+    2. Graph-based greedy pruning (<= threshold): remove highest-degree node
+       iteratively using max-heap. O((E+N) log N). Used for production.
+    """
+    input:
+        ld="results/ld/ld_raw.tsv",
+        mafs="results/angsd/all.mafs.gz",
+    output:
+        "results/ld/pruned_keep_snps.txt",
+    params:
+        r2_threshold=config.get("ld_r2_threshold", 0.3),
+        positional_window=config.get("ld_positional_window", 10000),
+        ld_size_threshold_gb=config.get("ld_size_threshold_gb", 2.0),
+    run:
+        import gzip, os, sys
+
+        ld_size_gb = os.path.getsize(input.ld) / 1e9
+
+        if ld_size_gb > params.ld_size_threshold_gb:
+            print(
+                f"LD file {ld_size_gb:.1f} GB > threshold. "
+                f"Using positional thinning ({params.positional_window//1000} kb window).",
+                file=sys.stderr,
+            )
+            window    = params.positional_window
+            keep      = []
+            last_chr  = None
+            last_pos  = -window - 1
+            with gzip.open(input.mafs, 'rt') as f:
+                next(f)
+                for line in f:
+                    cols = line.split('\t', 2)
+                    chrm = cols[0]
+                    pos  = int(cols[1])
+                    if chrm != last_chr or pos - last_pos >= window:
+                        keep.append(f"{chrm}:{pos}")
+                        last_chr = chrm
+                        last_pos = pos
+            print(f"Positional thinning: kept {len(keep)} SNPs.", file=sys.stderr)
+
+        else:
+            import heapq
+            from collections import defaultdict
+            print(
+                f"LD file {ld_size_gb:.1f} GB. Graph-based pruning (r2 >= {params.r2_threshold}).",
+                file=sys.stderr,
+            )
+            all_snps = set()
+            with gzip.open(input.mafs, 'rt') as f:
+                next(f)
+                for line in f:
+                    cols = line.split('\t', 2)
+                    all_snps.add(f"{cols[0]}:{cols[1]}")
+
+            adj = defaultdict(set)
+            with open(input.ld) as f:
+                for line in f:
+                    cols = line.split('\t', 4)
+                    try:
+                        r2 = float(cols[3])
+                    except (ValueError, IndexError):
+                        continue
+                    if r2 >= params.r2_threshold:
+                        adj[cols[0]].add(cols[1])
+                        adj[cols[1]].add(cols[0])
+
+            removed = set()
+            heap    = [(-len(v), k) for k, v in adj.items()]
+            heapq.heapify(heap)
+            while heap:
+                neg_deg, node = heapq.heappop(heap)
+                if node not in adj:
+                    continue
+                actual_deg = len(adj[node])
+                if actual_deg != -neg_deg:
+                    heapq.heappush(heap, (-actual_deg, node))
+                    continue
+                removed.add(node)
+                for nb in adj.pop(node):
+                    if nb in adj:
+                        adj[nb].discard(node)
+                        if not adj[nb]:
+                            del adj[nb]
+                        else:
+                            heapq.heappush(heap, (-len(adj[nb]), nb))
+
+            keep = sorted(all_snps - removed)
+            print(f"Graph pruning: kept {len(keep)}, removed {len(removed)} SNPs.", file=sys.stderr)
+
+        with open(output[0], 'w') as f:
+            f.write('\n'.join(keep) + '\n')
+
+rule filter_ld_beagle:
+    """
+    Create LD-pruned beagle file.
+    pruned_keep_snps.txt uses chr:pos (colon); ANGSD beagle uses chr_pos (underscore).
+    """
+    input:
+        beagle="results/angsd/all.unrelated.beagle.gz",
+        keep="results/ld/pruned_keep_snps.txt",
+    output:
+        beagle="results/angsd/all.unrelated.ldpruned.beagle.gz",
+    run:
+        import gzip, sys
+
+        with open(input.keep) as f:
+            keep_snps = set(line.strip().replace(':', '_') for line in f if line.strip())
+
+        with gzip.open(input.beagle, 'rt') as fin, \
+             gzip.open(output.beagle, 'wt') as fout:
+            fout.write(fin.readline())
+            kept = removed = 0
+            for line in fin:
+                marker = line.split('\t', 1)[0]
+                if marker in keep_snps:
+                    fout.write(line)
+                    kept += 1
+                else:
+                    removed += 1
+
+        print(f"filter_ld_beagle: kept {kept}, removed {removed} SNPs.", file=sys.stderr)
+
+# ============================================================================
+# 14. PCA & ADMIXTURE
+# ============================================================================
+
+rule pcangsd_pca:
+    """PCA using LD-pruned, clone-filtered SNPs. Runtime: 10-15 min."""
+    container: "docker://quay.io/biocontainers/pcangsd:1.36.4--py313h5d164f8_1"
+    input:
+        "results/angsd/all.unrelated.ldpruned.beagle.gz",
+    output:
+        cov="results/pca/pcangsd.cov",
+    params:
+        out="results/pca/pcangsd",
+    threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=30,
+    shell:
+        """
+        mkdir -p results/pca
+        pcangsd -b {input} -o {params.out} -t {threads}
+        """
+
+rule pcangsd_admixture:
+    """
+    Admixture for K ancestral populations. Runtime: 8-12 min per K.
+
+    LINEAGE GATE: After this completes, assign lineages from K=2 Q-file:
+        python workflow/scripts/lineage_assign.py --q-threshold 0.80
+    → writes results/admixture/lineage_assignments.txt
+    Then start Segment 4 (Snakefile.diversity).
+    """
+    container: "docker://quay.io/biocontainers/pcangsd:1.36.4--py313h5d164f8_1"
+    input:
+        "results/angsd/all.unrelated.ldpruned.beagle.gz",
+    output:
+        Q="results/admixture/pcangsd_K{k}.Q",
+        F="results/admixture/pcangsd_K{k}.P",
+    params:
+        out="results/admixture/pcangsd_K{k}",
+    threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=30,
+    shell:
+        """
+        mkdir -p results/admixture
+        pcangsd -b {input} -o {params.out} --admix --admix-K {wildcards.k} -t {threads}
+        mv {params.out}.admix.{wildcards.k}.Q {output.Q}
+        mv {params.out}.admix.{wildcards.k}.P {output.F}
+        """

@@ -1,0 +1,550 @@
+"""
+================================================================================
+Snakefile.snps — Segment 2: SNP Discovery, Filter Gate, Genotyping, Relatedness
+================================================================================
+
+Input:  results/bams/*.filtered.cram  (from Segment 1)
+        results/qc/samples_approved.txt  (from Gate 1)
+
+Gates:
+  SNP Filter Gate: After pass 1 completes, pipeline pauses. Run:
+      python workflow/scripts/filter_select.py
+      → shows SNP counts at MAF × minInd grid, writes filter_params.yaml
+      → re-run snakemake to start pass 2
+
+  Clone Gate: After ngsRelate completes, pipeline pauses. Run:
+      python workflow/scripts/clone_approve.py
+      → writes results/relatedness/unrelated_samples.txt
+      → re-run snakemake to subset beagle
+
+Output: results/angsd/all.unrelated.beagle.gz
+        results/relatedness/clones_report.txt
+
+Then start Segment 3:
+    snakemake --snakefile workflow/Snakefile.structure --profile profiles/aws
+
+Instance: c6i.16xlarge on-demand (~6 hrs)
+================================================================================
+"""
+
+include: "common.smk"
+
+# ---------------------------------------------------------------------------
+# Segment 2 targets
+# ---------------------------------------------------------------------------
+rule all:
+    input:
+        "results/angsd/pass1_snps.txt",
+        "results/angsd/filter_report.txt",   # snp filter gate output
+        "results/angsd/all.beagle.gz",
+        "results/angsd/all.mafs.gz",
+        "results/relatedness/clones_report.txt",
+        "results/angsd/all.unrelated.beagle.gz",
+
+# ============================================================================
+# 7. BAMLISTS
+# ============================================================================
+
+rule make_bamlist_all:
+    """
+    Bamlist for ANGSD discovery + GL passes. Uses all approved samples.
+
+    QC GATE: reads samples_approved.txt at runtime (not a formal input so
+    alignment can run before review). Fails with instructions if missing.
+    """
+    input:
+        crams=expand("results/bams/{sample}.filtered.cram", sample=SAMPLES),
+        qc_pass="results/qc/samples_pass.txt",
+    output:
+        "results/bamlists/all.bamlist",
+    run:
+        import os, sys
+        approved_file = "results/qc/samples_approved.txt"
+        if not os.path.exists(approved_file):
+            raise FileNotFoundError(
+                f"\n{'='*60}\n"
+                f"QC GATE: samples_approved.txt not found.\n"
+                f"Run: python workflow/scripts/qc_approve.py\n"
+                f"Then re-run snakemake.\n"
+                f"{'='*60}"
+            )
+        with open(approved_file) as f:
+            approved = set(l.strip() for l in f
+                          if l.strip() and not l.startswith('#') and not l.startswith('sample'))
+        with open(output[0], 'w') as f:
+            for sample in SAMPLES:
+                if sample in approved:
+                    f.write(f"results/bams/{sample}.filtered.cram\n")
+
+# ============================================================================
+# 8. REGION FILTERING (sites index — shared with Segment 4)
+# ============================================================================
+
+rule make_angsd_sites:
+    """
+    Convert nonrepeat_regions.bed to ANGSD sites file (chr, pos 1-based) + index.
+    ~217M lines for A. palmata (~3 GB); generation ~5 min.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        bed="results/filtering/nonrepeat_regions.bed",
+    output:
+        sites="results/angsd/nonrepeat_sites.txt",
+        idx="results/angsd/nonrepeat_sites.txt.idx",
+        bin="results/angsd/nonrepeat_sites.txt.bin",
+    resources:
+        mem_mb=4000,
+        runtime=30,
+    shell:
+        """
+        mkdir -p results/angsd
+        awk 'BEGIN{{OFS="\\t"}} {{for(i=$2+1; i<=$3; i++) print $1,i}}' {input.bed} \
+            > {output.sites}
+        angsd sites index {output.sites}
+        """
+
+rule compute_depth_thresholds:
+    """
+    Data-driven depth thresholds: mean + 2SD of per-sample coverage.
+    per_ind_max = ceil(mean + 2*SD), minimum 50x; total_max = N * per_ind_max.
+    """
+    input:
+        depths=expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
+    output:
+        "results/angsd/depth_thresholds.txt",
+    run:
+        import math
+        depths = []
+        for f in input.depths:
+            with open(f) as fh:
+                depths.append(float(fh.read().strip()))
+        mean = sum(depths) / len(depths)
+        sd   = math.sqrt(sum((d - mean) ** 2 for d in depths) / len(depths))
+        per_ind_max = max(50, math.ceil(mean + 2 * sd))
+        total_max   = N_APPROVED * per_ind_max
+        with open(output[0], 'w') as out:
+            out.write(f"total_max_depth\t{total_max}\n")
+            out.write(f"per_ind_max_depth\t{per_ind_max}\n")
+            out.write(f"mean_depth\t{mean:.2f}\n")
+            out.write(f"sd_depth\t{sd:.2f}\n")
+
+# ============================================================================
+# 9. TWO-PASS ANGSD: PASS 1 — SNP DISCOVERY
+# ============================================================================
+
+rule angsd_discover_snps:
+    """
+    PASS 1: SNP Discovery — non-repeat sites, relaxed filters.
+
+    Relaxed minInd (60%) and SNP p-val 1e-4 to capture all variable sites.
+    Output is the candidate site universe for pass 2 and filter gate.
+    Runtime: ~2h for 96 samples.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        bamlist="results/bamlists/all.bamlist",
+        ref=config["reference"],
+        fai=config["reference"] + ".fai",
+        depth_thresh="results/angsd/depth_thresholds.txt",
+        sites="results/angsd/nonrepeat_sites.txt",
+        sites_idx="results/angsd/nonrepeat_sites.txt.idx",
+    output:
+        mafs="results/angsd/pass1.mafs.gz",
+    params:
+        out="results/angsd/pass1",
+        min_ind=MIN_IND_DISCOVERY,
+        min_depth=MIN_DEPTH_TOTAL,
+        max_depth=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('total_max')][0]),
+        max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
+    threads: 16
+    resources:
+        mem_mb=32000,
+        runtime=480,
+    shell:
+        """
+        mkdir -p results/angsd
+        angsd -bam {input.bamlist} -ref {input.ref} \
+            -out {params.out} \
+            -GL 1 -doMajorMinor 1 -doMaf 1 \
+            -doCounts 1 \
+            -setMinDepth {params.min_depth} \
+            -setMaxDepth {params.max_depth} \
+            -setMinDepthInd 2 \
+            -setMaxDepthInd {params.max_depth_ind} \
+            -minInd {params.min_ind} \
+            -minMapQ 20 -minQ 20 \
+            -remove_bads 1 -only_proper_pairs 1 \
+            -SNP_pval 1e-4 \
+            -skipTriallelic 1 \
+            -sites {input.sites} \
+            -nThreads {threads}
+        """
+
+rule extract_snplist:
+    """Extract chr+pos SNP list from pass1.mafs.gz."""
+    input:
+        mafs="results/angsd/pass1.mafs.gz",
+    output:
+        snplist="results/angsd/pass1_snps.txt",
+    run:
+        import gzip
+        with gzip.open(input.mafs, "rt") as f:
+            next(f)
+            with open(output.snplist, "w") as out:
+                for line in f:
+                    p = line.split("\t")
+                    out.write(p[0] + "\t" + p[1] + "\n")
+
+rule index_sites:
+    """
+    Index the SNP list exactly once.
+    Prevents race condition when parallel rules (angsd_gl_snps, angsd_saf,
+    individual_saf) would otherwise write the same .bin/.idx files.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        "results/angsd/pass1_snps.txt",
+    output:
+        bin="results/angsd/pass1_snps.txt.bin",
+        idx="results/angsd/pass1_snps.txt.idx",
+    shell:
+        "angsd sites index {input}"
+
+# ============================================================================
+# 10. SNP FILTER GATE — select MAF + minInd before pass 2
+# ============================================================================
+
+rule snp_filter_report:
+    """
+    Compute SNP counts across MAF × minInd grid from pass1.mafs.gz.
+
+    SNP FILTER GATE: After this rule, run the interactive filter selection:
+        python workflow/scripts/filter_select.py
+    which displays this report and writes results/angsd/filter_params.yaml.
+    Then re-run snakemake to start pass 2.
+    """
+    input:
+        mafs="results/angsd/pass1.mafs.gz",
+        snplist="results/angsd/pass1_snps.txt",
+    output:
+        report="results/angsd/filter_report.txt",
+    run:
+        import gzip, math, sys
+
+        maf_thresholds   = [0.01, 0.02, 0.05, 0.10, 0.15, 0.20]
+        mind_fractions   = [0.60, 0.70, 0.80, 0.90, 0.95, 1.00]
+        min_ind_abs      = {f: math.ceil(N_APPROVED * f) for f in mind_fractions}
+        counts           = {(m, f): 0 for m in maf_thresholds for f in mind_fractions}
+
+        with gzip.open(input.mafs, "rt") as fh:
+            next(fh)
+            for line in fh:
+                parts = line.split("\t")
+                try:
+                    freq  = float(parts[5])
+                    n_ind = int(parts[7])
+                except (ValueError, IndexError):
+                    continue
+                maf = min(freq, 1.0 - freq)
+                for m in maf_thresholds:
+                    if maf < m:
+                        break
+                    for f in mind_fractions:
+                        if n_ind >= min_ind_abs[f]:
+                            counts[(m, f)] += 1
+
+        # Count total SNPs in pass1_snps.txt
+        with open(input.snplist) as f:
+            total_pass1 = sum(1 for l in f if l.strip())
+
+        with open(output.report, "w") as out:
+            out.write(f"# SNP filter report\n")
+            out.write(f"# N_approved = {N_APPROVED}\n")
+            out.write(f"# pass1 total SNPs = {total_pass1:,}\n\n")
+
+            # Header
+            header_cols = ["maf_threshold"] + [f"mind_{f:.2f}_n{min_ind_abs[f]}" for f in mind_fractions]
+            out.write("\t".join(header_cols) + "\n")
+            for m in maf_thresholds:
+                row = [f"{m:.2f}"] + [str(counts[(m, f)]) for f in mind_fractions]
+                out.write("\t".join(row) + "\n")
+
+        print(
+            f"\n{'='*60}\n"
+            f"SNP FILTER GATE\n"
+            f"Pass 1 complete: {total_pass1:,} candidate SNPs discovered.\n"
+            f"Review the SNP count table and select parameters for pass 2:\n"
+            f"  python workflow/scripts/filter_select.py\n"
+            f"Then re-run snakemake to continue.\n"
+            f"{'='*60}\n",
+            file=sys.stderr
+        )
+
+# ============================================================================
+# 11. TWO-PASS ANGSD: PASS 2 — GENOTYPE LIKELIHOODS
+# ============================================================================
+
+rule angsd_gl_snps:
+    """
+    PASS 2: Genotype Likelihoods at discovered SNPs (strict filters).
+
+    Reads MAF and minInd from results/angsd/filter_params.yaml (written by
+    filter_select.py). If the file is missing, fails with instructions.
+
+    Adds -setMinDepthInd 2 so that samples with only 1 read don't count
+    toward minInd despite highly uncertain GLs.
+
+    Runtime: ~20-30 min for 96 samples.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        bamlist="results/bamlists/all.bamlist",
+        ref=config["reference"],
+        fai=config["reference"] + ".fai",
+        sites="results/angsd/pass1_snps.txt",
+        sites_idx=rules.index_sites.output,
+        depth_thresh="results/angsd/depth_thresholds.txt",
+        filter_report="results/angsd/filter_report.txt",
+    output:
+        beagle="results/angsd/all.beagle.gz",
+        mafs="results/angsd/all.mafs.gz",
+    params:
+        out="results/angsd/all",
+        max_depth=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('total_max')][0]),
+        max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
+    threads: 16
+    resources:
+        mem_mb=32000,
+        runtime=120,
+    shell:
+        """
+        PARAMS_FILE="results/angsd/filter_params.yaml"
+        if [ ! -f "$PARAMS_FILE" ]; then
+            echo "========================================================"
+            echo "SNP FILTER GATE: filter_params.yaml not found."
+            echo "Review: results/angsd/filter_report.txt"
+            echo "Run:    python workflow/scripts/filter_select.py"
+            echo "Then re-run snakemake."
+            echo "========================================================"
+            exit 1
+        fi
+
+        MIN_MAF=$(python3 -c "import yaml; d=yaml.safe_load(open('$PARAMS_FILE')); print(d['min_maf'])")
+        MIN_IND=$(python3 -c "import yaml; d=yaml.safe_load(open('$PARAMS_FILE')); print(d['min_ind'])")
+
+        echo "Pass 2: min_maf=$MIN_MAF  min_ind=$MIN_IND" >&2
+
+        angsd -bam {input.bamlist} -ref {input.ref} \
+            -out {params.out} \
+            -GL 1 -doMajorMinor 4 -doMaf 1 -doGlf 2 -doCounts 1 \
+            -sites {input.sites} \
+            -minInd $MIN_IND \
+            -setMinDepthInd 2 \
+            -setMaxDepth {params.max_depth} \
+            -setMaxDepthInd {params.max_depth_ind} \
+            -minMapQ 20 -minQ 20 \
+            -remove_bads 1 -only_proper_pairs 1 \
+            -SNP_pval 1e-6 \
+            -minMaf $MIN_MAF \
+            -skipTriallelic 1 \
+            -nThreads {threads}
+        """
+
+# ============================================================================
+# 12. RELATEDNESS
+# ============================================================================
+
+rule ngsrelate:
+    """
+    Kinship/relatedness estimation from all-sample beagle.
+    Runtime: 12-18 min.
+    """
+    container: "docker://quay.io/biocontainers/ngsrelate:2.0--hea85c65_0"
+    input:
+        beagle="results/angsd/all.beagle.gz",
+        mafs="results/angsd/all.mafs.gz",
+        bamlist="results/bamlists/all.bamlist",
+    output:
+        "results/relatedness/relatedness.res",
+    params:
+        n_samples=lambda wc, input: sum(1 for l in open(input.bamlist) if l.strip()),
+    threads: 8
+    resources:
+        mem_mb=8000,
+        runtime=30,
+    shell:
+        """
+        mkdir -p results/relatedness
+        N_SITES=$(python3 -c "import gzip; f=gzip.open('{input.mafs}','rt'); next(f); print(sum(1 for _ in f))")
+        ngsRelate -G {input.beagle} -n {params.n_samples} -L $N_SITES -O {output} -p {threads}
+        """
+
+rule process_relatedness:
+    input:
+        "results/relatedness/relatedness.res",
+    output:
+        matrix="results/relatedness/relatedness_matrix.txt",
+        summary="results/relatedness/relatedness_summary.txt",
+    params:
+        kinship_threshold=config.get("kinship_threshold", 0.2),
+        clone_threshold=config.get("clone_threshold", 0.45),
+    run:
+        import os
+        import pandas as pd
+        rel = pd.read_csv(input[0], sep='\t')
+
+        with open("results/bamlists/all.bamlist") as f:
+            bamlist_samples = [
+                os.path.basename(l.strip()).replace('.filtered.cram', '').replace('.filtered.bam', '')
+                for l in f if l.strip()
+            ]
+        matrix = pd.DataFrame(0.0, index=bamlist_samples, columns=bamlist_samples)
+        for _, row in rel.iterrows():
+            i, j = int(row['a']), int(row['b'])
+            if i < len(bamlist_samples) and j < len(bamlist_samples):
+                matrix.iloc[i, j] = row['KING']
+                matrix.iloc[j, i] = row['KING']
+        matrix.to_csv(output.matrix, sep='\t')
+
+        with open(output.summary, 'w') as f:
+            f.write("Sample_A\tSample_B\tKING\tRelationship\n")
+            for _, row in rel.iterrows():
+                king = row['KING']
+                if king > params.clone_threshold:
+                    relationship = "Clone/Identical"
+                elif king > params.kinship_threshold:
+                    relationship = "Close_relative"
+                else:
+                    continue
+                ia, ib = int(row['a']), int(row['b'])
+                if ia < len(bamlist_samples) and ib < len(bamlist_samples):
+                    f.write(f"{bamlist_samples[ia]}\t{bamlist_samples[ib]}\t{king:.4f}\t{relationship}\n")
+
+rule filter_clones:
+    """
+    Identify clone pairs and close relatives; write recommendations report.
+
+    CLONE GATE: After this rule, run:
+        python workflow/scripts/clone_approve.py
+    which writes results/relatedness/unrelated_samples.txt.
+    Then re-run snakemake to subset beagle and complete Segment 2.
+    """
+    input:
+        summary="results/relatedness/relatedness_summary.txt",
+        depths=expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
+    output:
+        "results/relatedness/clones_report.txt",
+    params:
+        clone_threshold=config.get("clone_threshold", 0.45),
+        kinship_threshold=config.get("kinship_threshold", 0.2),
+    run:
+        import os, sys
+
+        approved_file = "results/qc/samples_approved.txt"
+        if os.path.exists(approved_file):
+            with open(approved_file) as f:
+                approved = [l.strip() for l in f
+                            if l.strip() and not l.startswith('#') and not l.startswith('sample')]
+        else:
+            approved = list(SAMPLES)
+
+        depths = {}
+        for fpath in input.depths:
+            sample = os.path.basename(fpath).replace('.depth.txt', '')
+            with open(fpath) as f:
+                depths[sample] = float(f.read().strip())
+
+        clones    = []
+        relatives = []
+
+        with open(input.summary) as f:
+            next(f)
+            for line in f:
+                parts = line.strip().split('\t')
+                if len(parts) < 4:
+                    continue
+                a, b, king, rel = parts[0], parts[1], float(parts[2]), parts[3]
+                da, db = depths.get(a, 0.0), depths.get(b, 0.0)
+                if king >= params.clone_threshold:
+                    rec = b if da >= db else a
+                    clones.append((a, b, king, da, db, rec))
+                elif king >= params.kinship_threshold:
+                    relatives.append((a, b, king, rel))
+
+        with open(output[0], 'w') as f:
+            f.write("# clones_report.txt — generated by filter_clones rule\n")
+            f.write("# Run: python workflow/scripts/clone_approve.py\n")
+            f.write(f"# clone_threshold: {params.clone_threshold}\n")
+            f.write(f"# kinship_threshold: {params.kinship_threshold}\n")
+            f.write("\n[approved]\n")
+            f.write("sample_id\tmean_depth\n")
+            for s in approved:
+                f.write(f"{s}\t{depths.get(s, 0.0):.2f}\n")
+            f.write("\n[clones]\n")
+            f.write("sample_a\tsample_b\tKING\tdepth_a\tdepth_b\trecommended_exclude\n")
+            for row in clones:
+                f.write("\t".join(str(x) for x in row) + "\n")
+            f.write("\n[relatives]\n")
+            f.write("sample_a\tsample_b\tKING\trelationship\n")
+            for row in relatives:
+                f.write("\t".join(str(x) for x in row) + "\n")
+
+        print(
+            f"\n{'='*60}\n"
+            f"CLONE GATE: {len(clones)} clone pair(s), {len(relatives)} close relative(s).\n"
+            f"Run: python workflow/scripts/clone_approve.py\n"
+            f"Then re-run snakemake to complete Segment 2.\n"
+            f"{'='*60}\n",
+            file=sys.stderr
+        )
+
+rule subset_beagle:
+    """
+    Remove clone/related-sample columns from the full beagle file.
+    Beagle layout: marker, Allele1, Allele2, then 3 cols per sample
+    in approved-sample order (matching make_bamlist_all).
+    """
+    input:
+        beagle="results/angsd/all.beagle.gz",
+        clones_report="results/relatedness/clones_report.txt",
+    output:
+        beagle="results/angsd/all.unrelated.beagle.gz",
+    run:
+        import gzip, os, sys
+
+        unrelated_file = "results/relatedness/unrelated_samples.txt"
+        if not os.path.exists(unrelated_file):
+            raise FileNotFoundError(
+                f"\n{'='*60}\n"
+                f"CLONE GATE: unrelated_samples.txt not found.\n"
+                f"Run: python workflow/scripts/clone_approve.py\n"
+                f"Then re-run snakemake.\n"
+                f"{'='*60}"
+            )
+
+        approved_file = "results/qc/samples_approved.txt"
+        if os.path.exists(approved_file):
+            with open(approved_file) as f:
+                approved = [l.strip() for l in f
+                            if l.strip() and not l.startswith('#') and not l.startswith('sample')]
+        else:
+            approved = list(SAMPLES)
+
+        with open(unrelated_file) as f:
+            unrelated = set(l.strip() for l in f if l.strip())
+
+        keep_cols = [0, 1, 2]
+        for i, sample in enumerate(approved):
+            if sample in unrelated:
+                keep_cols += [3 + i*3, 3 + i*3 + 1, 3 + i*3 + 2]
+
+        n_removed = len(approved) - len(unrelated & set(approved))
+        print(f"subset_beagle: removing {n_removed} clone/related samples", file=sys.stderr)
+
+        with gzip.open(input.beagle, 'rt') as fin, \
+             gzip.open(output.beagle, 'wt') as fout:
+            header_parts = fin.readline().rstrip('\n').split('\t')
+            fout.write('\t'.join(header_parts[i] for i in keep_cols) + '\n')
+            for line in fin:
+                parts = line.rstrip('\n').split('\t')
+                fout.write('\t'.join(parts[i] for i in keep_cols) + '\n')

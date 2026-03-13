@@ -1,0 +1,450 @@
+"""
+================================================================================
+Snakefile.align — Segment 1: Alignment, QC, Gate 1
+================================================================================
+
+Input:  SRA accessions (or local/S3 FASTQs — see samples.csv input_type column)
+Output: results/bams/*.filtered.cram + results/qc/samples_pass.txt
+
+Gate 1 (QC): After this segment completes, review QC and approve samples:
+    python workflow/scripts/qc_approve.py
+    → writes results/qc/samples_approved.txt
+
+Then start Segment 2:
+    snakemake --snakefile workflow/Snakefile.snps --profile profiles/aws
+
+Instance: spot fleet c6i.2xlarge (AWS) or SLURM allocation (HPC)
+================================================================================
+"""
+
+include: "common.smk"
+
+# ---------------------------------------------------------------------------
+# Segment 1 targets
+# ---------------------------------------------------------------------------
+rule all:
+    input:
+        expand("results/bams/{sample}.filtered.cram", sample=SAMPLES),
+        expand("results/bams/{sample}.filtered.cram.crai", sample=SAMPLES),
+        "results/multiqc/multiqc_report.html",
+        "results/filtering/filtering_summary.txt",
+        "results/qc/depth_summary.txt",
+        "results/qc/samples_pass.txt",
+
+# ============================================================================
+# 1. DOWNLOAD / INGEST
+# ============================================================================
+
+def get_fastq_input(wc):
+    """Route to the correct ingestion rule based on input_type column."""
+    row = samples.loc[samples["sample_id"] == wc.sample].iloc[0]
+    itype = str(row.get("input_type", "sra")).strip().lower() if "input_type" in samples.columns else "sra"
+    return {
+        "r1": f"results/fastq/{wc.sample}_1.fastq.gz",
+        "r2": f"results/fastq/{wc.sample}_2.fastq.gz",
+    }
+
+rule download_sra:
+    """
+    Download SRA directly from NCBI's public S3 bucket then convert locally.
+    Bypasses NCBI SDL resolver and SSL/network issues on EC2.
+    """
+    output:
+        r1=temp("results/fastq/{sample}_1.fastq.gz"),
+        r2=temp("results/fastq/{sample}_2.fastq.gz"),
+    params:
+        acc=get_sra,
+        tmpdir="tmp/{sample}",
+    threads: 4
+    resources:
+        mem_mb=8000,
+        runtime=360,
+        download_slots=1,
+    shell:
+        """
+        export PATH=/usr/local/bin:$HOME/miniforge3/bin:$PATH
+        mkdir -p results/fastq {params.tmpdir}
+        for attempt in 1 2 3; do
+            rm -f {params.tmpdir}/{params.acc}
+            aws s3 cp s3://sra-pub-run-odp/sra/{params.acc}/{params.acc} \
+                {params.tmpdir}/{params.acc} --no-sign-request && break
+            echo "Download attempt $attempt failed, retrying..." >&2
+            sleep 30
+        done
+        fasterq-dump {params.tmpdir}/{params.acc} \
+            -O results/fastq -e {threads} \
+            --split-files --temp {params.tmpdir}
+        rm -f {params.tmpdir}/{params.acc}
+        gzip results/fastq/{params.acc}_1.fastq &
+        gzip results/fastq/{params.acc}_2.fastq &
+        wait
+        mv results/fastq/{params.acc}_1.fastq.gz {output.r1}
+        mv results/fastq/{params.acc}_2.fastq.gz {output.r2}
+        rm -rf {params.tmpdir}
+        """
+
+rule stage_local:
+    """Copy local FASTQs into results/fastq/ (input_type == local)."""
+    output:
+        r1=temp("results/fastq/{sample}_1.fastq.gz"),
+        r2=temp("results/fastq/{sample}_2.fastq.gz"),
+    params:
+        src_r1=lambda wc: samples.loc[samples["sample_id"] == wc.sample, "fastq_r1"].values[0],
+        src_r2=lambda wc: samples.loc[samples["sample_id"] == wc.sample, "fastq_r2"].values[0],
+    resources:
+        mem_mb=2000,
+        runtime=60,
+    shell:
+        """
+        mkdir -p results/fastq
+        cp {params.src_r1} {output.r1}
+        cp {params.src_r2} {output.r2}
+        """
+
+rule stage_s3:
+    """Download FASTQs from client S3 bucket (input_type == s3)."""
+    output:
+        r1=temp("results/fastq/{sample}_1.fastq.gz"),
+        r2=temp("results/fastq/{sample}_2.fastq.gz"),
+    params:
+        src_r1=lambda wc: samples.loc[samples["sample_id"] == wc.sample, "fastq_r1"].values[0],
+        src_r2=lambda wc: samples.loc[samples["sample_id"] == wc.sample, "fastq_r2"].values[0],
+    resources:
+        mem_mb=2000,
+        runtime=120,
+        download_slots=1,
+    shell:
+        """
+        mkdir -p results/fastq
+        aws s3 cp {params.src_r1} {output.r1}
+        aws s3 cp {params.src_r2} {output.r2}
+        """
+
+# ============================================================================
+# 2. ADAPTER TRIMMING
+# ============================================================================
+
+rule fastp:
+    container: "docker://quay.io/biocontainers/fastp:0.23.4--h5f740d0_0"
+    input:
+        r1="results/fastq/{sample}_1.fastq.gz",
+        r2="results/fastq/{sample}_2.fastq.gz",
+    output:
+        r1=temp("results/trimmed/{sample}_1.fastq.gz"),
+        r2=temp("results/trimmed/{sample}_2.fastq.gz"),
+        html="results/qc/{sample}_fastp.html",
+        json="results/qc/{sample}_fastp.json",
+    threads: 4
+    resources:
+        mem_mb=4000,
+        runtime=60,
+    shell:
+        """
+        fastp -i {input.r1} -I {input.r2} \
+            -o {output.r1} -O {output.r2} \
+            -h {output.html} -j {output.json} \
+            --thread {threads} \
+            --detect_adapter_for_pe \
+            --cut_front --cut_tail \
+            --trim_poly_g
+        """
+
+# ============================================================================
+# 3. REFERENCE INDEXING
+# ============================================================================
+
+rule samtools_faidx:
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
+    input:
+        config["reference"],
+    output:
+        config["reference"] + ".fai",
+    shell:
+        "samtools faidx {input}"
+
+rule bwa_index:
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
+    input:
+        config["reference"],
+    output:
+        multiext(config["reference"], ".amb", ".ann", ".bwt", ".pac", ".sa"),
+    resources:
+        mem_mb=8000,
+        runtime=60,
+    shell:
+        "bwa index {input}"
+
+# ============================================================================
+# 4. MAPPING + DEDUPLICATION
+# ============================================================================
+
+rule bwa_map:
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
+    input:
+        r1="results/trimmed/{sample}_1.fastq.gz",
+        r2="results/trimmed/{sample}_2.fastq.gz",
+        ref=config["reference"],
+        idx=multiext(config["reference"], ".amb", ".ann", ".bwt", ".pac", ".sa"),
+    output:
+        temp("results/bams/{sample}.raw.bam"),
+    threads: 16
+    resources:
+        mem_mb=16000,
+        runtime=240,
+    shell:
+        """
+        bwa mem -t {threads} \
+            -R '@RG\\tID:{wildcards.sample}\\tSM:{wildcards.sample}\\tPL:ILLUMINA' \
+            {input.ref} {input.r1} {input.r2} \
+        | samtools sort -@ 4 -m 512M -o {output} -
+        """
+
+rule mark_duplicates:
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
+    input:
+        "results/bams/{sample}.raw.bam",
+    output:
+        bam=temp("results/bams/{sample}.dedup.bam"),
+        bai=temp("results/bams/{sample}.dedup.bam.bai"),
+        metrics="results/qc/{sample}.dedup_metrics.txt",
+    threads: 4
+    resources:
+        mem_mb=8000,
+        runtime=120,
+    shell:
+        """
+        samtools sort -n -@ {threads} {input} \
+        | samtools fixmate -m - - \
+        | samtools sort -@ {threads} - \
+        | samtools markdup - {output.bam}
+        samtools index -@ {threads} {output.bam}
+        samtools flagstat {output.bam} > {output.metrics}
+        """
+
+rule flagstat:
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
+    input:
+        "results/bams/{sample}.dedup.bam",
+    output:
+        "results/qc/{sample}.flagstat.txt",
+    shell:
+        "samtools flagstat {input} > {output}"
+
+# ============================================================================
+# 5. REGION FILTERING + CRAM CONVERSION
+# ============================================================================
+
+rule make_chrom_regions:
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
+    input:
+        fai=config["reference"] + ".fai",
+    output:
+        bed="results/filtering/chromosomes.bed",
+    params:
+        min_size=config.get("min_scaffold_size", 10000000),
+    shell:
+        """
+        awk '$2 >= {params.min_size} {{print $1"\\t0\\t"$2}}' {input.fai} > {output.bed}
+        """
+
+rule make_nonrepeat_bed:
+    input:
+        ref=config["reference"],
+        chroms="results/filtering/chromosomes.bed",
+    output:
+        bed="results/filtering/nonrepeat_regions.bed",
+    resources:
+        mem_mb=8000,
+        runtime=30,
+    shell:
+        """
+        python3 workflow/scripts/create_nonrepeat_bed.py \
+            {input.ref} {input.chroms} {output.bed} \
+            --min-length 100 --merge-gap 50
+        """
+
+rule filter_mapped:
+    """
+    Filter by MAPQ + chromosome-level scaffolds, write as CRAM.
+    Repeat exclusion handled downstream by ANGSD via -sites.
+    """
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
+    input:
+        bam="results/bams/{sample}.dedup.bam",
+        bed="results/filtering/chromosomes.bed",
+        ref=config["reference"],
+        fai=config["reference"] + ".fai",
+    output:
+        cram="results/bams/{sample}.filtered.cram",
+        crai="results/bams/{sample}.filtered.cram.crai",
+    params:
+        mapq=config.get("minmapq", 20),
+    threads: 4
+    resources:
+        mem_mb=4000,
+        runtime=60,
+    shell:
+        """
+        REF=$(realpath {input.ref})
+        samtools view -C -T $REF \
+            -q {params.mapq} -L {input.bed} \
+            -@ {threads} -o {output.cram} {input.bam}
+        samtools index {output.cram}
+        """
+
+# ============================================================================
+# 6. QC: DEPTH + MULTIQC + QC GATE
+# ============================================================================
+
+rule sample_depth:
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
+    input:
+        cram="results/bams/{sample}.filtered.cram",
+        crai="results/bams/{sample}.filtered.cram.crai",
+        ref=config["reference"],
+        fai=config["reference"] + ".fai",
+    output:
+        "results/qc/{sample}.depth.txt",
+    shell:
+        """
+        samtools coverage --reference {input.ref} {input.cram} \
+            | awk 'NR>1 {{len+=$3-$2; dep+=$7*($3-$2)}} END {{printf "%.2f\\n", dep/len}}' \
+            > {output}
+        """
+
+rule depth_summary:
+    input:
+        expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
+    output:
+        "results/qc/depth_summary.txt",
+    run:
+        with open(output[0], 'w') as out:
+            out.write("sample\tmean_depth\n")
+            for f in input:
+                sample = f.split('/')[-1].replace('.depth.txt', '')
+                with open(f) as fh:
+                    depth = fh.read().strip()
+                out.write(f"{sample}\t{depth}\n")
+
+rule filtering_summary:
+    input:
+        expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
+        expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
+    output:
+        "results/filtering/filtering_summary.txt",
+    run:
+        with open(output[0], 'w') as out:
+            out.write("Sample\tTotal_reads\tMapped_reads\tMapping_rate\tMean_depth\n")
+            for sample in SAMPLES:
+                flagstat_file = f"results/qc/{sample}.flagstat.txt"
+                depth_file    = f"results/qc/{sample}.depth.txt"
+                with open(flagstat_file) as f:
+                    lines  = f.readlines()
+                    total  = lines[0].split()[0]
+                    mapped = lines[6].split()[0]
+                    rate   = float(mapped) / float(total) if float(total) > 0 else 0
+                with open(depth_file) as f:
+                    depth = f.read().strip()
+                out.write(f"{sample}\t{total}\t{mapped}\t{rate:.4f}\t{depth}\n")
+
+rule multiqc:
+    container: "docker://quay.io/biocontainers/multiqc:1.21--pyhdfd78af_0"
+    input:
+        expand("results/qc/{sample}_fastp.json", sample=SAMPLES),
+        expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
+        expand("results/qc/{sample}.dedup_metrics.txt", sample=SAMPLES),
+    output:
+        "results/multiqc/multiqc_report.html",
+    shell:
+        """
+        mkdir -p results/multiqc
+        multiqc results/qc/ -o results/multiqc/ --force
+        """
+
+rule qc_report:
+    """
+    QC outlier detection. Flags samples > 2 SD from mean on depth, mapping
+    rate, or duplicate rate.
+
+    QC GATE: After this rule, run:
+        python workflow/scripts/qc_approve.py
+    which writes results/qc/samples_approved.txt.
+    Then start Segment 2 (Snakefile.snps).
+    """
+    input:
+        summary="results/filtering/filtering_summary.txt",
+        dedup=expand("results/qc/{sample}.dedup_metrics.txt", sample=SAMPLES),
+    output:
+        distribution="results/qc/qc_distribution.txt",
+        pass_list="results/qc/samples_pass.txt",
+    run:
+        import math, os, sys
+
+        stats = {}
+        with open(input.summary) as f:
+            next(f)
+            for line in f:
+                parts = line.strip().split('\t')
+                sample, total, mapped, rate, depth = parts
+                stats[sample] = {
+                    'total_reads':  int(total),
+                    'mapped_reads': int(mapped),
+                    'mapping_rate': float(rate),
+                    'mean_depth':   float(depth),
+                    'dup_rate':     0.0,
+                }
+
+        for fpath in input.dedup:
+            sample = os.path.basename(fpath).replace('.dedup_metrics.txt', '')
+            if sample not in stats:
+                continue
+            with open(fpath) as f:
+                lines = f.readlines()
+            total = int(lines[0].split()[0])
+            dups  = int(lines[4].split()[0])
+            stats[sample]['dup_rate'] = dups / total if total > 0 else 0.0
+
+        def mean_sd(vals):
+            m  = sum(vals) / len(vals)
+            sd = math.sqrt(sum((v - m) ** 2 for v in vals) / len(vals))
+            return m, sd
+
+        depths    = [stats[s]['mean_depth']   for s in SAMPLES if s in stats]
+        rates     = [stats[s]['mapping_rate'] for s in SAMPLES if s in stats]
+        dup_rates = [stats[s]['dup_rate']     for s in SAMPLES if s in stats]
+
+        m_dep,  sd_dep  = mean_sd(depths)
+        m_rate, sd_rate = mean_sd(rates)
+        m_dup,  sd_dup  = mean_sd(dup_rates)
+
+        with open(output.distribution, 'w') as f:
+            f.write("metric\tmean\tsd\tmin_threshold\tmax_threshold\n")
+            f.write(f"mean_depth\t{m_dep:.2f}\t{sd_dep:.2f}\t{m_dep-2*sd_dep:.2f}\t{m_dep+2*sd_dep:.2f}\n")
+            f.write(f"mapping_rate\t{m_rate:.4f}\t{sd_rate:.4f}\t{m_rate-2*sd_rate:.4f}\tNA\n")
+            f.write(f"dup_rate\t{m_dup:.4f}\t{sd_dup:.4f}\tNA\t{m_dup+2*sd_dup:.4f}\n")
+
+        with open(output.pass_list, 'w') as f:
+            f.write("sample_id\tmean_depth\tmapping_rate\tdup_rate\tflags\n")
+            for sample in SAMPLES:
+                if sample not in stats:
+                    continue
+                s = stats[sample]
+                flags = []
+                if s['mean_depth']   < m_dep  - 2 * sd_dep:  flags.append(f"low_depth({s['mean_depth']:.1f}x)")
+                if s['mean_depth']   > m_dep  + 2 * sd_dep:  flags.append(f"high_depth({s['mean_depth']:.1f}x)")
+                if s['mapping_rate'] < m_rate - 2 * sd_rate:  flags.append(f"low_mapping({s['mapping_rate']:.3f})")
+                if s['dup_rate']     > m_dup  + 2 * sd_dup:  flags.append(f"high_dup({s['dup_rate']:.3f})")
+                flag_str = ','.join(flags) if flags else 'PASS'
+                f.write(f"{sample}\t{s['mean_depth']:.2f}\t{s['mapping_rate']:.4f}\t{s['dup_rate']:.4f}\t{flag_str}\n")
+
+        print(
+            f"\n{'='*60}\n"
+            f"QC GATE: {len([s for s in SAMPLES if s in stats])} samples processed.\n"
+            f"Review: results/qc/samples_pass.txt\n"
+            f"Run the interactive approval script:\n"
+            f"  python workflow/scripts/qc_approve.py\n"
+            f"Then start Segment 2:\n"
+            f"  snakemake --snakefile workflow/Snakefile.snps --profile profiles/aws\n"
+            f"{'='*60}\n",
+            file=sys.stderr
+        )

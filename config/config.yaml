@@ -53,6 +53,21 @@ ld_decay_threshold: 0.1      # r2 level to determine pruning window
 max_k: 5                     # test K=2 through this
 admixture_replicates: 10     # replicates per K
 
+# --- Lineage assignment (Gate 3) ---
+# Samples with Q > lineage_q_threshold assigned to that lineage; others = admixed
+lineage_q_threshold: 0.80
+
+# --- FST comparisons (Segment 4) ---
+# Each entry is [group1, group2]. Groups can be populations (florida, panama)
+# or lineage groups (lineageA_florida, lineageB_panama, lineageA_all, lineageB_all).
+# Lineage groups require lineage_assignments.txt from Gate 3.
+# Comment out lineage comparisons if running without Gate 3.
+fst_comparisons:
+  - [florida, panama]                          # overall geographic
+  - [lineageA_florida, lineageA_panama]        # geography within pure lineage
+  - [lineageB_florida, lineageB_panama]        # geography within hybrid lineage
+  - [lineageA_all, lineageB_all]               # lineage divergence (pooled)
+
 # --- Relatedness ---
 kinship_threshold: 0.2       # flag pairs above this
 clone_threshold: 0.45        # classify as clone above this

@@ -580,6 +580,86 @@ with 50 kb sliding windows (10 kb step).
 LD decay was estimated with ngsLD; SNPs were pruned using a greedy graph algorithm (r² threshold {pipeline_config.get('ld_r2_threshold', 0.3)})."""
 
 
+# ─── Lineage loaders and figure ───────────────────────────────────────────────
+
+def load_lineage_assignments(results_dir):
+    """Load lineage_assignments.txt → dict sample_id: lineage."""
+    path = Path(results_dir) / "admixture" / "lineage_assignments.txt"
+    if not path.exists():
+        return {}
+    assignments = {}
+    with open(path) as f:
+        for line in f:
+            if line.startswith('#') or not line.strip():
+                continue
+            parts = line.strip().split('\t')
+            if len(parts) >= 2:
+                assignments[parts[0]] = parts[1]
+    return assignments
+
+
+def fig_lineage(admix_k2, lineage_assignments, metadata, figures_dir):
+    """
+    K=2 Q bar plot with samples colored and sorted by lineage assignment.
+    lineageA=blue, lineageB=red, admixed=gray.
+    """
+    plt, _ = setup_matplotlib()
+    if admix_k2 is None or not lineage_assignments:
+        return ""
+
+    unrel_path = Path(figures_dir).parent / "relatedness" / "unrelated_samples.txt"
+    if not unrel_path.exists():
+        return ""
+    with open(unrel_path) as f:
+        samples = [l.strip() for l in f if l.strip()]
+
+    lineage_color = {"lineageA": "#2166AC", "lineageB": "#D6604D", "admixed": "#AAAAAA"}
+
+    def sort_key(i):
+        s   = samples[i]
+        lin = lineage_assignments.get(s, "admixed")
+        order = {"lineageA": 0, "lineageB": 1, "admixed": 2}
+        pop = (metadata.loc[s, "population"]
+               if s in metadata.index and "population" in metadata.columns else "")
+        return (order.get(lin, 2), pop, s)
+
+    order_idx       = sorted(range(len(samples)), key=sort_key)
+    ordered_samples = [samples[i] for i in order_idx]
+    q               = admix_k2[order_idx, :]
+
+    fig, ax = plt.subplots(figsize=(max(14, len(samples) * 0.5), 4))
+
+    for j in range(q.shape[0]):
+        s   = ordered_samples[j]
+        lin = lineage_assignments.get(s, "admixed")
+        ax.bar(j, q[j, 0], color=lineage_color.get(lin, "#AAAAAA"), width=1.0, edgecolor="none")
+        ax.bar(j, q[j, 1], bottom=q[j, 0], color="#DDDDDD",         width=1.0, edgecolor="none")
+
+    prev_lin = lineage_assignments.get(ordered_samples[0], "admixed")
+    for j in range(1, len(ordered_samples)):
+        lin = lineage_assignments.get(ordered_samples[j], "admixed")
+        if lin != prev_lin:
+            ax.axvline(x=j - 0.5, color="black", linewidth=2)
+            prev_lin = lin
+
+    ax.set_xlim(-0.5, len(samples) - 0.5)
+    ax.set_ylim(0, 1)
+    ax.set_xticks(range(len(ordered_samples)))
+    ax.set_xticklabels(ordered_samples, rotation=90, fontsize=7)
+    ax.set_ylabel("Q (K=2)")
+    ax.set_title("K=2 Admixture — Lineage Assignment")
+    ax.axhline(0.8, color="black", linestyle="--", linewidth=1, alpha=0.5, label="Q=0.80 threshold")
+
+    from matplotlib.patches import Patch
+    ax.legend(handles=[
+        Patch(color=lineage_color["lineageA"], label="lineageA"),
+        Patch(color=lineage_color["lineageB"], label="lineageB"),
+        Patch(color=lineage_color["admixed"],  label="admixed"),
+    ], loc="upper right", fontsize=9)
+
+    return save_fig(fig, figures_dir, "lineage_assignment")
+
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -589,6 +669,8 @@ def main():
     parser.add_argument("--config",      default=None)
     parser.add_argument("--output",      default="results/report.html")
     parser.add_argument("--figures_dir", default="results/figures")
+    parser.add_argument("--fst-comparisons", nargs="*", dest="fst_comparisons", default=None,
+                        help="FST comparisons as 'g1_vs_g2' strings (space-separated)")
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir)
@@ -609,30 +691,40 @@ def main():
     from itertools import combinations
     pop_pairs = list(combinations(pops, 2))
 
+    # Parse FST comparisons — from CLI arg or fall back to pop_pairs
+    fst_comparisons = []
+    if args.fst_comparisons:
+        for comp in args.fst_comparisons:
+            parts = comp.split("_vs_", 1)
+            if len(parts) == 2:
+                fst_comparisons.append(tuple(parts))
+    if not fst_comparisons:
+        fst_comparisons = pop_pairs
+
     print("Loading pipeline outputs...")
     filt_df  = load_filtering_summary(results_dir)
     depth_df = load_depth_summary(results_dir)
     fastp_df = load_fastp_stats(results_dir, samples)
     eigenvectors, pct_var = load_pca(results_dir)
     admix    = load_admixture(results_dir, pipeline_config.get("max_k", 5))
-    fst_df   = load_fst_global(results_dir, pop_pairs)
+    fst_df   = load_fst_global(results_dir, fst_comparisons)
     het_df   = load_heterozygosity(results_dir, samples)
     rel_mat  = load_relatedness_matrix(results_dir)
     ld_df    = load_ld_decay(results_dir)
-    thetas   = {p: load_thetas(results_dir, p) for p in pops}
-    sfs      = {p: load_sfs(results_dir, p) for p in pops}
+    lineage_assignments = load_lineage_assignments(results_dir)
+
+    # Diversity: load thetas for all FST groups + standard pops
+    all_groups = list({g for pair in fst_comparisons for g in pair} | set(pops))
+    thetas = {g: load_thetas(results_dir, g) for g in all_groups}
+    sfs    = {p: load_sfs(results_dir, p) for p in pops}  # SFS plot uses pop groups only
     n_pass1, n_pass2 = count_snps(results_dir)
 
-    # Build PCA-ordered metadata: only unrelated samples, in bamlist row order.
-    # PCA eigenvector row i corresponds to sample i in unrelated_samples.txt.
-    # Using full metadata for PCA plots causes IndexError when some samples
-    # were excluded as clones/related.
+    # Build PCA-ordered metadata (eigenvector row i = sample i in unrelated_samples.txt)
     unrel_path = results_dir / "relatedness" / "unrelated_samples.txt"
     if unrel_path.exists():
         pca_sample_order = [l.strip() for l in open(unrel_path) if l.strip()]
         pca_meta = metadata.reindex([s for s in pca_sample_order if s in metadata.index])
     else:
-        # Fallback: clip to eigenvector count if no unrelated list available
         n_pca = eigenvectors.shape[0] if eigenvectors is not None else len(samples)
         pca_meta = metadata.iloc[:n_pca]
 
@@ -641,15 +733,16 @@ def main():
     img_depth    = fig_depth(depth_df, metadata, figures_dir)
     img_pca      = fig_pca(eigenvectors, pct_var, pca_meta, figures_dir)
     img_admix    = fig_admixture(admix, pca_meta, figures_dir)
+    img_lineage  = fig_lineage(admix.get(2), lineage_assignments, pca_meta, figures_dir)
     img_het      = fig_heterozygosity(het_df, metadata, figures_dir)
     img_sfs      = fig_sfs(sfs, figures_dir)
-    img_div      = fig_diversity(thetas, figures_dir)
+    img_div      = fig_diversity({p: thetas[p] for p in pops if thetas.get(p) is not None}, figures_dir)
     img_kinship  = fig_kinship(rel_mat, figures_dir)
     img_ld       = fig_ld_decay(ld_df, figures_dir)
     img_fst_man  = {}
-    for p1, p2 in pop_pairs:
-        wfst = load_windowed_fst(results_dir, p1, p2)
-        img_fst_man[(p1, p2)] = fig_fst_manhattan(p1, p2, wfst, figures_dir)
+    for g1, g2 in fst_comparisons:
+        wfst = load_windowed_fst(results_dir, g1, g2)
+        img_fst_man[(g1, g2)] = fig_fst_manhattan(g1, g2, wfst, figures_dir)
 
     # QC flags
     flagged = []
@@ -702,14 +795,24 @@ def main():
     parts.append("<h2>3. Population Structure</h2>")
     parts.append("<h3>3a. PCA</h3>")
     parts.append(img_pca or "<p><em>PCA not yet available.</em></p>")
-    parts.append("<h3>3b. Admixture</h3>")
+    parts.append("<h3>3b. Admixture (all K)</h3>")
     parts.append(img_admix or "<p><em>Admixture not yet available.</em></p>")
+    if img_lineage:
+        parts.append("<h3>3c. Lineage Assignment (K=2)</h3>")
+        parts.append(img_lineage)
+        if lineage_assignments:
+            counts = {}
+            for lin in lineage_assignments.values():
+                counts[lin] = counts.get(lin, 0) + 1
+            parts.append("<p>" + "  |  ".join(
+                f"<b>{lin}</b>: {n}" for lin, n in sorted(counts.items())
+            ) + "</p>")
 
     # ── Diversity
     parts.append("<h2>4. Genetic Diversity</h2>")
     parts.append("<h3>4a. Site Frequency Spectra</h3>")
     parts.append(img_sfs or "<p><em>SFS not yet available.</em></p>")
-    parts.append("<h3>4b. π, θ, Tajima's D</h3>")
+    parts.append("<h3>4b. π, θ, Tajima's D (by population)</h3>")
     parts.append(img_div or "<p><em>Diversity stats not yet available.</em></p>")
     parts.append("<h3>4c. Individual Heterozygosity</h3>")
     parts.append(img_het or "<p><em>Heterozygosity not yet available.</em></p>")
@@ -720,10 +823,12 @@ def main():
     parts.append("<h2>5. Population Differentiation (FST)</h2>")
     if not fst_df.empty:
         parts.append(df_to_html(fst_df, "{:.4f}"))
-    for p1, p2 in pop_pairs:
-        img = img_fst_man.get((p1, p2), "")
+    else:
+        parts.append("<p><em>FST not yet available.</em></p>")
+    for g1, g2 in fst_comparisons:
+        img = img_fst_man.get((g1, g2), "")
         if img:
-            parts.append(f"<h3>FST Manhattan — {p1.title()} vs {p2.title()}</h3>" + img)
+            parts.append(f"<h3>FST Manhattan — {g1} vs {g2}</h3>" + img)
 
     # ── Relatedness
     parts.append("<h2>6. Relatedness</h2>")

@@ -1,0 +1,136 @@
+"""
+================================================================================
+Snakefile.report — Segment 5: Gene Annotation, FST Outliers, HTML Report
+================================================================================
+
+Input:  All diversity, FST, PCA, admixture results (from Segments 3 + 4)
+
+Output: results/annotation/fst_outliers_annotated.csv
+        results/report.html
+
+Can run locally or on the smallest EC2 instance (no compute-heavy steps).
+================================================================================
+"""
+
+include: "common.smk"
+
+import os
+
+FST_COMPARISONS = config.get("fst_comparisons", [[p[0], p[1]] for p in POP_PAIRS])
+
+# ---------------------------------------------------------------------------
+# Segment 5 targets
+# ---------------------------------------------------------------------------
+rule all:
+    input:
+        "results/annotation/fst_outliers_annotated.csv",
+        "results/report.html",
+
+# ============================================================================
+# 20. GENE ANNOTATION
+# ============================================================================
+
+rule make_gene_bed:
+    container: "docker://quay.io/biocontainers/htslib:1.17--h6bc39ce_1"
+    input:
+        gff=config.get("gene_annotation", ""),
+    output:
+        bed="results/annotation/gene_regions.bed",
+    shell:
+        """
+        mkdir -p results/annotation
+        if [ -f {input.gff} ]; then
+            grep -v "^#" {input.gff} \
+                | awk '$3=="gene" {{print $1"\\t"$4-1"\\t"$5"\\t"$9}}' \
+                > {output.bed}
+        else
+            touch {output.bed}
+        fi
+        """
+
+rule annotate_fst_outliers:
+    """Flag top 5% FST windows per comparison and intersect with gene annotations."""
+    input:
+        fst=[f"results/fst/{pair[0]}_vs_{pair[1]}.fst.windows"
+             for pair in FST_COMPARISONS],
+        genes="results/annotation/gene_regions.bed",
+    output:
+        "results/annotation/fst_outliers_annotated.csv",
+    run:
+        import pandas as pd
+
+        if not FST_COMPARISONS or not input.fst:
+            with open(output[0], 'w') as f:
+                f.write("chr,start,end,fst,comparison,overlapping_genes\n")
+        else:
+            # Load gene BED for overlap testing
+            genes = []
+            if os.path.exists(input.genes) and os.path.getsize(input.genes) > 0:
+                with open(input.genes) as f:
+                    for line in f:
+                        parts = line.strip().split('\t')
+                        if len(parts) >= 4:
+                            genes.append((parts[0], int(parts[1]), int(parts[2]), parts[3]))
+
+            def overlapping_genes(chrom, start, end):
+                return ','.join(
+                    g[3] for g in genes
+                    if g[0] == chrom and g[1] < end and g[2] > start
+                ) or 'none'
+
+            outliers = []
+            for fst_file in input.fst:
+                comp = os.path.basename(fst_file).replace('.fst.windows', '')
+                df = pd.read_csv(fst_file, sep='\t', header=None, skiprows=1,
+                                 names=['region', 'chr', 'midPos', 'Nsites', 'fst'])
+                df['midPos'] = pd.to_numeric(df['midPos'], errors='coerce')
+                df['fst']    = pd.to_numeric(df['fst'],    errors='coerce')
+                df = df.dropna(subset=['fst'])
+                threshold = df['fst'].quantile(0.95)
+                top = df[df['fst'] > threshold].copy()
+                top['comparison'] = comp
+                top['overlapping_genes'] = top.apply(
+                    lambda r: overlapping_genes(r['chr'], int(r['midPos']) - 25000, int(r['midPos']) + 25000),
+                    axis=1
+                )
+                outliers.append(top[['chr', 'midPos', 'Nsites', 'fst', 'comparison', 'overlapping_genes']])
+
+            if outliers:
+                pd.concat(outliers).to_csv(output[0], index=False)
+            else:
+                with open(output[0], 'w') as f:
+                    f.write("chr,midPos,Nsites,fst,comparison,overlapping_genes\n")
+
+# ============================================================================
+# 21. FINAL REPORT
+# ============================================================================
+
+rule generate_report:
+    """HTML report with embedded figures + separate PNGs in results/figures/."""
+    input:
+        filtering="results/filtering/filtering_summary.txt",
+        depth="results/qc/depth_summary.txt",
+        pca="results/pca/pcangsd.cov",
+        ld="results/ld/ld_decay.csv",
+        relatedness="results/relatedness/relatedness_summary.txt",
+        fst_outliers="results/annotation/fst_outliers_annotated.csv",
+        admixture=expand("results/admixture/pcangsd_K{k}.Q",
+                         k=range(2, config.get("max_k", 5) + 1)),
+    output:
+        report="results/report.html",
+    params:
+        metadata=lambda wildcards: config.get("samples_csv", "config/samples.csv"),
+        cfg="config/config.yaml",
+        fst_comparisons=" ".join(
+            f"{pair[0]}_vs_{pair[1]}" for pair in FST_COMPARISONS
+        ),
+    shell:
+        """
+        python workflow/scripts/generate_report.py \
+            --results_dir results/ \
+            --metadata {params.metadata} \
+            --config {params.cfg} \
+            --output {output.report} \
+            --figures_dir results/figures \
+            --fst-comparisons {params.fst_comparisons}
+        """
