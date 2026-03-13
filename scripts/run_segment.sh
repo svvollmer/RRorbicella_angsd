@@ -190,13 +190,20 @@ s3_sync_out() {
 # ---------------------------------------------------------------------------
 # Snakemake cores / jobs by segment and profile
 # ---------------------------------------------------------------------------
-declare -A CORES_AWS=([1]=16 [2]=64 [3]=32 [4]=64 [5]=4)
-declare -A JOBS_AWS=( [1]=8  [2]=4  [3]=4  [4]=4  [5]=1)
+declare -A CORES_AWS=(  [1]=16 [2]=64 [3]=32 [4]=64 [5]=4)
+declare -A JOBS_AWS=(   [1]=8  [2]=4  [3]=4  [4]=4  [5]=1)
+# SLURM: --cores is for local (run:) rules only; --jobs controls SLURM submissions
+declare -A CORES_SLURM=([1]=8  [2]=8  [3]=8  [4]=8  [5]=4)
+declare -A JOBS_SLURM=( [1]=40 [2]=20 [3]=20 [4]=40 [5]=4)
 
 if [[ "$PROFILE" == "aws" ]]; then
     CORES="${CORES_AWS[$SEGMENT]}"
     JOBS="${JOBS_AWS[$SEGMENT]}"
     SM_EXTRA="--use-singularity --singularity-args '--bind /home'"
+elif [[ "$PROFILE" == "slurm" ]]; then
+    CORES="${CORES_SLURM[$SEGMENT]}"
+    JOBS="${JOBS_SLURM[$SEGMENT]}"
+    SM_EXTRA=""   # singularity args come from profiles/slurm/config.yaml
 else
     CORES=16
     JOBS=2

@@ -1,18 +1,30 @@
-# Snakemake SLURM profile for FAU HPC and Northeastern HPC
-# Adjust slurm_partition and slurm_account for your cluster before running.
+# Snakemake SLURM profile — FAU KoKo HPC
+#
+# Before running, fill in:
+#   slurm_account: your-koko-account   (e.g. ecos or your PI's group)
+#   singularity-args: add your scratch path (e.g. --bind /blue/yourgroup)
+#
+# KoKo partitions: general (4h), himem (large mem), gpu
+# Request himem partition for Segment 4 (SAF, 96 samples x 3GB each)
 #
 # Usage:
-#   snakemake --snakefile workflow/Snakefile --profile profiles/slurm
+#   bash scripts/run_segment.sh <segment> --profile slurm
 #
-# FAU (KoKo) partitions: general, himem, gpu
-# Northeastern (Discovery) partitions: short, long, himem
+# Data must be staged to scratch before running — see NEXT_STEPS.md
+
 executor: slurm
-jobs: 50
+jobs: 40
 use-singularity: true
+singularity-args: "--bind /home --bind /blue --bind /scratch --bind /tmp"
 default-resources:
   slurm_partition: "general"
+  slurm_account: "FILL_IN_YOUR_ACCOUNT"
   mem_mb: 32000
-  runtime: 120
+  runtime: 240
   cpus_per_task: 4
 keep-going: true
 latency-wait: 120
+rerun-incomplete: true
+rerun-triggers:
+  - mtime
+scheduler: greedy

@@ -6,6 +6,73 @@ FST and report not yet complete — re-run from Segment 2 with corrected paramet
 
 ---
 
+## Running on FAU KoKo HPC
+
+### One-time setup
+
+```bash
+# 1. Edit the SLURM profile with your account name
+nano profiles/slurm/config.yaml
+# → change FILL_IN_YOUR_ACCOUNT to your KoKo allocation (e.g. ecos)
+# → add your scratch path to singularity-args if not under /blue or /scratch
+
+# 2. Stage data from S3 to KoKo scratch (run from KoKo login node)
+#    Requires AWS CLI and credentials configured on KoKo
+SCRATCH="/blue/yourgroup/yourusername/coral-angsd"   # adjust path
+mkdir -p $SCRATCH
+
+# Reference
+aws s3 sync s3://coral-angsd-728009587639/reference/ $SCRATCH/reference/
+
+# BAMs (large — ~500 GB, use a batch job or screen session)
+aws s3 sync s3://coral-angsd-728009587639/results-production/results/bams/ \
+    $SCRATCH/results/bams/ --exclude '*.fastq*' --exclude '*.raw.bam'
+
+# Pass 1 outputs (to skip pass 1 re-run)
+aws s3 sync s3://coral-angsd-728009587639/results-production/results/angsd/ \
+    $SCRATCH/results/angsd/ \
+    --include 'pass1.mafs.gz' --include 'pass1_snps.txt*' \
+    --include 'nonrepeat_sites.txt*' --include 'depth_thresholds.txt'
+
+# QC + filtering
+aws s3 sync s3://coral-angsd-728009587639/results-production/results/qc/ \
+    $SCRATCH/results/qc/
+aws s3 sync s3://coral-angsd-728009587639/results-production/results/filtering/ \
+    $SCRATCH/results/filtering/
+
+# 3. Clone pipeline and link scratch
+git clone https://github.com/svvollmer/coral-angsd-pipeline.git $SCRATCH/pipeline
+cd $SCRATCH/pipeline
+ln -s $SCRATCH/results results          # point results/ at scratch
+ln -s $SCRATCH/reference reference      # point reference/ at scratch
+```
+
+### Running on KoKo
+
+```bash
+# From the pipeline directory on KoKo:
+
+# SNP filter gate (interactive — run on login node, needs pass1.mafs.gz)
+python workflow/scripts/filter_select.py
+
+# Then submit each segment via SLURM profile:
+bash scripts/run_segment.sh 2 --profile slurm   # pass 2 + relatedness
+# clone gate → re-run
+bash scripts/run_segment.sh 3 --profile slurm   # LD/PCA/admixture
+# lineage gate → run_segment.sh 4
+bash scripts/run_segment.sh 4 --profile slurm   # SAF/SFS/FST
+bash scripts/run_segment.sh 5 --profile local   # report (login node is fine)
+```
+
+### KoKo notes
+- Edit `config/config.yaml`: comment out `local_conda_env` line (Singularity handles tools)
+- Segment 4 (SAF) may need `himem` partition — if jobs OOM, add
+  `slurm_partition: "himem"` to the SAF rule's `resources:` block
+- Gate scripts (`filter_select.py`, `clone_approve.py`, `lineage_assign.py`)
+  are interactive — run on login node, not in a job
+
+---
+
 ## To resume the 96-sample run
 
 All 96 CRAMs are in S3. Segment 1 is done. Start from Segment 2:
