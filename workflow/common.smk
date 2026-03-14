@@ -73,6 +73,13 @@ if _enabled:
 if _disabled:
     print(f"[common.smk] Optional analyses DISABLED: {', '.join(_disabled)} (add columns to samples.csv to enable)", file=_sys.stderr)
 
+# ---------------------------------------------------------------------------
+# BAM/CRAM format — set bam_ext: "bam" or "cram" in config.yaml
+# IDX_EXT: index extension (.bam.bai or .cram.crai)
+# ---------------------------------------------------------------------------
+BAM_EXT = config.get("bam_ext", "cram")
+IDX_EXT = f"{BAM_EXT}.bai" if BAM_EXT == "bam" else f"{BAM_EXT}.crai"
+
 # Prevent {popname} wildcard from matching "all" or other non-population strings
 _pop_pattern = "|".join(re.escape(p) for p in POPS)
 wildcard_constraints:
@@ -102,12 +109,12 @@ def get_sra(wc):
     return samples.loc[samples["sample_id"] == wc.sample, "sra_accession"].values[0]
 
 def get_pop_samples(wc):
-    """CRAMs for a given population wildcard (used by make_bamlist_pop)."""
+    """BAMs/CRAMs for a given population wildcard (used by make_bamlist_pop)."""
     s = samples.loc[
         samples[config.get("primary_grouping", "population")] == wc.popname,
         "sample_id"
     ].tolist()
-    return expand("results/bams/{sample}.filtered.cram", sample=s)
+    return expand(f"results/bams/{{sample}}.filtered.{BAM_EXT}", sample=s)
 
 def get_species_samples(species):
     """Sample IDs for a given species (requires species column)."""

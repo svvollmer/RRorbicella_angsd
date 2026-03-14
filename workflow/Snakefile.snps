@@ -3,7 +3,7 @@
 Snakefile.snps — Segment 2: SNP Discovery, Filter Gate, Genotyping, Relatedness
 ================================================================================
 
-Input:  results/bams/*.filtered.cram  (from Segment 1)
+Input:  results/bams/*.filtered.BAM/CRAM  (from Segment 1)
         results/qc/samples_approved.txt  (from Gate 1)
 
 Gates:
@@ -52,7 +52,7 @@ rule make_bamlist_all:
     if the QC gate has not been run before any compute is provisioned.
     """
     input:
-        crams=expand("results/bams/{sample}.filtered.cram", sample=SAMPLES),
+        bams=expand(f"results/bams/{{sample}}.filtered.{BAM_EXT}", sample=SAMPLES),
         qc_pass="results/qc/samples_pass.txt",
         samples_approved="results/qc/samples_approved.txt",
     output:
@@ -64,7 +64,7 @@ rule make_bamlist_all:
         with open(output[0], 'w') as f:
             for sample in SAMPLES:
                 if sample in approved:
-                    f.write(f"results/bams/{sample}.filtered.cram\n")
+                    f.write(f"results/bams/{sample}.filtered.{BAM_EXT}\n")
 
 # ============================================================================
 # 8. REGION FILTERING (sites index — shared with Segment 4)
@@ -385,7 +385,7 @@ rule process_relatedness:
 
         with open("results/bamlists/all.bamlist") as f:
             bamlist_samples = [
-                os.path.basename(l.strip()).replace('.filtered.cram', '').replace('.filtered.bam', '')
+                os.path.basename(l.strip()).replace('.filtered.' + BAM_EXT, '')
                 for l in f if l.strip()
             ]
         matrix = pd.DataFrame(0.0, index=bamlist_samples, columns=bamlist_samples)

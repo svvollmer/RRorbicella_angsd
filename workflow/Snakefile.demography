@@ -3,7 +3,7 @@
 Snakefile.demography — Segment 6: Demographic Inference
 ================================================================================
 
-Input:  results/bams/{sample}.filtered.cram  (from Segment 1)
+Input:  results/bams/{sample}.filtered.BAM/CRAM  (from Segment 1)
         results/relatedness/unrelated_samples.txt  (from Segment 2 Gate 3)
         results/admixture/lineage_assignments.txt  (from Gate 3b)
         samples.csv admix_fraction column  (from Segment 3 PCAngsd)
@@ -29,7 +29,7 @@ Key design decisions:
   - "clean" vs "full" parallel runs to probe recent vs historical introgression
 
 BAM source: existing BAMs on HPC/S3, pulled to AWS for ANGSD re-run.
-  BAM format: .bam (not CRAM) — update bamlist paths if CRAMs are used.
+  BAM/CRAM format: controlled by bam_ext in config.yaml (default: cram).
 
 Instance recommendation: c6i.16xlarge on-demand (~4-6 hrs for Phase 1)
 ================================================================================
@@ -166,7 +166,7 @@ rule make_demog_bamlist:
             )
         with open(output.bamlist, 'w') as f:
             for sid in sample_ids:
-                f.write(f"results/bams/{sid}.filtered.cram\n")
+                f.write(f"results/bams/{sid}.filtered.{BAM_EXT}\n")
         with open(output.count, 'w') as f:
             f.write(f"{len(sample_ids)}\n")
         print(f"[demography] Group '{wildcards.group}': {len(sample_ids)} samples",

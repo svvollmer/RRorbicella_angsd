@@ -3,7 +3,7 @@
 Snakefile.diversity — Segment 4: SAF, SFS, Diversity, FST
 ================================================================================
 
-Input:  results/bams/*.filtered.cram  (from Segment 1)
+Input:  results/bams/*.filtered.BAM/CRAM  (from Segment 1)
         results/relatedness/unrelated_samples.txt  (from Segment 2)
         results/admixture/lineage_assignments.txt  (from Gate 3)
 
@@ -131,7 +131,7 @@ rule make_bamlist_group:
         with open(output[0], 'w') as f:
             for sample in group_samples:
                 if sample in unrelated:
-                    f.write(f"results/bams/{sample}.filtered.cram\n")
+                    f.write(f"results/bams/{sample}.filtered.{BAM_EXT}\n")
 
 # ============================================================================
 # 16. SAF (site allele frequency likelihoods — all non-repeat sites)
@@ -295,8 +295,8 @@ rule individual_saf:
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
-        cram="results/bams/{sample}.filtered.cram",
-        crai="results/bams/{sample}.filtered.cram.crai",
+        bam=f"results/bams/{{sample}}.filtered.{BAM_EXT}",
+        idx=f"results/bams/{{sample}}.filtered.{IDX_EXT}",
         ref=config["reference"],
         fai=config["reference"] + ".fai",
         depth_thresh="results/angsd/depth_thresholds.txt",
@@ -316,7 +316,7 @@ rule individual_saf:
     shell:
         """
         mkdir -p results/heterozygosity
-        angsd -i {input.cram} -ref {input.ref} -anc {input.ref} \
+        angsd -i {input.bam} -ref {input.ref} -anc {input.ref} \
             -GL {params.gl} -doSaf 1 -doCounts 1 \
             -setMaxDepthInd {params.max_depth_ind} \
             -setMinDepthInd 2 \

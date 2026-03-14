@@ -13,6 +13,12 @@ samples_csv: "config/samples_aws_test.csv"
 reference: "reference/apalmata_genome.fasta"
 gene_annotation: "reference/apalmata_genes.gff"
 
+# --- BAM/CRAM format ---
+# "cram" (default): space-efficient, requires reference for decoding
+# "bam":            use when working with pre-existing BAM files (e.g. Discovery HPC)
+# Pipeline is fully agnostic — change this one setting to switch formats.
+bam_ext: "cram"
+
 # --- Grouping ---
 # Which metadata columns define population groupings for FST/diversity
 grouping_variables:

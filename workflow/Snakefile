@@ -76,7 +76,7 @@ def get_sra(wc):
 def get_pop_samples(wc):
     s = samples.loc[samples[config.get("primary_grouping", "population")] == wc.popname,
                     "sample_id"].tolist()
-    return expand("results/bams/{sample}.filtered.cram", sample=s)
+    return expand(f"results/bams/{{sample}}.filtered.{BAM_EXT}", sample=s)
 
 # ============================================================================
 # FINAL OUTPUTS
@@ -358,15 +358,15 @@ rule sample_depth:
     """
     container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
-        cram="results/bams/{sample}.filtered.cram",
-        crai="results/bams/{sample}.filtered.cram.crai",
+        bam=f"results/bams/{{sample}}.filtered.{BAM_EXT}",
+        idx=f"results/bams/{{sample}}.filtered.{IDX_EXT}",
         ref=config["reference"],
         fai=config["reference"] + ".fai",
     output:
         "results/qc/{sample}.depth.txt",
     shell:
         """
-        samtools coverage --reference {input.ref} {input.cram} \
+        samtools coverage --reference {input.ref} {input.bam} \
             | awk 'NR>1 {{len+=$3-$2; dep+=$7*($3-$2)}} END {{printf "%.2f\\n", dep/len}}' \
             > {output}
         """
@@ -556,7 +556,7 @@ rule make_bamlist_all:
     the job fails with instructions — re-run after creating the approved file.
     """
     input:
-        crams=expand("results/bams/{sample}.filtered.cram", sample=SAMPLES),
+        bams=expand(f"results/bams/{{sample}}.filtered.{BAM_EXT}", sample=SAMPLES),
         qc_pass="results/qc/samples_pass.txt",
     output:
         "results/bamlists/all.bamlist",
@@ -579,7 +579,7 @@ rule make_bamlist_all:
         with open(output[0], 'w') as f:
             for sample in SAMPLES:
                 if sample in approved:
-                    f.write(f"results/bams/{sample}.filtered.cram\n")
+                    f.write(f"results/bams/{sample}.filtered.{BAM_EXT}\n")
 
 rule make_bamlist_pop:
     """
@@ -609,7 +609,7 @@ rule make_bamlist_pop:
             unrelated = set(l.strip() for l in f if l.strip())
         with open(output[0], 'w') as f:
             for path in input.bams:
-                sample = path.split('/')[-1].replace('.filtered.cram', '')
+                sample = path.split('/')[-1].replace('.filtered.' + BAM_EXT, '')
                 if sample in unrelated:
                     f.write(str(path) + '\n')
 
@@ -1140,7 +1140,7 @@ rule process_relatedness:
 
         with open("results/bamlists/all.bamlist") as f:
             bamlist_samples = [
-                os.path.basename(l.strip()).replace('.filtered.cram', '').replace('.filtered.bam', '')
+                os.path.basename(l.strip()).replace('.filtered.' + BAM_EXT, '')
                 for l in f if l.strip()
             ]
         matrix = pd.DataFrame(0.0, index=bamlist_samples, columns=bamlist_samples)
@@ -1460,14 +1460,14 @@ rule fst_global:
 rule individual_saf:
     """
     Per-individual SAF for heterozygosity over all non-repeat sites.
-    Reads CRAM directly — no bamlist needed for single-sample runs.
+    Reads BAM/CRAM directly — no bamlist needed for single-sample runs.
     sites_idx dependency ensures index is built before any of the 96 parallel jobs start.
     Runtime: 12-15 min per sample
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
-        cram="results/bams/{sample}.filtered.cram",
-        crai="results/bams/{sample}.filtered.cram.crai",
+        bam=f"results/bams/{{sample}}.filtered.{BAM_EXT}",
+        idx=f"results/bams/{{sample}}.filtered.{IDX_EXT}",
         ref=config["reference"],
         fai=config["reference"] + ".fai",
         depth_thresh="results/angsd/depth_thresholds.txt",
@@ -1487,7 +1487,7 @@ rule individual_saf:
     shell:
         """
         mkdir -p results/heterozygosity
-        angsd -i {input.cram} -ref {input.ref} \
+        angsd -i {input.bam} -ref {input.ref} \
             -GL {params.gl} -doSaf 1 -doCounts 1 \
             -setMaxDepthInd {params.max_depth_ind} \
             -setMinDepthInd 2 \
