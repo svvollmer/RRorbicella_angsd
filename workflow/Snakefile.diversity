@@ -14,7 +14,7 @@ defined in lineage_assignments.txt.
 
 Lineage group bamlists are built dynamically from lineage_assignments.txt.
 Monomorphic sites are included in SAF (no MAF filter) for unbiased SFS/diversity.
-realSFS 2D uses -maxIter 200 to prevent unbounded EM runtime.
+realSFS 2D: full-site EM convergence on tolerance (no site cap, no iter cap).
 
 Output: results/diversity/*.thetas.idx.pestPG
         results/fst/*.fst.global + *.fst.windows
@@ -235,12 +235,9 @@ rule thetas:
 rule realsfs_2d:
     """
     2D joint SFS for two groups. Used as prior for FST.
-    -nSites 20000000: estimate SFS on a random 20M-site subset for fast,
-    reliable EM convergence. 20M sites is statistically indistinguishable
-    from the full ~800M for global FST (Gemini review 2026-03-14).
-    Removed -maxIter 200 cap — let EM converge on tolerance (-tol 1e-6).
+    Full-site EM convergence on tolerance (-tol 1e-6, no site cap or iter cap).
     Threads bumped to 16 on c6i.16xlarge (64 vCPUs available).
-    Runtime: 15-30 min per pair.
+    Runtime: 30-90 min per pair (monitor — can be long on large cohorts).
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
@@ -255,7 +252,7 @@ rule realsfs_2d:
     shell:
         """
         mkdir -p results/fst
-        realSFS {input.saf1} {input.saf2} -P {threads} -fold 1 -nSites 20000000 > {output}
+        realSFS {input.saf1} {input.saf2} -P {threads} -fold 1 > {output}
         """
 
 rule fst_index:
