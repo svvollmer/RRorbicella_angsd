@@ -14,7 +14,7 @@ defined in lineage_assignments.txt.
 
 Lineage group bamlists are built dynamically from lineage_assignments.txt.
 Monomorphic sites are included in SAF (no MAF filter) for unbiased SFS/diversity.
-realSFS 2D: full-site EM convergence on tolerance (no site cap, no iter cap).
+realSFS 2D uses -nSites 20000000 for fast EM convergence (FST prior only).
 
 Output: results/diversity/*.thetas.idx.pestPG
         results/fst/*.fst.global + *.fst.windows
@@ -234,10 +234,12 @@ rule thetas:
 
 rule realsfs_2d:
     """
-    2D joint SFS for two groups. Used as prior for FST.
-    Full-site EM convergence on tolerance (-tol 1e-6, no site cap or iter cap).
+    2D joint SFS for two groups. Used as prior for FST only (not demography).
+    -nSites 20000000: subsample 20M sites for fast EM convergence. FST is a
+    ratio averaged across sites so subsampling is statistically unbiased here.
+    Demography SFS (Snakefile.demography) uses full sites — no subsampling there.
     Threads bumped to 16 on c6i.16xlarge (64 vCPUs available).
-    Runtime: 30-90 min per pair (monitor — can be long on large cohorts).
+    Runtime: 15-30 min per pair.
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
@@ -252,7 +254,7 @@ rule realsfs_2d:
     shell:
         """
         mkdir -p results/fst
-        realSFS {input.saf1} {input.saf2} -P {threads} -fold 1 > {output}
+        realSFS {input.saf1} {input.saf2} -P {threads} -fold 1 -nSites 20000000 > {output}
         """
 
 rule fst_index:
