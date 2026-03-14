@@ -657,7 +657,8 @@ rule angsd_discover_snps:
     reads at the ANGSD level. -only_proper_pairs 1 excludes chimeric pairs.
 
     Relaxed minInd (60%) and SNP p-value (1e-4) to capture all variable sites.
-    Runtime: ~2h for 96 samples; ~50 min for 5 samples
+    Runtime: ~2h for 96 samples, ~6h for 300 samples.
+    mem_mb scaled to ~200MB/sample — 64GB covers up to ~300 samples.
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
@@ -677,8 +678,8 @@ rule angsd_discover_snps:
         max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
     threads: 16
     resources:
-        mem_mb=32000,
-        runtime=480,
+        mem_mb=64000,
+        runtime=720,
     shell:
         """
         mkdir -p results/angsd
@@ -1102,7 +1103,7 @@ rule pcangsd_admixture:
 rule ngsrelate:
     """
     Kinship/relatedness estimation. -G flag for beagle.gz input. -L for site count.
-    Runtime: 12-18 min
+    Runtime scales O(n²): ~15 min for 96 samples, ~2-3h for 300 samples.
     """
     container: "docker://quay.io/biocontainers/ngsrelate:2.0--hea85c65_0"
     input:
@@ -1115,8 +1116,8 @@ rule ngsrelate:
         n_samples=lambda wc, input: sum(1 for l in open(input.bamlist) if l.strip()),
     threads: 8
     resources:
-        mem_mb=8000,
-        runtime=30,
+        mem_mb=32000,
+        runtime=240,
     shell:
         """
         mkdir -p results/relatedness

@@ -128,7 +128,8 @@ rule angsd_discover_snps:
 
     Relaxed minInd (60%) and SNP p-val 1e-4 to capture all variable sites.
     Output is the candidate site universe for pass 2 and filter gate.
-    Runtime: ~2h for 96 samples.
+    Runtime: ~2h for 96 samples, ~6h for 300 samples.
+    mem_mb scaled to ~200MB/sample — 64GB covers up to ~300 samples.
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
@@ -148,8 +149,8 @@ rule angsd_discover_snps:
         max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
     threads: 16
     resources:
-        mem_mb=32000,
-        runtime=480,
+        mem_mb=64000,
+        runtime=720,
     shell:
         """
         mkdir -p results/angsd
@@ -284,7 +285,7 @@ rule angsd_gl_snps:
     Adds -setMinDepthInd 2 so that samples with only 1 read don't count
     toward minInd despite highly uncertain GLs.
 
-    Runtime: ~20-30 min for 96 samples.
+    Runtime: ~20-30 min for 96 samples, ~90 min for 300 samples.
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
@@ -304,8 +305,8 @@ rule angsd_gl_snps:
         max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
     threads: 16
     resources:
-        mem_mb=32000,
-        runtime=120,
+        mem_mb=64000,
+        runtime=240,
     shell:
         """
         PARAMS_FILE="results/angsd/filter_params.yaml"
