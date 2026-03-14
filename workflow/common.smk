@@ -24,10 +24,54 @@ if _conda_env and os.path.isdir(_conda_env):
 # ---------------------------------------------------------------------------
 # Sample table
 # ---------------------------------------------------------------------------
-samples = pd.read_csv(config["samples_csv"])
-SAMPLES = samples["sample_id"].tolist()
-POPS    = samples[config.get("primary_grouping", "population")].unique().tolist()
+samples = pd.read_csv(config["samples_csv"], keep_default_na=False)
+
+# Required columns
+SAMPLES   = samples["sample_id"].tolist()
+POPS      = samples[config.get("primary_grouping", "population")].unique().tolist()
 POP_PAIRS = list(combinations(sorted(POPS), 2))
+
+# Optional: species — enables multi-species analyses (demography, cross-species FST)
+SPECIES = samples["species"].unique().tolist() if "species" in samples.columns else None
+
+# Optional: lineage — enables lineage-stratified FST and demography lineage models
+HAS_LINEAGE = (
+    "lineage" in samples.columns
+    and samples["lineage"].replace("", pd.NA).notna().any()
+)
+
+# Optional: admix_fraction — enables clean/admixed sample splits for demography
+HAS_ADMIX = (
+    "admix_fraction" in samples.columns
+    and samples["admix_fraction"].replace("", pd.NA).notna().any()
+)
+
+# Optional: phenotypes — enables WGAS
+HAS_HEAT    = "heat_tolerance_score"     in samples.columns and samples["heat_tolerance_score"].replace("", pd.NA).notna().any()
+HAS_DISEASE = "disease_resistance_score" in samples.columns and samples["disease_resistance_score"].replace("", pd.NA).notna().any()
+
+# Optional: spatial — enables IBD / seascape analyses
+HAS_SPATIAL = (
+    "lat" in samples.columns and "lon" in samples.columns
+    and samples["lat"].replace("", pd.NA).notna().any()
+)
+
+# Log which optional analyses are enabled
+import sys as _sys
+_enabled  = [k for k, v in [("lineage-stratified FST", HAS_LINEAGE),
+                              ("demography admix-split", HAS_ADMIX),
+                              ("WGAS heat",    HAS_HEAT),
+                              ("WGAS disease", HAS_DISEASE),
+                              ("spatial/IBD",  HAS_SPATIAL)] if v]
+_disabled = [k for k, v in [("lineage-stratified FST", HAS_LINEAGE),
+                              ("demography admix-split", HAS_ADMIX),
+                              ("WGAS heat",    HAS_HEAT),
+                              ("WGAS disease", HAS_DISEASE),
+                              ("spatial/IBD",  HAS_SPATIAL)] if not v]
+if _enabled:
+    print(f"[common.smk] Optional analyses ENABLED:  {', '.join(_enabled)}", file=_sys.stderr)
+if _disabled:
+    print(f"[common.smk] Optional analyses DISABLED: {', '.join(_disabled)} (add columns to samples.csv to enable)", file=_sys.stderr)
 
 # Prevent {popname} wildcard from matching "all" or other non-population strings
 _pop_pattern = "|".join(re.escape(p) for p in POPS)
@@ -64,6 +108,35 @@ def get_pop_samples(wc):
         "sample_id"
     ].tolist()
     return expand("results/bams/{sample}.filtered.cram", sample=s)
+
+def get_species_samples(species):
+    """Sample IDs for a given species (requires species column)."""
+    if not SPECIES:
+        raise ValueError("species column not present in samples.csv")
+    return samples.loc[samples["species"] == species, "sample_id"].tolist()
+
+def get_clean_samples(pop, species=None, admix_threshold=None):
+    """
+    Sample IDs passing admixture filter (admix_fraction < threshold).
+    Falls back to all samples if admix_fraction column absent.
+    """
+    threshold = admix_threshold or config.get("demography", {}).get("admixture_threshold", 0.05)
+    mask = samples["population"] == pop
+    if species:
+        mask &= samples["species"] == species
+    if HAS_ADMIX:
+        admix = pd.to_numeric(samples["admix_fraction"], errors="coerce")
+        mask &= admix.fillna(1.0) < threshold
+    return samples.loc[mask, "sample_id"].tolist()
+
+def get_lineage_samples(lineage, pop=None):
+    """Sample IDs for a given lineage label (requires lineage column)."""
+    if not HAS_LINEAGE:
+        raise ValueError("lineage column not present or empty in samples.csv")
+    mask = samples["lineage"] == lineage
+    if pop:
+        mask &= samples["population"] == pop
+    return samples.loc[mask, "sample_id"].tolist()
 
 def load_filter_params():
     """

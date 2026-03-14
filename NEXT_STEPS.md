@@ -119,7 +119,7 @@ bash scripts/run_segment.sh 5 --profile local
 | min_maf | 0.10 | user-selected via filter gate | filter_params.yaml |
 | min_ind_frac | 0.80 | user-selected via filter gate | filter_params.yaml |
 | -setMinDepthInd 2 | missing from pass2 | added | Snakefile.snps angsd_gl_snps |
-| realSFS -maxIter 200 | missing | added | Snakefile.diversity realsfs_2d |
+| realSFS -maxIter 200 | FST 2D only | replaced with -nSites 20000000 (2026-03-14) | Snakefile.diversity realsfs_2d |
 | individual_saf -anc | missing (Bug 21) | added | Snakefile.diversity individual_saf |
 
 ---
@@ -134,6 +134,7 @@ bash scripts/run_segment.sh 5 --profile local
 | `workflow/Snakefile.structure` | Segment 3: LD, PCA, admixture |
 | `workflow/Snakefile.diversity` | Segment 4: SAF, SFS, diversity, lineage FST |
 | `workflow/Snakefile.report` | Segment 5: annotation, HTML report |
+| `workflow/Snakefile.demography` | Segment 6: demographic inference (Gate 4+5, SAF, SFS, dadi/moments) |
 | `scripts/run_segment.sh` | Launcher: S3 sync + snakemake + auto-stop |
 | `workflow/scripts/filter_select.py` | SNP Filter Gate: select MAF + minInd |
 | `workflow/scripts/lineage_assign.py` | Gate 3: select K, assign lineages |
@@ -142,11 +143,18 @@ bash scripts/run_segment.sh 5 --profile local
 
 ## Remaining analysis work
 
-### nonrepeat_sites.txt + -rf interaction (Bug 9 workaround still active)
-SAF rules use `pass1_snps.txt` instead of full nonrepeat sites for SAF.
-For publication, debug ANGSD 0.940 behavior with large binary sites index
-+ BED-format -rf, then switch back to `nonrepeat_sites.txt` for unbiased
-SFS/diversity. Monomorphic sites are required for accurate π/θ/D.
+### nonrepeat_sites.txt (Bug 9 — RESOLVED)
+SAF rules correctly use `nonrepeat_sites.txt` (monomorphic + variable sites).
+The `-rf chromosomes.bed` interaction bug was fixed by removing `-rf` and relying
+on the binary sites index alone. Do NOT revert to `pass1_snps.txt` — SNP-only SAF
+inflates π and biases Tajima's D. Confirmed by Gemini pipeline review 2026-03-14.
+
+### Segment 6: demographic inference (Snakefile.demography)
+Skeleton complete (Gate 4, Gate 5, SAF, 1D SFS, dadi-format SFS). Pending:
+- `workflow/scripts/run_moments_2pop.py` — 2-pop dadi/moments model fitting
+- `workflow/scripts/run_moments_4pop.py` — 4-pop moments model fitting
+- Add Segment 6 to `scripts/run_segment.sh` launcher
+- Requires BAMs synced from HPC/S3 to AWS, run on c6i.16xlarge (~4-6 hrs Phase 1)
 
 ### HTML report
 `generate_report.py` updated to handle multiple FST comparisons and lineage

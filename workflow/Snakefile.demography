@@ -1,0 +1,398 @@
+"""
+================================================================================
+Snakefile.demography — Segment 6: Demographic Inference
+================================================================================
+
+Input:  results/bams/{sample}.filtered.cram  (from Segment 1)
+        results/relatedness/unrelated_samples.txt  (from Segment 2 Gate 3)
+        results/admixture/lineage_assignments.txt  (from Gate 3b)
+        samples.csv admix_fraction column  (from Segment 3 PCAngsd)
+
+Architecture:
+  Phase 1 (Florida only): strongest data, primary publication result
+    Stage 1: 2-pop Apal FL (lineageA vs lineageB)      [dadi]
+    Stage 2: 2-pop Apal FL vs Acer FL clean             [dadi]
+    Stage 3: 4-pop lineage + clean/admixed Acer FL      [moments]
+    Stage 4: 4-pop with admixture pulse model           [moments]
+  Phase 2 (future): Panama + Bonaire — uncomment in config once
+    Apal Panama n >= 25.
+
+Key design decisions:
+  - Re-run ANGSD with -doSaf 1, NO MAF filter (existing SNP outputs
+    used -minMaf which truncates rare variants critical for demography)
+  - SAF covers all non-repeat sites (monomorphic + variable)
+  - Pairwise projections per comparison (not global minimum)
+  - Folded SFS throughout (no reliable ancestral outgroup)
+  - Gate 4 (auto): filter admix_fraction from samples.csv to build
+    clean cervicornis bamlists
+  - Gate 5 (auto): calculate optimal projection sizes per comparison
+  - "clean" vs "full" parallel runs to probe recent vs historical introgression
+
+BAM source: existing BAMs on HPC/S3, pulled to AWS for ANGSD re-run.
+  BAM format: .bam (not CRAM) — update bamlist paths if CRAMs are used.
+
+Instance recommendation: c6i.16xlarge on-demand (~4-6 hrs for Phase 1)
+================================================================================
+"""
+
+include: "common.smk"
+
+import os
+import json
+
+# ---------------------------------------------------------------------------
+# Demography config
+# ---------------------------------------------------------------------------
+DEMOG_CFG    = config.get("demography", {})
+ADMIX_THRESH = DEMOG_CFG.get("admixture_threshold", 0.05)
+DEMOG_PHASE  = DEMOG_CFG.get("phase", "florida_only")
+DEMOG_COMPS  = DEMOG_CFG.get("demography_comparisons", [])
+DEMOG_NAMES  = [c["name"] for c in DEMOG_COMPS]
+
+# ---------------------------------------------------------------------------
+# Load admixture-filtered sample lists
+# admix_fraction comes from samples.csv (filled after PCAngsd Segment 3).
+# Falls back to all unrelated samples if column absent.
+# ---------------------------------------------------------------------------
+
+def _load_unrelated():
+    path = "results/relatedness/unrelated_samples.txt"
+    if not os.path.exists(path):
+        return set()
+    with open(path) as f:
+        return set(l.strip() for l in f if l.strip())
+
+def get_demog_bamlist(group):
+    """
+    Resolve a demography group name to a list of BAM paths.
+    Group naming convention (parsed left to right):
+      [lineage_][population][_species][_clean|_admixed]
+    Examples:
+      florida_Apalmata          → all Apal florida unrelated samples
+      florida_Acervicornis_clean → Acer florida admix_fraction < threshold
+      lineageA_florida_Apalmata  → lineageA Apal florida samples
+    """
+    unrelated = _load_unrelated()
+
+    # Parse suffixes
+    admix_filter = None
+    if group.endswith("_clean"):
+        admix_filter = "clean"
+        group = group[:-6]
+    elif group.endswith("_admixed"):
+        admix_filter = "admixed"
+        group = group[:-8]
+
+    # Parse species suffix (capitalized)
+    species_filter = None
+    for sp in (SPECIES or []):
+        if group.endswith(f"_{sp}"):
+            species_filter = sp
+            group = group[:-(len(sp)+1)]
+            break
+
+    # Parse lineage prefix
+    lineage_filter = None
+    if HAS_LINEAGE:
+        for lin in samples["lineage"].dropna().unique():
+            if group.startswith(f"{lin}_"):
+                lineage_filter = lin
+                group = group[len(lin)+1:]
+                break
+
+    # Remaining token is population
+    pop_filter = group
+
+    mask = samples["sample_id"].isin(unrelated)
+    if pop_filter:
+        mask &= samples["population"] == pop_filter
+    if species_filter:
+        mask &= samples["species"] == species_filter
+    if lineage_filter and HAS_LINEAGE:
+        mask &= samples["lineage"] == lineage_filter
+    if admix_filter and HAS_ADMIX:
+        admix = pd.to_numeric(samples["admix_fraction"], errors="coerce").fillna(1.0)
+        if admix_filter == "clean":
+            mask &= admix < ADMIX_THRESH
+        else:
+            mask &= admix >= ADMIX_THRESH
+
+    return samples.loc[mask, "sample_id"].tolist()
+
+
+# ---------------------------------------------------------------------------
+# Segment 6 targets
+# ---------------------------------------------------------------------------
+rule all:
+    input:
+        # Gate 4: clean/admixed bamlists per group (all comparisons)
+        expand("results/demography/bamlists/{group}.bamlist",
+               group=list({g for c in DEMOG_COMPS for g in c["groups"]})),
+        # Gate 5: projection sizes
+        expand("results/demography/projections/{name}.json", name=DEMOG_NAMES),
+        # SAF files
+        expand("results/demography/saf/{group}.saf.idx",
+               group=list({g for c in DEMOG_COMPS for g in c["groups"]})),
+        # 1D SFS
+        expand("results/demography/sfs/{group}.sfs",
+               group=list({g for c in DEMOG_COMPS for g in c["groups"]})),
+        # dadi-format SFS per comparison
+        expand("results/demography/dadi/{name}.dadi.txt", name=DEMOG_NAMES),
+
+# ============================================================================
+# GATE 4: Build bamlists filtered by admixture status
+# ============================================================================
+
+rule make_demog_bamlist:
+    """
+    Per-group bamlist for demography SAF runs.
+    Reads admix_fraction from samples.csv (populated after PCAngsd).
+    Falls back to all unrelated samples if admix_fraction column absent.
+    """
+    input:
+        unrelated="results/relatedness/unrelated_samples.txt",
+    output:
+        bamlist="results/demography/bamlists/{group}.bamlist",
+        count="results/demography/bamlists/{group}.n.txt",
+    wildcard_constraints:
+        group="[a-zA-Z0-9_]+",
+    run:
+        sample_ids = get_demog_bamlist(wildcards.group)
+        if not sample_ids:
+            raise ValueError(
+                f"No samples found for demography group '{wildcards.group}'. "
+                f"Check demography_comparisons in config.yaml, lineage_assignments.txt, "
+                f"and admix_fraction column in samples.csv."
+            )
+        with open(output.bamlist, 'w') as f:
+            for sid in sample_ids:
+                f.write(f"results/bams/{sid}.filtered.cram\n")
+        with open(output.count, 'w') as f:
+            f.write(f"{len(sample_ids)}\n")
+        print(f"[demography] Group '{wildcards.group}': {len(sample_ids)} samples",
+              file=__import__('sys').stderr)
+
+# ============================================================================
+# GATE 5: Calculate optimal projection sizes
+# ============================================================================
+
+rule calculate_projections:
+    """
+    Calculate optimal projection size for each demography comparison.
+    Maximizes number of segregating sites in the projected SFS by
+    finding the largest n where enough samples have sufficient coverage.
+    Writes JSON with {group: n_haploids} per comparison.
+    """
+    input:
+        counts=lambda wc: expand(
+            "results/demography/bamlists/{group}.n.txt",
+            group=[g for c in DEMOG_COMPS if c["name"] == wc.name for g in c["groups"]]
+        ),
+    output:
+        "results/demography/projections/{name}.json",
+    params:
+        comp=lambda wc: next(c for c in DEMOG_COMPS if c["name"] == wc.name),
+    run:
+        comp = params.comp
+        projection = comp.get("projection", None)
+        if projection is None:
+            # Auto-calculate: project to 80% of each group's sample count (haploids = 2n)
+            ns = []
+            for f in input.counts:
+                with open(f) as fh:
+                    ns.append(int(fh.read().strip()))
+            projection = [int(n * 2 * 0.8) for n in ns]
+        result = {g: p for g, p in zip(comp["groups"], projection)}
+        import json
+        with open(output[0], 'w') as f:
+            json.dump(result, f, indent=2)
+        print(f"[demography] Projections for '{comp['name']}': {result}",
+              file=__import__('sys').stderr)
+
+# ============================================================================
+# SAF GENERATION (no MAF filter — monomorphic sites required for unbiased SFS)
+# ============================================================================
+
+rule angsd_saf_demography:
+    """
+    Per-group SAF over all non-repeat sites.
+    NO MAF filter — monomorphic sites required for unbiased π/θ/D and SFS.
+    Folded: reference used as ancestral (-anc = -ref), fold downstream.
+    Note: existing SNP ANGSD outputs used -minMaf 0.05 — cannot reuse them.
+    Runtime: 30-60 min per group on c6i.16xlarge.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        bamlist="results/demography/bamlists/{group}.bamlist",
+        ref=config["reference"],
+        fai=config["reference"] + ".fai",
+        depth_thresh="results/angsd/depth_thresholds.txt",
+        sites="results/angsd/nonrepeat_sites.txt",
+        sites_idx="results/angsd/nonrepeat_sites.txt.idx",
+        sites_bin="results/angsd/nonrepeat_sites.txt.bin",
+    output:
+        saf="results/demography/saf/{group}.saf.idx",
+    wildcard_constraints:
+        group="[a-zA-Z0-9_]+",
+    params:
+        out="results/demography/saf/{group}",
+        gl=config.get("gl_model", 1),
+        max_depth=lambda wc, input: (
+            sum(1 for l in open(input.bamlist) if l.strip()) *
+            int([l.split()[1] for l in open(input.depth_thresh)
+                 if l.startswith('per_ind')][0])
+        ),
+        max_depth_ind=lambda wc, input: int(
+            [l.split()[1] for l in open(input.depth_thresh)
+             if l.startswith('per_ind')][0]
+        ),
+    threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=90,
+    shell:
+        """
+        mkdir -p results/demography/saf
+        angsd -bam {input.bamlist} -ref {input.ref} -anc {input.ref} \
+            -out {params.out} \
+            -GL {params.gl} -doSaf 1 -doCounts 1 \
+            -setMaxDepth {params.max_depth} \
+            -setMaxDepthInd {params.max_depth_ind} \
+            -setMinDepthInd 2 \
+            -minMapQ 20 -minQ 20 \
+            -remove_bads 1 -only_proper_pairs 1 \
+            -sites {input.sites} \
+            -nThreads {threads}
+        """
+
+# ============================================================================
+# 1D SFS
+# ============================================================================
+
+rule realsfs_demography:
+    """1D folded SFS via EM. Converges on tolerance (no maxIter cap)."""
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        "results/demography/saf/{group}.saf.idx",
+    output:
+        "results/demography/sfs/{group}.sfs",
+    wildcard_constraints:
+        group="[a-zA-Z0-9_]+",
+    threads: 8
+    resources:
+        mem_mb=8000,
+        runtime=30,
+    shell:
+        "realSFS {input} -P {threads} -fold 1 > {output}"
+
+# ============================================================================
+# DADI-FORMAT SFS (per comparison)
+# Uses realSFS dadi to produce a Data Dictionary suitable for dadi/moments.
+# ============================================================================
+
+rule realsfs_dadi:
+    """
+    Convert SAF files to dadi-format SFS for a named comparison.
+    Projection sizes loaded from Gate 5 JSON.
+    Output can be loaded directly by dadi.Spectrum.from_file() or moments.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        safs=lambda wc: expand(
+            "results/demography/saf/{group}.saf.idx",
+            group=[g for c in DEMOG_COMPS if c["name"] == wc.name for g in c["groups"]]
+        ),
+        sfs_list=lambda wc: expand(
+            "results/demography/sfs/{group}.sfs",
+            group=[g for c in DEMOG_COMPS if c["name"] == wc.name for g in c["groups"]]
+        ),
+        projections="results/demography/projections/{name}.json",
+    output:
+        "results/demography/dadi/{name}.dadi.txt",
+    params:
+        comp=lambda wc: next(c for c in DEMOG_COMPS if c["name"] == wc.name),
+    threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=60,
+    run:
+        import json, subprocess
+        with open(input.projections) as f:
+            proj = json.load(f)
+
+        safs   = input.safs
+        sfss   = input.sfs_list
+        groups = params.comp["groups"]
+
+        saf_args = " ".join(safs)
+        sfs_args = " ".join(f"-sfs {s}" for s in sfss)
+
+        shell(
+            f"mkdir -p results/demography/dadi && "
+            f"realSFS dadi {saf_args} {sfs_args} -P {threads} -fold 1 "
+            f"> {output[0]}"
+        )
+
+# ============================================================================
+# INFERENCE ENGINE STUBS
+# Placeholder rules — filled in during Segment 6c implementation.
+# Each comparison runs the appropriate tool (dadi or moments) based on config.
+# ============================================================================
+
+rule moments_2pop:
+    """
+    2-population demographic model fitting with moments.
+    Models: split_no_mig, split_sym_mig, split_asym_mig, IM, secondary_contact.
+    Seeded with 50 random starts; best-fit parameters written to JSON.
+    TODO: implement workflow/scripts/run_moments_2pop.py
+    """
+    input:
+        sfs="results/demography/dadi/{name}.dadi.txt",
+        projections="results/demography/projections/{name}.json",
+    output:
+        results="results/demography/inference/{name}.moments.json",
+        bestfit="results/demography/inference/{name}.bestfit.txt",
+    params:
+        tool=lambda wc: next(
+            (c.get("tool", DEMOG_CFG.get("default_tool", "moments"))
+             for c in DEMOG_COMPS if c["name"] == wc.name), "moments"
+        ),
+    threads: 8
+    resources:
+        mem_mb=8000,
+        runtime=120,
+    shell:
+        """
+        echo "TODO: implement run_moments_2pop.py" >&2
+        echo '{{"status": "stub"}}' > {output.results}
+        touch {output.bestfit}
+        """
+
+rule moments_4pop:
+    """
+    4-population demographic model fitting with moments.
+    Models: split_IM_pulse (directional introgression), 4pop_isolation.
+    Seeded from 2-pop parameter estimates (run moments_2pop first).
+    TODO: implement workflow/scripts/run_moments_4pop.py
+    """
+    input:
+        sfs="results/demography/dadi/{name}.dadi.txt",
+        projections="results/demography/projections/{name}.json",
+        seed_params=lambda wc: (
+            "results/demography/inference/apal_vs_acer_fl_clean.moments.json"
+            if os.path.exists("results/demography/inference/apal_vs_acer_fl_clean.moments.json")
+            else []
+        ),
+    output:
+        results="results/demography/inference/{name}.moments4pop.json",
+        bestfit="results/demography/inference/{name}.bestfit4pop.txt",
+    threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=360,
+    shell:
+        """
+        echo "TODO: implement run_moments_4pop.py" >&2
+        echo '{{"status": "stub"}}' > {output.results}
+        touch {output.bestfit}
+        """

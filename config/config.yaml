@@ -87,10 +87,58 @@ addons:
   local_ancestry: false
   holobiont: false
 
-# --- Demography options (if enabled) ---
+# --- Demography options (if demographic_modeling: true) ---
+# Segment 5: SAF/SFS generation + dadi/moments/momi2 model fitting
+# Phase 1 = Florida only (strongest data); Phase 2 = add Panama/Bonaire when ready
 demography:
-  tool: "fastsimcoal2"
-  models:
-    - "split_no_migration"
-    - "split_symmetric_migration"
-    - "split_bottleneck"
+  phase: florida_only          # florida_only | all_populations
+
+  # Sample quality filter for "clean" cervicornis (admix_fraction < threshold)
+  admixture_threshold: 0.05
+
+  # Tool for each model stage
+  # Stage 1-2 (2-pop): dadi  — high precision
+  # Stage 3-4 (3-4 pop): moments — faster, more stable for shallow splits
+  default_tool: moments        # moments | dadi | momi2
+
+  # Pairwise comparisons for SAF/SFS generation and model fitting.
+  # Each entry: name, groups list, tool override (optional), projection size (optional).
+  # Groups can be: population, species_population, lineage_population, or
+  #   append _clean / _admixed suffix to filter by admix_fraction.
+  # Leave projection: null to auto-calculate (maximizes segregating sites).
+  demography_comparisons:
+    # Stage 1: intra-palmata lineage split (requires lineage column)
+    - name: apal_lineages_fl
+      groups: [lineageA_florida, lineageB_florida]
+      tool: dadi
+      projection: null
+
+    # Stage 2: species divergence + baseline gene flow (clean cervicornis only)
+    - name: apal_vs_acer_fl_clean
+      groups: [florida_Apalmata, florida_Acervicornis_clean]
+      tool: dadi
+      projection: [100, 100]
+
+    # Stage 3: 4-pop lineage + admixture model
+    - name: 4pop_fl
+      groups: [lineageA_florida_Apalmata, lineageB_florida_Apalmata,
+               florida_Acervicornis_clean, florida_Acervicornis_admixed]
+      tool: moments
+      projection: null
+
+    # Stage 4: full admixture pulse model (same groups, more complex model)
+    - name: 4pop_fl_pulse
+      groups: [lineageA_florida_Apalmata, lineageB_florida_Apalmata,
+               florida_Acervicornis_clean, florida_Acervicornis_admixed]
+      tool: moments
+      projection: null
+
+  # Phase 2 comparisons (commented out until Panama palmata n >= 25)
+  # - name: apal_vs_acer_pa_clean
+  #   groups: [panama_Apalmata, panama_Acervicornis_clean]
+  #   tool: dadi
+  #   projection: [14, 60]
+  # - name: apal_vs_acer_bon_clean
+  #   groups: [bonaire_Apalmata, bonaire_Acervicornis_clean]
+  #   tool: dadi
+  #   projection: [18, 30]

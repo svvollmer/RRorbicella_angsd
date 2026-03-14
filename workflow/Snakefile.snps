@@ -48,27 +48,17 @@ rule all:
 rule make_bamlist_all:
     """
     Bamlist for ANGSD discovery + GL passes. Uses all approved samples.
-
-    QC GATE: reads samples_approved.txt at runtime (not a formal input so
-    alignment can run before review). Fails with instructions if missing.
+    samples_approved.txt is an explicit input — Snakemake will fail fast
+    if the QC gate has not been run before any compute is provisioned.
     """
     input:
         crams=expand("results/bams/{sample}.filtered.cram", sample=SAMPLES),
         qc_pass="results/qc/samples_pass.txt",
+        samples_approved="results/qc/samples_approved.txt",
     output:
         "results/bamlists/all.bamlist",
     run:
-        import os, sys
-        approved_file = "results/qc/samples_approved.txt"
-        if not os.path.exists(approved_file):
-            raise FileNotFoundError(
-                f"\n{'='*60}\n"
-                f"QC GATE: samples_approved.txt not found.\n"
-                f"Run: python workflow/scripts/qc_approve.py\n"
-                f"Then re-run snakemake.\n"
-                f"{'='*60}"
-            )
-        with open(approved_file) as f:
+        with open(input.samples_approved) as f:
             approved = set(l.strip() for l in f
                           if l.strip() and not l.startswith('#') and not l.startswith('sample'))
         with open(output[0], 'w') as f:
@@ -507,30 +497,18 @@ rule subset_beagle:
     input:
         beagle="results/angsd/all.beagle.gz",
         clones_report="results/relatedness/clones_report.txt",
+        unrelated="results/relatedness/unrelated_samples.txt",
+        samples_approved="results/qc/samples_approved.txt",
     output:
         beagle="results/angsd/all.unrelated.beagle.gz",
     run:
-        import gzip, os, sys
+        import gzip, sys
 
-        unrelated_file = "results/relatedness/unrelated_samples.txt"
-        if not os.path.exists(unrelated_file):
-            raise FileNotFoundError(
-                f"\n{'='*60}\n"
-                f"CLONE GATE: unrelated_samples.txt not found.\n"
-                f"Run: python workflow/scripts/clone_approve.py\n"
-                f"Then re-run snakemake.\n"
-                f"{'='*60}"
-            )
+        with open(input.samples_approved) as f:
+            approved = [l.strip() for l in f
+                        if l.strip() and not l.startswith('#') and not l.startswith('sample')]
 
-        approved_file = "results/qc/samples_approved.txt"
-        if os.path.exists(approved_file):
-            with open(approved_file) as f:
-                approved = [l.strip() for l in f
-                            if l.strip() and not l.startswith('#') and not l.startswith('sample')]
-        else:
-            approved = list(SAMPLES)
-
-        with open(unrelated_file) as f:
+        with open(input.unrelated) as f:
             unrelated = set(l.strip() for l in f if l.strip())
 
         keep_cols = [0, 1, 2]

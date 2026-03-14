@@ -113,21 +113,14 @@ rule make_bamlist_group:
     Per-group bamlist for SAF/FST. Uses unrelated + approved samples.
     Supports both plain population groups and lineage groups.
     """
+    input:
+        unrelated="results/relatedness/unrelated_samples.txt",
     output:
         "results/bamlists/{group}.bamlist",
     wildcard_constraints:
         group="[a-zA-Z0-9_]+",
     run:
-        import os
-        unrelated_file = "results/relatedness/unrelated_samples.txt"
-        if not os.path.exists(unrelated_file):
-            raise FileNotFoundError(
-                f"\n{'='*60}\n"
-                f"CLONE GATE: unrelated_samples.txt not found.\n"
-                f"Run: python workflow/scripts/clone_approve.py\n"
-                f"{'='*60}"
-            )
-        with open(unrelated_file) as f:
+        with open(input.unrelated) as f:
             unrelated = set(l.strip() for l in f if l.strip())
 
         group_samples = get_group_samples(wildcards.group)
@@ -242,7 +235,11 @@ rule thetas:
 rule realsfs_2d:
     """
     2D joint SFS for two groups. Used as prior for FST.
-    -maxIter 200 caps EM iterations — prevents 20+ hr runs without convergence.
+    -nSites 20000000: estimate SFS on a random 20M-site subset for fast,
+    reliable EM convergence. 20M sites is statistically indistinguishable
+    from the full ~800M for global FST (Gemini review 2026-03-14).
+    Removed -maxIter 200 cap — let EM converge on tolerance (-tol 1e-6).
+    Threads bumped to 16 on c6i.16xlarge (64 vCPUs available).
     Runtime: 15-30 min per pair.
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
@@ -251,14 +248,14 @@ rule realsfs_2d:
         saf2="results/sfs/{g2}.saf.idx",
     output:
         "results/fst/{g1}_vs_{g2}.2dsfs",
-    threads: 8
+    threads: 16
     resources:
         mem_mb=16000,
         runtime=60,
     shell:
         """
         mkdir -p results/fst
-        realSFS {input.saf1} {input.saf2} -P {threads} -fold 1 -maxIter 200 > {output}
+        realSFS {input.saf1} {input.saf2} -P {threads} -fold 1 -nSites 20000000 > {output}
         """
 
 rule fst_index:
