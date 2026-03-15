@@ -45,7 +45,7 @@ if _conda_env and os.path.isdir(_conda_env):   # only apply if path exists on th
     shell.prefix(f"export PATH={_conda_env}/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH; ")
 
 # Load samples
-samples = pd.read_csv(config["samples_csv"])
+samples = pd.read_csv(config["samples_csv"], keep_default_na=False)
 SAMPLES = samples["sample_id"].tolist()
 POPS = samples[config.get("primary_grouping", "population")].unique().tolist()
 POP_PAIRS = list(combinations(sorted(POPS), 2))
@@ -57,6 +57,10 @@ wildcard_constraints:
     popname=_pop_pattern,
     popname1=_pop_pattern,
     popname2=_pop_pattern,
+
+# BAM/CRAM format — matches bam_ext in config.yaml
+BAM_EXT = config.get("bam_ext", "cram")
+IDX_EXT = f"{BAM_EXT}.bai" if BAM_EXT == "bam" else f"{BAM_EXT}.crai"
 
 # Data-driven filter thresholds
 # Use approved sample count when available (post-QC gate); fall back to full CSV count.
