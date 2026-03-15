@@ -80,6 +80,17 @@ if _disabled:
 BAM_EXT = config.get("bam_ext", "cram")
 IDX_EXT = f"{BAM_EXT}.bai" if BAM_EXT == "bam" else f"{BAM_EXT}.crai"
 
+# ---------------------------------------------------------------------------
+# Chromosomes — for per-chromosome parallel ANGSD jobs.
+# Loaded from results/filtering/chromosomes.bed if it exists.
+# Falls back to empty list (per-chrom rules will not fire until bed is ready).
+# ---------------------------------------------------------------------------
+_chrom_bed = "results/filtering/chromosomes.bed"
+CHROMS = []
+if os.path.exists(_chrom_bed):
+    with open(_chrom_bed) as _cf:
+        CHROMS = [line.split()[0] for line in _cf if line.strip()]
+
 # Prevent {popname} wildcard from matching "all" or other non-population strings
 _pop_pattern = "|".join(re.escape(p) for p in POPS)
 wildcard_constraints:

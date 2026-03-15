@@ -122,14 +122,14 @@ rule compute_depth_thresholds:
 # 9. TWO-PASS ANGSD: PASS 1 — SNP DISCOVERY
 # ============================================================================
 
-rule angsd_discover_snps:
+rule angsd_discover_snps_chrom:
     """
-    PASS 1: SNP Discovery — non-repeat sites, relaxed filters.
+    PASS 1: SNP Discovery — per chromosome for parallelism.
 
+    Runs one ANGSD job per chromosome (14 jobs × ~3h = ~3h wall time).
+    Each job gets 16 CPUs matching threads. Merged by merge_pass1.
     Relaxed minInd (60%) and SNP p-val 1e-4 to capture all variable sites.
-    Output is the candidate site universe for pass 2 and filter gate.
-    Runtime: ~2h for 96 samples, ~6h for 300 samples.
-    mem_mb scaled to ~200MB/sample — 64GB covers up to ~300 samples.
+    mem_mb=32GB per chrom — all 290 BAMs loaded but only one chrom processed.
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
@@ -140,22 +140,24 @@ rule angsd_discover_snps:
         sites="results/angsd/nonrepeat_sites.txt",
         sites_idx="results/angsd/nonrepeat_sites.txt.idx",
     output:
-        mafs="results/angsd/pass1.mafs.gz",
+        mafs="results/angsd/pass1.{chrom}.mafs.gz",
     params:
-        out="results/angsd/pass1",
+        out="results/angsd/pass1.{chrom}",
         min_ind=MIN_IND_DISCOVERY,
         min_depth=MIN_DEPTH_TOTAL,
         max_depth=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('total_max')][0]),
         max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
     threads: 16
     resources:
-        mem_mb=64000,
-        runtime=720,
+        mem_mb=32000,
+        runtime=240,
+        cpus_per_task=16,
     shell:
         """
         mkdir -p results/angsd
         angsd -bam {input.bamlist} -ref {input.ref} \
             -out {params.out} \
+            -r {wildcards.chrom} \
             -GL 1 -doMajorMinor 1 -doMaf 1 \
             -doCounts 1 \
             -setMinDepth {params.min_depth} \
@@ -169,6 +171,25 @@ rule angsd_discover_snps:
             -skipTriallelic 1 \
             -sites {input.sites} \
             -nThreads {threads}
+        """
+
+rule merge_pass1:
+    """
+    Merge per-chromosome pass1 mafs.gz into single genome-wide file.
+    Header taken from first chrom; subsequent chroms appended without header.
+    """
+    input:
+        mafs=expand("results/angsd/pass1.{chrom}.mafs.gz", chrom=CHROMS),
+    output:
+        mafs="results/angsd/pass1.mafs.gz",
+    resources:
+        mem_mb=4000,
+        runtime=30,
+    shell:
+        """
+        (zcat {input.mafs[0]} | head -1;
+         for f in {input.mafs}; do zcat $f | tail -n +2; done) \
+        | gzip > {output.mafs}
         """
 
 rule extract_snplist:
@@ -275,17 +296,14 @@ rule snp_filter_report:
 # 11. TWO-PASS ANGSD: PASS 2 — GENOTYPE LIKELIHOODS
 # ============================================================================
 
-rule angsd_gl_snps:
+rule angsd_gl_snps_chrom:
     """
-    PASS 2: Genotype Likelihoods at discovered SNPs (strict filters).
+    PASS 2: Genotype Likelihoods at discovered SNPs — per chromosome.
 
     Reads MAF and minInd from results/angsd/filter_params.yaml (written by
     filter_select.py). If the file is missing, fails with instructions.
-
-    Adds -setMinDepthInd 2 so that samples with only 1 read don't count
-    toward minInd despite highly uncertain GLs.
-
-    Runtime: ~20-30 min for 96 samples, ~90 min for 300 samples.
+    Each chrom runs independently; merged by merge_gl_snps.
+    Runtime: ~15-20 min per chrom with 16 threads.
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
@@ -297,16 +315,17 @@ rule angsd_gl_snps:
         depth_thresh="results/angsd/depth_thresholds.txt",
         filter_report="results/angsd/filter_report.txt",
     output:
-        beagle="results/angsd/all.beagle.gz",
-        mafs="results/angsd/all.mafs.gz",
+        beagle="results/angsd/all.{chrom}.beagle.gz",
+        mafs="results/angsd/all.{chrom}.mafs.gz",
     params:
-        out="results/angsd/all",
+        out="results/angsd/all.{chrom}",
         max_depth=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('total_max')][0]),
         max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
     threads: 16
     resources:
-        mem_mb=64000,
-        runtime=240,
+        mem_mb=32000,
+        runtime=60,
+        cpus_per_task=16,
     shell:
         """
         PARAMS_FILE="results/angsd/filter_params.yaml"
@@ -323,10 +342,11 @@ rule angsd_gl_snps:
         MIN_MAF=$(python3 -c "import yaml; d=yaml.safe_load(open('$PARAMS_FILE')); print(d['min_maf'])")
         MIN_IND=$(python3 -c "import yaml; d=yaml.safe_load(open('$PARAMS_FILE')); print(d['min_ind'])")
 
-        echo "Pass 2: min_maf=$MIN_MAF  min_ind=$MIN_IND" >&2
+        echo "Pass 2 chrom {wildcards.chrom}: min_maf=$MIN_MAF  min_ind=$MIN_IND" >&2
 
         angsd -bam {input.bamlist} -ref {input.ref} \
             -out {params.out} \
+            -r {wildcards.chrom} \
             -GL 1 -doMajorMinor 4 -doMaf 1 -doGlf 2 -doCounts 1 \
             -sites {input.sites} \
             -minInd $MIN_IND \
@@ -339,6 +359,31 @@ rule angsd_gl_snps:
             -minMaf $MIN_MAF \
             -skipTriallelic 1 \
             -nThreads {threads}
+        """
+
+rule merge_gl_snps:
+    """
+    Merge per-chromosome pass2 beagle.gz and mafs.gz into genome-wide files.
+    Header taken from first chrom; subsequent chroms appended without header.
+    """
+    input:
+        beagle=expand("results/angsd/all.{chrom}.beagle.gz", chrom=CHROMS),
+        mafs=expand("results/angsd/all.{chrom}.mafs.gz", chrom=CHROMS),
+    output:
+        beagle="results/angsd/all.beagle.gz",
+        mafs="results/angsd/all.mafs.gz",
+    resources:
+        mem_mb=4000,
+        runtime=60,
+    shell:
+        """
+        (zcat {input.beagle[0]} | head -1;
+         for f in {input.beagle}; do zcat $f | tail -n +2; done) \
+        | gzip > {output.beagle}
+
+        (zcat {input.mafs[0]} | head -1;
+         for f in {input.mafs}; do zcat $f | tail -n +2; done) \
+        | gzip > {output.mafs}
         """
 
 # ============================================================================
