@@ -308,7 +308,7 @@ rule make_nonrepeat_bed:
         runtime=30,
     shell:
         """
-        python3 workflow/scripts/create_nonrepeat_bed.py \
+        python3 {workflow.basedir}/scripts/create_nonrepeat_bed.py \
             {input.ref} {input.chroms} {output.bed} \
             --min-length 100 --merge-gap 50
         """
@@ -1593,7 +1593,7 @@ rule generate_report:
         cfg="config/config.yaml",
     shell:
         """
-        python workflow/scripts/generate_report.py \
+        python {workflow.basedir}/scripts/generate_report.py \
             --results_dir results/ \
             --metadata {params.metadata} \
             --config {params.cfg} \
