@@ -137,12 +137,13 @@ rule make_bamlist_group:
 # 16. SAF (site allele frequency likelihoods — all non-repeat sites)
 # ============================================================================
 
-rule angsd_saf:
+rule angsd_saf_chrom:
     """
-    Per-group SAF over all non-repeat sites (monomorphic + variable).
+    Per-group, per-chromosome SAF — parallel across 14 chromosomes.
     No MAF filter — required for unbiased SFS and accurate π/θ/D.
     Folded SFS: reference used as ancestral (-anc = -ref); folded downstream.
-    Runtime: 30-45 min per group.
+    Merged by merge_saf using realSFS cat.
+    Runtime: ~5-10 min per chrom per group with 8 threads.
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
@@ -154,11 +155,13 @@ rule angsd_saf:
         sites_idx="results/angsd/nonrepeat_sites.txt.idx",
         sites_bin="results/angsd/nonrepeat_sites.txt.bin",
     output:
-        saf="results/sfs/{group}.saf.idx",
+        saf_idx="results/sfs/{group}.{chrom}.saf.idx",
+        saf_gz="results/sfs/{group}.{chrom}.saf.gz",
+        saf_pos="results/sfs/{group}.{chrom}.saf.pos.gz",
     wildcard_constraints:
         group="[a-zA-Z0-9_]+",
     params:
-        out="results/sfs/{group}",
+        out="results/sfs/{group}.{chrom}",
         gl=config.get("gl_model", 1),
         max_depth=lambda wc, input: (
             sum(1 for l in open(input.bamlist) if l.strip()) *
@@ -167,13 +170,15 @@ rule angsd_saf:
         max_depth_ind=lambda wc, input: int([l.split()[1] for l in open(input.depth_thresh) if l.startswith('per_ind')][0]),
     threads: 8
     resources:
-        mem_mb=16000,
-        runtime=90,
+        mem_mb=8000,
+        runtime=30,
+        cpus_per_task=8,
     shell:
         """
         mkdir -p results/sfs
         angsd -bam {input.bamlist} -ref {input.ref} -anc {input.ref} \
             -out {params.out} \
+            -r {wildcards.chrom} \
             -GL {params.gl} -doSaf 1 -doCounts 1 \
             -setMaxDepth {params.max_depth} \
             -setMaxDepthInd {params.max_depth_ind} \
@@ -183,6 +188,27 @@ rule angsd_saf:
             -sites {input.sites} \
             -nThreads {threads}
         """
+
+rule merge_saf:
+    """
+    Merge per-chromosome SAF files into genome-wide SAF using realSFS cat.
+    Creates {group}.saf.idx, {group}.saf.gz, {group}.saf.pos.gz.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        safs=expand("results/sfs/{{group}}.{chrom}.saf.idx", chrom=CHROMS),
+    output:
+        saf_idx="results/sfs/{group}.saf.idx",
+        saf_gz="results/sfs/{group}.saf.gz",
+        saf_pos="results/sfs/{group}.saf.pos.gz",
+    wildcard_constraints:
+        group="[a-zA-Z0-9_]+",
+    threads: 4
+    resources:
+        mem_mb=8000,
+        runtime=30,
+    shell:
+        "realSFS cat {input.safs} -P {threads} -o results/sfs/{wildcards.group}"
 
 # ============================================================================
 # 17. 1D SFS + DIVERSITY

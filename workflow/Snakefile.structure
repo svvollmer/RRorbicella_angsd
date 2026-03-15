@@ -38,46 +38,88 @@ rule all:
 # 13. LD ANALYSIS
 # ============================================================================
 
-rule ngsld_estimate:
+rule ngsld_estimate_chrom:
     """
-    Pairwise LD (r²) between all SNP pairs within max_kb_dist.
-    max_dist_kb: config ld_max_dist is in bp, ngsLD expects kb.
-    Output is temp() — deleted after ld_decay + ld_prune complete.
-    Runtime: 25-35 min for ~75K SNPs, 96 samples, 50kb window.
+    Per-chromosome pairwise LD (r²). Filters BEAGLE + MAFs to one chromosome
+    in Python (marker format is CHR_POS — split on last underscore), then runs
+    ngsLD. Merged by merge_ngsld (plain cat — ngsLD output has no header).
+    Runtime: ~5-10 min per chrom with 8 threads.
     """
     input:
         beagle="results/angsd/all.unrelated.beagle.gz",
         mafs="results/angsd/all.mafs.gz",
+        unrelated="results/relatedness/unrelated_samples.txt",
     output:
-        ld_raw=temp("results/ld/ld_raw.tsv"),
+        ld_chrom=temp("results/ld/ld_raw.{chrom}.tsv"),
     params:
         max_dist_kb=config.get("ld_max_dist", 50000) // 1000,
     threads: 8
     resources:
-        mem_mb=16000,
-        runtime=60,
+        mem_mb=8000,
+        runtime=30,
+        cpus_per_task=8,
+    run:
+        import gzip, os, subprocess
+
+        os.makedirs("results/ld", exist_ok=True)
+        chrom = wildcards.chrom
+
+        with open(input.unrelated) as f:
+            n_ind = sum(1 for l in f if l.strip())
+
+        beagle_tmp = f"results/ld/tmp_{chrom}.beagle.gz"
+        pos_tmp    = f"results/ld/tmp_{chrom}.pos.txt"
+
+        # Filter BEAGLE to this chromosome (marker = CHR_POS, split on last '_')
+        n_sites = 0
+        with gzip.open(input.beagle, 'rt') as fin, \
+             gzip.open(beagle_tmp, 'wt') as fout:
+            fout.write(fin.readline())
+            for line in fin:
+                if line.split('\t', 1)[0].rsplit('_', 1)[0] == chrom:
+                    fout.write(line)
+                    n_sites += 1
+
+        # Build per-chrom pos file from MAFs
+        with gzip.open(input.mafs, 'rt') as fin, \
+             open(pos_tmp, 'w') as fout:
+            next(fin)
+            for line in fin:
+                p = line.split('\t')
+                if p[0] == chrom:
+                    fout.write(f"{p[0]}\t{p[1]}\n")
+
+        if n_sites > 0:
+            with open(output.ld_chrom, 'w') as fout:
+                subprocess.run(
+                    ["ngsLD",
+                     "--geno", beagle_tmp,
+                     "--probs",
+                     "--n_ind", str(n_ind),
+                     "--n_sites", str(n_sites),
+                     "--max_kb_dist", str(params.max_dist_kb),
+                     "--pos", pos_tmp,
+                     "--n_threads", str(threads)],
+                    stdout=fout, check=True,
+                )
+        else:
+            open(output.ld_chrom, 'w').close()
+
+        os.remove(beagle_tmp)
+        os.remove(pos_tmp)
+
+
+rule merge_ngsld:
+    """
+    Concatenate per-chromosome ngsLD TSV outputs.
+    ngsLD produces no header, so plain cat is correct.
+    """
+    input:
+        expand("results/ld/ld_raw.{chrom}.tsv", chrom=CHROMS),
+    output:
+        ld_raw=temp("results/ld/ld_raw.tsv"),
     shell:
-        """
-        mkdir -p results/ld
-        N_SITES=$(python3 -c "import gzip; f=gzip.open('{input.mafs}','rt'); next(f); print(sum(1 for _ in f))")
-        N_IND=$(python3 -c "lines=[l.strip() for l in open('results/relatedness/unrelated_samples.txt') if l.strip()]; print(len(lines))")
-
-        python3 -c "
-import gzip
-with gzip.open('{input.mafs}', 'rt') as f:
-    next(f)
-    with open('results/ld/snp_pos.txt', 'w') as out:
-        for line in f:
-            p = line.split('\\t'); out.write(p[0]+'\\t'+p[1]+'\\n')
-"
-
-        ngsLD --geno {input.beagle} \
-            --probs --n_ind $N_IND --n_sites $N_SITES \
-            --max_kb_dist {params.max_dist_kb} \
-            --pos results/ld/snp_pos.txt \
-            --n_threads {threads} \
-            > {output.ld_raw}
-        """
+        "cat {input} > {output.ld_raw}"
 
 rule ld_decay:
     """
