@@ -1525,7 +1525,7 @@ rule individual_het:
 rule make_gene_bed:
     container: "docker://quay.io/biocontainers/htslib:1.17--h6bc39ce_1"
     input:
-        gff=config.get("gene_annotation", ""),
+        gff=config.get("gene_annotation") or [],
     output:
         bed="results/annotation/gene_regions.bed",
     shell:
