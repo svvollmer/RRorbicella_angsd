@@ -150,7 +150,7 @@ rule angsd_discover_snps_chrom:
     threads: 16
     resources:
         mem_mb=32000,
-        runtime=240,
+        runtime=480,
         cpus_per_task=16,
     shell:
         """
