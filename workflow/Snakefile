@@ -298,6 +298,7 @@ rule make_chrom_regions:
 
 rule make_nonrepeat_bed:
     # No container — only needs python3 (host), not bwa/samtools
+    # NOTE: requires ~8 GB RAM; must run as SLURM job, not on login node.
     input:
         ref=config["reference"],
         chroms="results/filtering/chromosomes.bed",
@@ -311,6 +312,10 @@ rule make_nonrepeat_bed:
         python3 {workflow.basedir}/scripts/create_nonrepeat_bed.py \
             {input.ref} {input.chroms} {output.bed} \
             --min-length 100 --merge-gap 50
+        if [ ! -s {output.bed} ]; then
+            echo "ERROR: nonrepeat_regions.bed is empty — likely OOM on login node. Run as SLURM job." >&2
+            exit 1
+        fi
         """
 
 rule filter_mapped:
@@ -640,13 +645,17 @@ rule make_angsd_sites:
         idx="results/angsd/nonrepeat_sites.txt.idx",
         bin="results/angsd/nonrepeat_sites.txt.bin",
     resources:
-        mem_mb=4000,
-        runtime=30,
+        mem_mb=16000,
+        runtime=60,
     shell:
         """
         mkdir -p results/angsd
         awk 'BEGIN{{OFS="\\t"}} {{for(i=$2+1; i<=$3; i++) print $1,i}}' {input.bed} \
             > {output.sites}
+        if [ ! -s {output.sites} ]; then
+            echo "ERROR: nonrepeat_sites.txt is empty — check nonrepeat_regions.bed" >&2
+            exit 1
+        fi
         angsd sites index {output.sites}
         """
 
