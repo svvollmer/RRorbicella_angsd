@@ -58,33 +58,54 @@ Samples: 5 Florida (Ac_FL_K1, Ac_FL_K2, Ac_FL_KW15, Ac_FL_U31, Ac_FL_U39) + 5 Pa
 
 ---
 
-## Full 96-Sample Production Run
+## Full 290-Sample Production Run
 
-*Pending 10-sample test validation.*
+*Segment 2 (SNP discovery, relatedness) complete. Segments 3–6 in progress.*
+
+Dataset: 290 samples — *A. cervicornis* and *A. palmata* across Florida, Panama, and Bonaire.
+SNPs: 2,034,805 passing filters (MAF > 0.05, ≥ 80% individuals genotyped, 14 chromosomes).
+
+### Relatedness and Clonality
+
+Pairwise kinship estimated with ngsRelate (KING coefficient) from 100,000 randomly subsampled
+high-MAF (> 0.30) SNPs. Clone threshold: KING ≥ 0.45. Close-relative threshold: KING ≥ 0.20.
+
+One sample (RR_FL_Apal_015) was excluded as a technical artifact — it appeared as a close
+relative to >60 other samples across populations and species, a pattern inconsistent with
+biology and indicative of a mapping or contamination artifact.
+
+| Group | N | Clone pairs | Excluded | N genets | Genet diversity |
+|-------|---|-------------|----------|----------|-----------------|
+| *Acervicornis* BON | 25 | 0 | 0 | 25 | 1.000 |
+| *Acervicornis* FL | 104 | 28 | 13 | 91 | 0.875 |
+| *Acervicornis* PA | 49 | 32 | 10 | 39 | 0.796 |
+| *Apalmata* BON | 25 | 0 | 0 | 25 | 1.000 |
+| *Apalmata* FL | 88 | 11 | 11 | 77 | 0.875 |
+| *Apalmata* PA | 9 | 3 | 2 | 7 | 0.778 |
+| **Total** | **300** | **74** | **36** | **264** | **0.880** |
+
+Zero cross-species or cross-population clone pairs were detected, confirming clonality is
+entirely within-group as expected biologically.
+
+**Key patterns:**
+- Bonaire collections show 100% genet diversity in both species, consistent with wild reef sampling.
+- Panama has the lowest genet diversity (79–78%), consistent with nursery/aquaculture sourcing
+  (Ac_PA_HS1–8 are a single genotype sampled 8 times; Ac_PA_CK41/42/44 are a 3-sample clone cluster).
+- Florida shows intermediate clonality (12.5% both species), reflecting reef restoration nursery
+  collections (CRF, MOTE) where genotypes are propagated clonally.
+- 253 unrelated samples retained for downstream population structure and diversity analyses.
 
 ### Population Structure
 
-*PCA and admixture plots will be added here.*
-
-With 96 samples across Florida and Panama, we expect PC1 to cleanly separate the two regions (consistent with FST ~0.15). Secondary PCs may reveal structure within Florida (Keys vs. offshore reefs) or within Panama (Caribbean vs. Pacific-facing sites if sampled). Admixture at K=2 should recover the FL/PA split; K=3–5 will test for finer substructure or admixed individuals near the range edges.
+*PCA and admixture results pending (Segment 3).*
 
 ### Genetic Diversity
 
-*Per-population π, θ, and Tajima's D table will be added here.*
-
-We anticipate nucleotide diversity (π) in the range of 1–5 × 10⁻³ based on published *A. palmata* resequencing studies. Lower π in Florida relative to Panama would be consistent with the documented population collapse in Florida since the 1980s (>90% cover loss). Tajima's D patterns from the pilot (FL > PA) will be tested with greater power in the full dataset.
+*Per-population π, θ, and Tajima's D pending (Segment 4).*
 
 ### FST and Outlier Loci
 
-*Genome-wide FST Manhattan plot and outlier gene table will be added here.*
-
-Genome-wide FST outliers (top 1% of windowed FST) will be annotated against the *A. palmata* gene models. Candidate loci of interest include those involved in thermal tolerance, symbiont recognition (lectin pathway), calcification, and immunity — pathways previously implicated in coral local adaptation. Outlier windows on large chromosomes (≥ 10 Mb) will be prioritized given the scaffold-level assembly quality.
-
-### Relatedness
-
-*Pairwise kinship heatmap will be added here.*
-
-Pairs with KING kinship > 0.20 will be flagged as related (≥ second-degree); pairs > 0.45 classified as clonal. Any flagged pairs will be removed from downstream PCA and FST analyses to avoid inflating structure signals.
+*Genome-wide FST and outlier annotation pending (Segment 4).*
 
 ---
 
