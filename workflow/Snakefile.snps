@@ -30,6 +30,31 @@ Instance: c6i.16xlarge on-demand (~6 hrs)
 include: "common.smk"
 
 # ---------------------------------------------------------------------------
+# Grouped ngsRelate — per (species × region), 6 parallel jobs
+# Groups derived from samples_csv species + region columns.
+# ---------------------------------------------------------------------------
+NGSRELATE_GROUPS = {}
+if "species" in samples.columns and "region" in samples.columns:
+    for _, _row in samples.iterrows():
+        _g = f"{_row['species']}_{_row['region']}"
+        NGSRELATE_GROUPS.setdefault(_g, []).append(_row["sample_id"])
+
+def _group_cols(group, bamlist_path):
+    """Return 1-based awk column indices for a group's samples in the beagle."""
+    bam_suffix = f".filtered.{BAM_EXT}"
+    with open(bamlist_path) as _f:
+        all_s = [
+            os.path.basename(l.strip()).replace(bam_suffix, "")
+            for l in _f if l.strip()
+        ]
+    cols = [1, 2, 3]
+    for s in NGSRELATE_GROUPS[group]:
+        if s in all_s:
+            i = all_s.index(s)
+            cols += [4 + i*3, 5 + i*3, 6 + i*3]
+    return ",".join(str(c) for c in cols)
+
+# ---------------------------------------------------------------------------
 # Segment 2 targets
 # ---------------------------------------------------------------------------
 rule all:
@@ -40,6 +65,7 @@ rule all:
         "results/angsd/all.mafs.gz",
         "results/relatedness/clones_report.txt",
         "results/angsd/all.unrelated.beagle.gz",
+        "results/relatedness/grouped/clones_report.txt",
 
 # ============================================================================
 # 7. BAMLISTS
@@ -84,7 +110,7 @@ rule make_angsd_sites:
         bin="results/angsd/nonrepeat_sites.txt.bin",
     resources:
         mem_mb=4000,
-        runtime=30,
+        runtime=480,
     shell:
         """
         mkdir -p results/angsd
@@ -184,10 +210,10 @@ rule merge_pass1:
         mafs="results/angsd/pass1.mafs.gz",
     resources:
         mem_mb=4000,
-        runtime=30,
+        runtime=480,
     shell:
         """
-        (zcat {input.mafs[0]} | head -1;
+        (zcat {input.mafs[0]} | head -1 || true;
          for f in {input.mafs}; do zcat $f | tail -n +2; done) \
         | gzip > {output.mafs}
         """
@@ -303,7 +329,7 @@ rule angsd_gl_snps_chrom:
     Reads MAF and minInd from results/angsd/filter_params.yaml (written by
     filter_select.py). If the file is missing, fails with instructions.
     Each chrom runs independently; merged by merge_gl_snps.
-    Runtime: ~15-20 min per chrom with 16 threads.
+    Runtime: ~2-3 hrs per chrom with 290 samples (was underestimated).
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
@@ -324,7 +350,7 @@ rule angsd_gl_snps_chrom:
     threads: 16
     resources:
         mem_mb=32000,
-        runtime=60,
+        runtime=480,
         cpus_per_task=16,
     shell:
         """
@@ -339,8 +365,8 @@ rule angsd_gl_snps_chrom:
             exit 1
         fi
 
-        MIN_MAF=$(python3 -c "import yaml; d=yaml.safe_load(open('$PARAMS_FILE')); print(d['min_maf'])")
-        MIN_IND=$(python3 -c "import yaml; d=yaml.safe_load(open('$PARAMS_FILE')); print(d['min_ind'])")
+        MIN_MAF=$(sed -n 's/^min_maf: //p' "$PARAMS_FILE")
+        MIN_IND=$(sed -n 's/^min_ind: //p' "$PARAMS_FILE")
 
         echo "Pass 2 chrom {wildcards.chrom}: min_maf=$MIN_MAF  min_ind=$MIN_IND" >&2
 
@@ -374,14 +400,14 @@ rule merge_gl_snps:
         mafs="results/angsd/all.mafs.gz",
     resources:
         mem_mb=4000,
-        runtime=60,
+        runtime=480,
     shell:
         """
-        (zcat {input.beagle[0]} | head -1;
+        (zcat {input.beagle[0]} | head -1 || true;
          for f in {input.beagle}; do zcat $f | tail -n +2; done) \
         | gzip > {output.beagle}
 
-        (zcat {input.mafs[0]} | head -1;
+        (zcat {input.mafs[0]} | head -1 || true;
          for f in {input.mafs}; do zcat $f | tail -n +2; done) \
         | gzip > {output.mafs}
         """
@@ -393,7 +419,9 @@ rule merge_gl_snps:
 rule ngsrelate:
     """
     Kinship/relatedness estimation from all-sample beagle.
-    Runtime: 12-18 min.
+    Filters to MAF>0.3 sites then randomly subsamples to 100K for speed.
+    MAF>0.3 gives ~783K candidate sites; 100K is sufficient for clone/relatedness detection.
+    Runtime: ~60-90 min for 290 samples / 100K sites.
     """
     container: "docker://quay.io/biocontainers/ngsrelate:2.0--hea85c65_0"
     input:
@@ -404,16 +432,128 @@ rule ngsrelate:
         "results/relatedness/relatedness.res",
     params:
         n_samples=lambda wc, input: sum(1 for l in open(input.bamlist) if l.strip()),
+        maf_min=0.3,
+        n_sites=100000,
     threads: 8
     resources:
         mem_mb=8000,
-        runtime=30,
+        cpus_per_task=8,
+        runtime=480,
     shell:
         """
         mkdir -p results/relatedness
-        N_SITES=$(python3 -c "import gzip; f=gzip.open('{input.mafs}','rt'); next(f); print(sum(1 for _ in f))")
-        ngsRelate -G {input.beagle} -n {params.n_samples} -L $N_SITES -O {output} -p {threads}
+        SITE_LIST=$(mktemp)
+        THIN_BEAGLE=$(mktemp)
+
+        # sites with MAF>0.3, randomly subsampled to n_sites
+        # awk counter instead of head/shuf (avoids SIGPIPE with pipefail; BusyBox lacks shuf)
+        zcat {input.mafs} \
+          | awk 'BEGIN{{srand()}} NR>1 {{maf=($6<0.5)?$6:1-$6; if(maf>{params.maf_min}) print $1"_"$2}}' \
+          | awk 'BEGIN{{srand(); n=0}} n<{params.n_sites} && rand()<0.2 {{print; n++}}' \
+          > $SITE_LIST
+
+        # filter beagle to those sites
+        zcat {input.beagle} \
+          | awk 'NR==1 {{print; next}} FNR==NR {{s[$1]=1; next}} ($1 in s)' \
+            $SITE_LIST - \
+          > $THIN_BEAGLE
+
+        N_SITES=$(( $(wc -l < $THIN_BEAGLE) - 1 ))
+        ngsRelate -G $THIN_BEAGLE -n {params.n_samples} -L $N_SITES -O {output} -p {threads}
+        rm -f $SITE_LIST $THIN_BEAGLE
         """
+
+rule ngsrelate_group:
+    """
+    Per-group ngsRelate (species × region). Runs 6 jobs in parallel on SLURM.
+    Uses all MAF>0.3 sites (~783K) — no subsampling cap — since within-group
+    pair counts are 4–20x smaller than the all-vs-all run.
+    Beagle columns are subset to the group's samples only.
+    """
+    container: "docker://quay.io/biocontainers/ngsrelate:2.0--hea85c65_0"
+    input:
+        beagle="results/angsd/all.beagle.gz",
+        mafs="results/angsd/all.mafs.gz",
+        bamlist="results/bamlists/all.bamlist",
+    output:
+        res="results/relatedness/grouped/{group}.res",
+        samples="results/relatedness/grouped/{group}.samples.txt",
+    params:
+        group_samples=lambda wc: NGSRELATE_GROUPS[wc.group],
+        cols=lambda wc, input: _group_cols(wc.group, input.bamlist),
+        maf_min=0.3,
+    threads: 8
+    resources:
+        mem_mb=16000,
+        cpus_per_task=8,
+        runtime=120,
+    shell:
+        """
+        mkdir -p results/relatedness/grouped
+
+        printf '%s\n' {params.group_samples} > {output.samples}
+        N_SAMPLES=$(wc -l < {output.samples})
+
+        SITE_LIST=$(mktemp)
+        THIN_BEAGLE=$(mktemp)
+
+        zcat {input.mafs} \
+          | awk 'NR>1 {{maf=($6<0.5)?$6:1-$6; if(maf>{params.maf_min}) print $1"_"$2}}' \
+          > $SITE_LIST
+
+        zcat {input.beagle} \
+          | awk 'NR==1 {{print; next}} FNR==NR {{s[$1]=1; next}} ($1 in s)' $SITE_LIST - \
+          | awk -v cols="{params.cols}" \
+              'BEGIN{{n=split(cols,c,",")}} {{for(i=1;i<=n;i++) printf "%s%s",$c[i],(i<n?"\\t":"\\n")}}' \
+          > $THIN_BEAGLE
+
+        N_SITES=$(( $(wc -l < $THIN_BEAGLE) - 1 ))
+        ngsRelate -G $THIN_BEAGLE -n $N_SAMPLES -L $N_SITES -O {output.res} -p {threads}
+        rm -f $SITE_LIST $THIN_BEAGLE
+        """
+
+
+rule merge_ngsrelate:
+    """
+    Merge per-group ngsRelate .res files into a single relatedness_summary.txt.
+    Remaps 0-based within-group indices to sample names using each group's samples file.
+    Only within-group pairs are tested — cross-group pairs are absent by design.
+    """
+    input:
+        res=expand("results/relatedness/grouped/{group}.res",
+                   group=sorted(NGSRELATE_GROUPS.keys())),
+        samples=expand("results/relatedness/grouped/{group}.samples.txt",
+                       group=sorted(NGSRELATE_GROUPS.keys())),
+    output:
+        summary="results/relatedness/grouped/relatedness_summary.txt",
+    params:
+        clone_threshold=config.get("clone_threshold", 0.45),
+        kinship_threshold=config.get("kinship_threshold", 0.2),
+    run:
+        import csv as _csv
+        with open(output.summary, "w") as out:
+            out.write("Sample_A\tSample_B\tKING\tRelationship\n")
+            for res_file, samples_file in zip(sorted(input.res), sorted(input.samples)):
+                with open(samples_file) as sf:
+                    grp_samples = [l.strip() for l in sf if l.strip()]
+                with open(res_file) as rf:
+                    reader = _csv.DictReader(rf, delimiter="\t")
+                    for row in reader:
+                        king = float(row["KING"])
+                        if king <= params.kinship_threshold:
+                            continue
+                        ia, ib = int(row["a"]), int(row["b"])
+                        if ia >= len(grp_samples) or ib >= len(grp_samples):
+                            continue
+                        if king > params.clone_threshold:
+                            rel = "Clone/Identical"
+                        else:
+                            rel = "Close_relative"
+                        out.write(
+                            f"{grp_samples[ia]}\t{grp_samples[ib]}"
+                            f"\t{king:.4f}\t{rel}\n"
+                        )
+
 
 rule process_relatedness:
     input:
@@ -533,6 +673,83 @@ rule filter_clones:
             f"{'='*60}\n",
             file=sys.stderr
         )
+
+rule filter_clones_grouped:
+    """
+    Clone/relatedness report from the grouped ngsRelate run.
+    Produces results/relatedness/grouped/clones_report.txt for comparison
+    with the all-vs-all 100K-subsampled run.
+    """
+    input:
+        summary="results/relatedness/grouped/relatedness_summary.txt",
+        depths=expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
+    output:
+        "results/relatedness/grouped/clones_report.txt",
+    params:
+        clone_threshold=config.get("clone_threshold", 0.45),
+        kinship_threshold=config.get("kinship_threshold", 0.2),
+    run:
+        import os, sys
+
+        approved_file = "results/qc/samples_approved.txt"
+        if os.path.exists(approved_file):
+            with open(approved_file) as f:
+                approved = [l.strip() for l in f
+                            if l.strip() and not l.startswith("#") and not l.startswith("sample")]
+        else:
+            approved = list(SAMPLES)
+
+        depths = {}
+        for fpath in input.depths:
+            sample = os.path.basename(fpath).replace(".depth.txt", "")
+            with open(fpath) as f:
+                depths[sample] = float(f.read().strip())
+
+        clones    = []
+        relatives = []
+
+        with open(input.summary) as f:
+            next(f)
+            for line in f:
+                parts = line.strip().split("\t")
+                if len(parts) < 4:
+                    continue
+                a, b, king, rel = parts[0], parts[1], float(parts[2]), parts[3]
+                da, db = depths.get(a, 0.0), depths.get(b, 0.0)
+                if king >= params.clone_threshold:
+                    rec = b if da >= db else a
+                    clones.append((a, b, king, da, db, rec))
+                elif king >= params.kinship_threshold:
+                    relatives.append((a, b, king, rel))
+
+        with open(output[0], "w") as f:
+            f.write("# clones_report.txt (grouped ngsRelate) — filter_clones_grouped rule\n")
+            f.write("# Run: python workflow/scripts/clone_approve.py --results results/relatedness/grouped\n")
+            f.write(f"# clone_threshold: {params.clone_threshold}\n")
+            f.write(f"# kinship_threshold: {params.kinship_threshold}\n")
+            f.write("\n[approved]\n")
+            f.write("sample_id\tmean_depth\n")
+            for s in approved:
+                f.write(f"{s}\t{depths.get(s, 0.0):.2f}\n")
+            f.write("\n[clones]\n")
+            f.write("sample_a\tsample_b\tKING\tdepth_a\tdepth_b\trecommended_exclude\n")
+            for row in clones:
+                f.write("\t".join(str(x) for x in row) + "\n")
+            f.write("\n[relatives]\n")
+            f.write("sample_a\tsample_b\tKING\trelationship\n")
+            for row in relatives:
+                f.write("\t".join(str(x) for x in row) + "\n")
+
+        n_clone_samples = len({s for pair in clones for s in pair[:2]})
+        print(
+            f"\n{'='*60}\n"
+            f"GROUPED CLONE GATE: {len(clones)} clone pair(s) across {n_clone_samples} samples, "
+            f"{len(relatives)} close relative(s).\n"
+            f"Compare with: results/relatedness/clones_report.txt\n"
+            f"{'='*60}\n",
+            file=sys.stderr,
+        )
+
 
 rule subset_beagle:
     """

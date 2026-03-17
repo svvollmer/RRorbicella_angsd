@@ -4,6 +4,69 @@ Development history of the coral ANGSD pipeline from local prototype to AWS prod
 
 ---
 
+## v0.4 — 290-sample Discovery HPC production run (2026-03-16 → ongoing)
+
+**Environment**: Northeastern Discovery HPC (`s.vollmer@login.discovery.neu.edu`)
+**Working dir**: `/work/vollmer/acropora_genomics/`
+**Pipeline**: `/projects/vollmer/coral-angsd-pipeline/`
+**Samples**: 290 — *A. cervicornis* and *A. palmata* across Florida, Panama, and Bonaire (`config/samples_RR.csv`)
+**Status**: Segment 2 complete (SNP discovery, GL, relatedness). Segment 3+ pending.
+
+### What was completed
+
+- Full two-pass ANGSD SNP discovery + GL on 14 chromosomes (290 samples, *A. palmata* reference)
+- 2,034,805 SNPs passing filters (MAF > 0.05, ≥ 80% individuals genotyped)
+- ngsRelate (all-vs-all, 100K MAF>0.3 sites) → 74 clone pairs across 36 excluded samples
+- `clone_approve.py --yes --exclude RR_FL_Apal_015` → 253 unrelated samples retained
+  - RR_FL_Apal_015 excluded as artifact (KING ≥ 0.20 with 60+ samples across species — impossible biologically)
+  - Zero cross-species or cross-population clone pairs confirmed
+- Subset beagle to 253 unrelated samples (`all.unrelated.beagle.gz`) — ready for Segment 3
+- Grouped parallel ngsRelate launched (2026-03-17): 6 SLURM jobs (Acervicornis/Apalmata × FL/PA/BON),
+  full MAF>0.3 sites (~783K), for comparison with 100K-subsampled all-vs-all run
+
+### Clonality results (all-vs-all run)
+
+| Group | N | Clone pairs | Excluded | N genets | Genet diversity |
+|-------|---|-------------|----------|----------|-----------------|
+| *Acervicornis* BON | 25 | 0 | 0 | 25 | 1.000 |
+| *Acervicornis* FL | 104 | 28 | 13 | 91 | 0.875 |
+| *Acervicornis* PA | 49 | 32 | 10 | 39 | 0.796 |
+| *Apalmata* BON | 25 | 0 | 0 | 25 | 1.000 |
+| *Apalmata* FL | 88 | 11 | 11 | 77 | 0.875 |
+| *Apalmata* PA | 9 | 3 | 2 | 7 | 0.778 |
+| **Total** | **300** | **74** | **36** | **264** | **0.880** |
+
+### New rules added (Snakefile.snps)
+
+- **`ngsrelate_group`** — per-(species×region) ngsRelate, 6 parallel SLURM jobs, full MAF>0.3 sites
+  - Beagle columns subset to group members; column indices computed in Python params to avoid BusyBox shell limitations
+  - Outputs: `results/relatedness/grouped/{group}.res` + `{group}.samples.txt`
+- **`merge_ngsrelate`** — combines 6 `.res` files into `results/relatedness/grouped/relatedness_summary.txt`,
+  remapping 0-based within-group indices to sample names
+- **`filter_clones_grouped`** — produces `results/relatedness/grouped/clones_report.txt` for comparison
+
+### New run.sh segment
+
+- **`bash run.sh 2c`** — launches grouped ngsRelate; logs to `logs/segment2c_*.log`
+
+### Bugs fixed
+
+- **Bug 23**: ngsRelate all-vs-all timeout — original 60 min limit too short for 290 samples; increased to 480 min
+- **Bug 24**: `ngsRelate` subsampling with `shuf` fails in BusyBox container (not installed) — replaced with awk counter
+- **Bug 25**: `head -n N` in awk pipeline causes SIGPIPE with bash strict mode (`set -euo pipefail`) — replaced with awk counter `n<N && rand()<0.2`
+- **Bug 26**: `mktemp --suffix` not supported in BusyBox — removed suffix argument
+- **Bug 27**: `ngsrelate_group` awk column-subset program: `"\t"` and `"\n"` in Snakemake shell block interpreted as literal tab/newline by Python → embedded in awk single-quoted string → `Unexpected end of string`; fixed with `"\\t"` and `"\\n"`
+- **Bug 28**: `clone_approve.py` on HPC login node: default `python` is Python 2, which chokes on UTF-8 box-drawing characters — must use `python3` explicitly
+
+### Discovery HPC setup notes
+
+- Snakemake env: `/home/s.vollmer/.conda/envs/snakemake2/bin/snakemake` (Python 3.11, Snakemake 8.30, numpy 1.26.4)
+  - Old `snakemake` env broken: numpy 2.4.3 / glibc 2.17 mismatch
+- `run.sh` requires `module load singularity/3.10.3` before snakemake
+- `slurm_extra` quoting: use `"'--mail-type=END,FAIL ...'"` (nested quotes) for Snakemake 8
+
+---
+
 ## v0.3 — AWS 96-sample production run (2026-03-09 → 2026-03-11)
 
 **Instance**: c6i.16xlarge on-demand (`i-0194f3b3de13fcd6a`)

@@ -124,6 +124,8 @@ def main():
                         help="Path to relatedness results directory (default: results/relatedness)")
     parser.add_argument("--yes", action="store_true",
                         help="Non-interactive: auto-confirm all recommendations")
+    parser.add_argument("--exclude", metavar="ID", nargs="+", default=[],
+                        help="Additional sample IDs to exclude (used with --yes)")
     args = parser.parse_args()
 
     report_file    = os.path.join(args.results, "clones_report.txt")
@@ -222,7 +224,7 @@ def main():
     # ── manual exclusions ─────────────────────────────────────────────────────
     print()
     if args.yes:
-        extra_ids = []
+        extra_ids = args.exclude
     else:
         extra_raw = input(
             "  Additional manual exclusions? "

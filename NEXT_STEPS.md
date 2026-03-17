@@ -1,8 +1,29 @@
 # Next Steps
 
-Current state as of 2026-03-13. Segmented pipeline built and ready.
-96-sample production run completed through diversity/PCA/admixture.
-FST and report not yet complete — re-run from Segment 2 with corrected parameters.
+Current state as of 2026-03-17. 290-sample Discovery HPC run in progress.
+Segment 2 complete (SNP discovery + relatedness). Grouped ngsRelate running.
+Next: review grouped clone results, then kick off Segment 3 (PCA/admixture).
+
+---
+
+## Immediate next steps (Discovery HPC)
+
+```bash
+# 1. Check grouped ngsRelate status (jobs submitted 2026-03-17 ~08:00)
+squeue -u s.vollmer
+tail -20 /work/vollmer/acropora_genomics/logs/run_2c_v2.log
+
+# 2. Compare grouped vs all-vs-all clone results
+# Review grouped report interactively:
+python3 /projects/vollmer/coral-angsd-pipeline/workflow/scripts/clone_approve.py \
+  --results results/relatedness/grouped
+
+# 3. If grouped results look good, kick off Segment 3 (PCA/admixture/LD)
+bash run.sh 2b   # completes Segment 2 — subsets beagle (already done, may be a no-op)
+bash run.sh 3    # PCA, admixture K=2..5, LD decay
+```
+
+---
 
 ---
 
