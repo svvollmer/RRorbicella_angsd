@@ -57,6 +57,7 @@ Development history of the coral ANGSD pipeline from local prototype to AWS prod
 - **Bug 26**: `mktemp --suffix` not supported in BusyBox — removed suffix argument
 - **Bug 27**: `ngsrelate_group` awk column-subset program: `"\t"` and `"\n"` in Snakemake shell block interpreted as literal tab/newline by Python → embedded in awk single-quoted string → `Unexpected end of string`; fixed with `"\\t"` and `"\\n"`
 - **Bug 28**: `clone_approve.py` on HPC login node: default `python` is Python 2, which chokes on UTF-8 box-drawing characters — must use `python3` explicitly
+- **Bug 29**: `ngsrelate_group` segfault (exit 139) on groups containing QC-failed samples — `params.group_samples` used all CSV members (300) while `_group_cols` only added columns for bamlist members (290, QC-passed), so `N_SAMPLES > actual beagle columns` → ngsRelate reads past array bounds; fixed by adding `_group_samples_in_bamlist()` helper that filters group members to bamlist-present samples, and using it for both `group_samples` param and `{output.samples}`
 
 ### Discovery HPC setup notes
 

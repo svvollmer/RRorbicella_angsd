@@ -39,20 +39,29 @@ if "species" in samples.columns and "region" in samples.columns:
         _g = f"{_row['species']}_{_row['region']}"
         NGSRELATE_GROUPS.setdefault(_g, []).append(_row["sample_id"])
 
-def _group_cols(group, bamlist_path):
-    """Return 1-based awk column indices for a group's samples in the beagle."""
+def _bamlist_samples(bamlist_path):
+    """Return ordered list of sample names from the bamlist."""
     bam_suffix = f".filtered.{BAM_EXT}"
     with open(bamlist_path) as _f:
-        all_s = [
+        return [
             os.path.basename(l.strip()).replace(bam_suffix, "")
             for l in _f if l.strip()
         ]
+
+def _group_cols(group, bamlist_path):
+    """Return 1-based awk column indices for a group's samples in the beagle."""
+    all_s = _bamlist_samples(bamlist_path)
     cols = [1, 2, 3]
     for s in NGSRELATE_GROUPS[group]:
         if s in all_s:
             i = all_s.index(s)
             cols += [4 + i*3, 5 + i*3, 6 + i*3]
     return ",".join(str(c) for c in cols)
+
+def _group_samples_in_bamlist(group, bamlist_path):
+    """Return group members that are present in the bamlist (QC-passed), in bamlist order."""
+    all_s = _bamlist_samples(bamlist_path)
+    return [s for s in all_s if s in set(NGSRELATE_GROUPS[group])]
 
 # ---------------------------------------------------------------------------
 # Segment 2 targets
@@ -479,7 +488,7 @@ rule ngsrelate_group:
         res="results/relatedness/grouped/{group}.res",
         samples="results/relatedness/grouped/{group}.samples.txt",
     params:
-        group_samples=lambda wc: NGSRELATE_GROUPS[wc.group],
+        group_samples=lambda wc, input: _group_samples_in_bamlist(wc.group, input.bamlist),
         cols=lambda wc, input: _group_cols(wc.group, input.bamlist),
         maf_min=0.3,
     threads: 8
