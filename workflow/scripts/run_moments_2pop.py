@@ -217,7 +217,13 @@ def main():
     print(f"Loading SFS: {args.sfs}")
     print(f"Populations: {pop_ids[0]} (n={ns[0]}) vs {pop_ids[1]} (n={ns[1]})")
 
-    fs_raw  = moments.Spectrum.from_file(args.sfs, pop_ids=pop_ids)
+    # from_file gained pop_ids kwarg in moments 1.1; use try/except for 1.0.x compat
+    try:
+        fs_raw = moments.Spectrum.from_file(args.sfs, pop_ids=pop_ids)
+    except TypeError:
+        fs_raw = moments.Spectrum.from_file(args.sfs)
+        if hasattr(fs_raw, "pop_ids"):
+            fs_raw.pop_ids = pop_ids
     fs_data = fs_raw.project(ns).fold()
     print(f"SFS projected to {ns}, S={fs_data.S():.0f} segregating sites")
     print()
