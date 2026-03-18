@@ -398,29 +398,54 @@ def fig_heterozygosity(het_df, metadata, figures_dir):
     plt, _ = setup_matplotlib()
     if het_df is None or het_df.empty:
         return ""
-    pops = metadata["population"].unique()
-    df = het_df.join(metadata[["population"]], how="inner").sort_values(
-        ["population", "heterozygosity"])
-    colors = [pop_color(p, pops) for p in df["population"]]
-    mean_h = df["heterozygosity"].mean()
-    sd_h = df["heterozygosity"].std()
 
-    fig, ax = plt.subplots(figsize=(max(10, len(df) * 0.7), 5))
-    ax.bar(range(len(df)), df["heterozygosity"] * 100, color=colors, edgecolor="white")
+    sort_cols = [c for c in ["species", "population"] if c in metadata.columns]
+    join_cols  = sort_cols if sort_cols else []
+    df = het_df.join(metadata[join_cols], how="inner")
+    if sort_cols:
+        df = df.sort_values(sort_cols + ["heterozygosity"])
+
+    pops = metadata["population"].unique() if "population" in metadata.columns else []
+    colors = [pop_color(p, pops) for p in df.get("population", [""] * len(df))]
+    mean_h = df["heterozygosity"].mean()
+    sd_h   = df["heterozygosity"].std()
+
+    fig, ax = plt.subplots(figsize=(14, 5))
+    ax.bar(range(len(df)), df["heterozygosity"] * 100, color=colors, edgecolor="none", width=1.0)
     ax.axhline(mean_h * 100, color="gray", linewidth=1, linestyle="-", alpha=0.6, label="Mean")
     ax.axhline((mean_h + 2 * sd_h) * 100, color="red", linewidth=1,
                linestyle="--", alpha=0.7, label="±2 SD")
-    ax.axhline((mean_h - 2 * sd_h) * 100, color="red", linewidth=1,
-               linestyle="--", alpha=0.7)
-    ax.set_xticks(range(len(df)))
-    ax.set_xticklabels(df.index if len(df) <= 60 else [], rotation=45, ha="right", fontsize=9)
+    ax.axhline((mean_h - 2 * sd_h) * 100, color="red", linewidth=1, linestyle="--", alpha=0.7)
+
+    # Population boundary lines + midpoint labels
+    if "population" in df.columns:
+        prev_grp = (df.get("species", pd.Series([""] * len(df))).iloc[0],
+                    df["population"].iloc[0])
+        start = 0
+        ticks, tick_labels = [], []
+        for i, (_, row) in enumerate(df.iterrows()):
+            grp = (row.get("species", ""), row["population"])
+            if grp != prev_grp:
+                ax.axvline(x=i - 0.5, color="black", linewidth=1.2, alpha=0.5)
+                ticks.append((start + i) / 2)
+                tick_labels.append(f"{prev_grp[1]}\n({prev_grp[0][:4] if prev_grp[0] else ''})")
+                start = i
+                prev_grp = grp
+        ticks.append((start + len(df)) / 2)
+        tick_labels.append(f"{prev_grp[1]}\n({prev_grp[0][:4] if prev_grp[0] else ''})")
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(tick_labels, fontsize=8)
+    else:
+        ax.set_xticks([])
+
+    ax.set_xlim(-0.5, len(df) - 0.5)
     ax.set_ylabel("Heterozygosity (%)")
-    ax.set_title("Per-Individual Heterozygosity")
+    ax.set_title("Per-Individual Heterozygosity (grouped by species × population)")
     from matplotlib.patches import Patch
     handles = [Patch(color=pop_color(p, pops), label=p) for p in sorted(pops)]
     handles += [plt.Line2D([0], [0], color="gray", label="Mean"),
                 plt.Line2D([0], [0], color="red", linestyle="--", label="±2 SD")]
-    ax.legend(handles=handles)
+    ax.legend(handles=handles, fontsize=8, ncol=3)
     return save_fig(fig, figures_dir, "heterozygosity")
 
 
@@ -481,26 +506,73 @@ def fig_diversity(thetas_dict, figures_dir):
     return save_fig(fig, figures_dir, "diversity")
 
 
-def fig_kinship(rel_matrix, figures_dir):
-    plt, _ = setup_matplotlib()
-    if rel_matrix is None:
+def fig_kinship(rel_matrix, metadata, figures_dir):
+    """
+    Kinship heatmaps split by species, then by population within species.
+    One subplot per species, samples ordered by population.
+    """
+    plt, gs_mod = setup_matplotlib()
+    if rel_matrix is None or metadata is None:
         return ""
-    import matplotlib.colors as mcolors
-    fig, ax = plt.subplots(figsize=(max(8, len(rel_matrix) * 0.6),
-                                     max(7, len(rel_matrix) * 0.6)))
-    mat = rel_matrix.values.astype(float)
-    np.fill_diagonal(mat, 0)
-    im = ax.imshow(mat, cmap="YlOrRd", vmin=0, vmax=0.5)
-    if len(rel_matrix) <= 60:
-        ax.set_xticks(range(len(rel_matrix)))
-        ax.set_yticks(range(len(rel_matrix)))
-        ax.set_xticklabels(rel_matrix.columns, rotation=90, fontsize=8)
-        ax.set_yticklabels(rel_matrix.index, fontsize=8)
-    else:
-        ax.set_xticks([])
-        ax.set_yticks([])
-    plt.colorbar(im, ax=ax, label="KING Kinship", shrink=0.8)
-    ax.set_title("Pairwise Kinship (KING)")
+
+    species_col = "species" if "species" in metadata.columns else None
+    pop_col     = "population" if "population" in metadata.columns else None
+
+    # Build ordered sample list per species
+    def ordered_samples_for(species=None):
+        if species and species_col:
+            meta = metadata[metadata[species_col] == species]
+        else:
+            meta = metadata
+        if pop_col:
+            meta = meta.sort_values([pop_col, meta.index.name or "sample_id"])
+        return [s for s in meta.index if s in rel_matrix.index]
+
+    species_list = sorted(metadata[species_col].unique()) if species_col else [None]
+    n_sp = len(species_list)
+
+    fig, axes = plt.subplots(1, n_sp, figsize=(min(10, 5 * n_sp), 5 * n_sp))
+    if n_sp == 1:
+        axes = [axes]
+
+    for ax, sp in zip(axes, species_list):
+        samps = ordered_samples_for(sp)
+        if not samps:
+            continue
+        mat = rel_matrix.loc[samps, samps].values.astype(float)
+        np.fill_diagonal(mat, 0)
+        im = ax.imshow(mat, cmap="YlOrRd", vmin=0, vmax=0.5, aspect="auto")
+        title = sp if sp else "All"
+        ax.set_title(f"Kinship — {title}", fontsize=11)
+
+        # Draw population boundary lines
+        if pop_col and species_col:
+            pops = metadata.loc[samps, pop_col]
+            prev = pops.iloc[0]
+            ticks, tick_labels = [], []
+            start = 0
+            for i, p in enumerate(pops):
+                if p != prev:
+                    ax.axvline(x=i - 0.5, color="white", linewidth=1)
+                    ax.axhline(y=i - 0.5, color="white", linewidth=1)
+                    ticks.append((start + i) / 2)
+                    tick_labels.append(prev)
+                    start = i
+                    prev = p
+            ticks.append((start + len(pops)) / 2)
+            tick_labels.append(prev)
+            ax.set_xticks(ticks)
+            ax.set_xticklabels(tick_labels, rotation=45, ha="right", fontsize=8)
+            ax.set_yticks(ticks)
+            ax.set_yticklabels(tick_labels, fontsize=8)
+        else:
+            ax.set_xticks([])
+            ax.set_yticks([])
+
+        plt.colorbar(im, ax=ax, label="KING Kinship", shrink=0.6)
+
+    fig.suptitle("Pairwise Kinship (KING)", fontsize=13)
+    plt.tight_layout()
     return save_fig(fig, figures_dir, "kinship")
 
 
@@ -742,7 +814,7 @@ def main():
     img_het      = fig_heterozygosity(het_df, metadata, figures_dir)
     img_sfs      = fig_sfs(sfs, figures_dir)
     img_div      = fig_diversity({p: thetas[p] for p in pops if thetas.get(p) is not None}, figures_dir)
-    img_kinship  = fig_kinship(rel_mat, figures_dir)
+    img_kinship  = fig_kinship(rel_mat, metadata, figures_dir)
     img_ld       = fig_ld_decay(ld_df, figures_dir)
     img_fst_man  = {}
     for g1, g2 in fst_comparisons:
