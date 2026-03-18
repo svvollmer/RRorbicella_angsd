@@ -281,30 +281,60 @@ def fig_depth(depth_df, metadata, figures_dir):
     return save_fig(fig, figures_dir, "depth")
 
 
+REGION_COLORS = {"FL": "#2166AC", "PA": "#4DAC26", "BON": "#D6604D"}
+SPECIES_MARKERS = {"Acervicornis": "o", "Apalmata": "^"}
+
 def fig_pca(eigenvectors, pct_var, metadata, figures_dir):
+    """PCA: shape = species (circle=Acer, triangle=Apal), color = region (FL/PA/BON)."""
     plt, _ = setup_matplotlib()
     if eigenvectors is None:
         return ""
     samples = metadata.index.tolist()
-    pops = metadata["population"].unique()
+
+    region_col  = "region"  if "region"  in metadata.columns else None
+    species_col = "species" if "species" in metadata.columns else None
 
     fig, ax = plt.subplots(figsize=(8, 7))
-    for pop in sorted(pops):
-        mask = metadata["population"] == pop
-        idx = [i for i, s in enumerate(samples) if mask.get(s, False)]
-        ax.scatter(eigenvectors[idx, 0], eigenvectors[idx, 1],
-                   c=pop_color(pop, pops), label=pop,
-                   s=100, edgecolors="black", linewidth=0.6, alpha=0.9, zorder=3)
-    if len(samples) <= 60:
-        for i, s in enumerate(samples):
-            ax.annotate(s, (eigenvectors[i, 0], eigenvectors[i, 1]),
-                        fontsize=7, alpha=0.65, xytext=(5, 5),
-                        textcoords="offset points")
+
+    # Plot by species × region combination
+    species_list = sorted(metadata[species_col].unique()) if species_col else [None]
+    region_list  = sorted(metadata[region_col].unique())  if region_col  else [None]
+
+    for sp in species_list:
+        for reg in region_list:
+            mask = pd.Series([True] * len(metadata), index=metadata.index)
+            if sp  and species_col: mask &= metadata[species_col] == sp
+            if reg and region_col:  mask &= metadata[region_col]  == reg
+            idx = [i for i, s in enumerate(samples) if s in metadata.index and mask.get(s, False)]
+            if not idx:
+                continue
+            sp_short  = sp.replace("Acervicornis", "Acer").replace("Apalmata", "Apal") if sp else ""
+            marker = SPECIES_MARKERS.get(sp, "o") if sp else "o"
+            color  = REGION_COLORS.get(reg, "#888888") if reg else "#888888"
+            label  = f"{sp_short} — {reg}" if sp_short and reg else (sp_short or reg or "")
+            ax.scatter(eigenvectors[idx, 0], eigenvectors[idx, 1],
+                       c=color, marker=marker, label=label,
+                       s=60, edgecolors="white", linewidth=0.4, alpha=0.85, zorder=3)
+
     ax.set_xlabel(f"PC1 ({pct_var[0]:.1f}% variance)")
     ax.set_ylabel(f"PC2 ({pct_var[1]:.1f}% variance)")
     ax.set_title("PCA — LD-pruned SNPs")
-    ax.legend(title="Population", frameon=True)
     ax.grid(True, alpha=0.25)
+
+    # Legend: two sections — shape for species, color for region
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    legend_handles = []
+    for sp in species_list:
+        m = SPECIES_MARKERS.get(sp, "o") if sp else "o"
+        sp_short = sp.replace("Acervicornis", "Acer").replace("Apalmata", "Apal") if sp else "?"
+        legend_handles.append(Line2D([0], [0], marker=m, color="w", markerfacecolor="#555",
+                                     markersize=9, label=sp_short, markeredgecolor="white"))
+    for reg in region_list:
+        c = REGION_COLORS.get(reg, "#888") if reg else "#888"
+        legend_handles.append(Patch(facecolor=c, label=reg or "unknown"))
+    ax.legend(handles=legend_handles, frameon=True, fontsize=9,
+              title="▲/● = species   ■ = region")
     return save_fig(fig, figures_dir, "pca")
 
 
