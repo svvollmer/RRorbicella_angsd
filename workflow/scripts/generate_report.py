@@ -52,6 +52,32 @@ def pop_color(pop, pops):
     idx = sorted(pops).index(pop) if pop in pops else 0
     return POP_COLORS[idx % len(POP_COLORS)]
 
+# Consistent scheme used across all plots
+REGION_ORDER   = ["FL", "PA", "BON"]
+REGION_COLORS  = {"FL": "#2166AC", "PA": "#4DAC26", "BON": "#D6604D"}
+SPECIES_MARKERS = {"Acervicornis": "o", "Apalmata": "^"}
+# AC = solid fill, AP = lighter/hatched
+SPECIES_ALPHA  = {"Acervicornis": 0.85, "Apalmata": 0.45}
+
+def sp_abbr(species):
+    if not species:
+        return "?"
+    return "AC" if "cerv" in species.lower() else "AP"
+
+def group_label(species, region):
+    return f"{sp_abbr(species)}_{region}"
+
+def group_color(species, region):
+    base = REGION_COLORS.get(region, "#888888")
+    # Lighten Apal groups slightly so AC/AP are visually distinct at same region color
+    if sp_abbr(species) == "AP":
+        import matplotlib.colors as mc
+        r, g, b = mc.to_rgb(base)
+        # blend toward white
+        r, g, b = [0.4 + 0.6 * x for x in (r, g, b)]
+        return mc.to_hex((r, g, b))
+    return base
+
 
 def save_fig(fig, figures_dir, name):
     """Save figure to disk and return base64-encoded HTML <img> tag."""
@@ -321,130 +347,108 @@ def fig_pca(eigenvectors, pct_var, metadata, figures_dir):
     ax.set_title("PCA — LD-pruned SNPs")
     ax.grid(True, alpha=0.25)
 
-    # Legend: two sections — shape for species, color for region
+    # Legend: shapes for species, filled circles for region
     from matplotlib.lines import Line2D
-    from matplotlib.patches import Patch
     legend_handles = []
     for sp in species_list:
         m = SPECIES_MARKERS.get(sp, "o") if sp else "o"
-        sp_short = sp.replace("Acervicornis", "Acer").replace("Apalmata", "Apal") if sp else "?"
-        legend_handles.append(Line2D([0], [0], marker=m, color="w", markerfacecolor="#555",
-                                     markersize=9, label=sp_short, markeredgecolor="white"))
-    for reg in region_list:
+        sp_short = sp_abbr(sp) if sp else "?"
+        legend_handles.append(Line2D([0], [0], marker=m, color="w", markerfacecolor="#444",
+                                     markersize=9, label=sp_short, markeredgecolor="#444"))
+    for reg in sorted(region_list, key=lambda r: REGION_ORDER.index(r) if r in REGION_ORDER else 99):
         c = REGION_COLORS.get(reg, "#888") if reg else "#888"
-        legend_handles.append(Patch(facecolor=c, label=reg or "unknown"))
+        legend_handles.append(Line2D([0], [0], marker="o", color="w", markerfacecolor=c,
+                                     markersize=9, label=reg or "unknown", markeredgecolor="white"))
     ax.legend(handles=legend_handles, frameon=True, fontsize=9,
-              title="▲/● = species   ■ = region")
+              title="shape=species  color=region")
     return save_fig(fig, figures_dir, "pca")
 
 
 def fig_admixture(admix, metadata, figures_dir):
     """
-    Faceted admixture plot: rows = K values, columns = geographic regions.
-    Within each panel: horizontal bars, samples sorted by species then population.
-    Species boundary lines drawn as horizontal separators.
+    K=2 and K=3 admixture shown as violin plots.
+    x-axis: AC_FL, AC_PA, AC_BON, AP_FL, AP_PA, AP_BON
+    y-axis: Q proportion for each ancestry component.
+    Color = region, shade = species (dark=AC, light=AP).
     """
-    plt, gs_mod = setup_matplotlib()
+    plt, _ = setup_matplotlib()
     if not admix:
         return ""
 
-    samples = metadata.index.tolist()
-    k_values = sorted(admix.keys())
+    samples   = metadata.index.tolist()
+    spec_col  = "species"    if "species"    in metadata.columns else None
+    reg_col   = "region"     if "region"     in metadata.columns else None
 
-    cluster_colors = ["#2166AC", "#D6604D", "#4DAC26", "#8073AC",
-                      "#01665E", "#8C510A", "#F4A582", "#92C5DE"]
+    # Build ordered group list: AC_FL, AC_PA, AC_BON, AP_FL, AP_PA, AP_BON
+    species_list = ["Acervicornis", "Apalmata"] if spec_col else [None]
+    regions      = [r for r in REGION_ORDER
+                    if reg_col and r in metadata[reg_col].values]
+    groups = [(sp, reg) for sp in species_list for reg in regions
+              if len([s for s in samples
+                      if s in metadata.index
+                      and (not spec_col or metadata.loc[s, spec_col] == sp)
+                      and (not reg_col  or metadata.loc[s, reg_col]  == reg)]) > 0]
+    xlabels = [group_label(sp, reg) for sp, reg in groups]
+    colors  = [group_color(sp, reg) for sp, reg in groups]
 
-    region_col  = "region"  if "region"  in metadata.columns else None
-    species_col = "species" if "species" in metadata.columns else None
-    pop_col     = "population" if "population" in metadata.columns else None
+    k_show = [k for k in [2, 3] if k in admix]
+    if not k_show:
+        k_show = sorted(admix.keys())[:2]
 
-    regions = sorted(metadata[region_col].unique()) if region_col else ["all"]
-    n_regions = len(regions)
-    n_k = len(k_values)
+    fig, axes = plt.subplots(1, len(k_show), figsize=(7 * len(k_show), 5), squeeze=False)
 
-    # Max samples per region for figure height
-    max_n = max(
-        len([s for s in samples
-             if (region_col is None or metadata.loc[s, region_col] == r)
-             and s in metadata.index])
-        for r in regions
-    )
-
-    fig, axes = plt.subplots(
-        n_k, n_regions,
-        figsize=(5 * n_regions, max(3, max_n * 0.12) * n_k),
-        squeeze=False
-    )
-
-    for ki, k in enumerate(k_values):
+    for ki, k in enumerate(k_show):
+        ax    = axes[0][ki]
         q_all = admix[k]
 
-        for ri, region in enumerate(regions):
-            ax = axes[ki][ri]
+        # For each component, collect per-group Q values
+        # Identify which component most strongly corresponds to each ancestry
+        # by ranking components by mean Q in the first group
+        component_means = [np.mean([q_all[samples.index(s), j]
+                                    for s in samples
+                                    if s in metadata.index]) for j in range(k)]
+        comp_order = np.argsort(component_means)[::-1]
 
-            # Samples in this region, sorted by species then population
-            sort_cols = [c for c in [species_col, pop_col] if c]
-            if region_col:
-                reg_meta = metadata[metadata[region_col] == region]
-            else:
-                reg_meta = metadata
-            if sort_cols:
-                reg_meta = reg_meta.sort_values(sort_cols)
+        positions = np.arange(len(groups))
+        width = 0.8 / k
 
-            reg_samples = [s for s in reg_meta.index if s in samples]
-            if not reg_samples:
-                ax.set_visible(False)
-                continue
+        for ci, comp in enumerate(comp_order):
+            offset = (ci - (k - 1) / 2) * width
+            for gi, (sp, reg) in enumerate(groups):
+                idx = [samples.index(s) for s in samples
+                       if s in metadata.index
+                       and (not spec_col or metadata.loc[s, spec_col] == sp)
+                       and (not reg_col  or metadata.loc[s, reg_col]  == reg)]
+                if not idx:
+                    continue
+                vals = q_all[idx, comp]
+                if len(vals) < 2:
+                    ax.bar(gi + offset, vals[0], width=width * 0.9,
+                           color=colors[gi], alpha=0.5 + 0.5 * (ci == 0))
+                    continue
+                vp = ax.violinplot(vals, positions=[gi + offset],
+                                   widths=width * 0.9,
+                                   showmedians=True, showextrema=False)
+                for pc in vp["bodies"]:
+                    pc.set_facecolor(colors[gi])
+                    pc.set_alpha(0.85 if ci == 0 else 0.4)
+                    pc.set_edgecolor("white")
+                vp["cmedians"].set_color("black")
+                vp["cmedians"].set_linewidth(1.5)
 
-            reg_idx = [samples.index(s) for s in reg_samples]
-            q = q_all[reg_idx, :]
+        ax.set_xticks(positions)
+        ax.set_xticklabels(xlabels, rotation=30, ha="right", fontsize=9)
+        ax.set_ylim(0, 1)
+        ax.set_ylabel("Admixture proportion (Q)", fontsize=10)
+        ax.set_title(f"K = {k}", fontsize=11, fontweight="bold")
+        ax.axhline(0.5, color="gray", linestyle="--", linewidth=0.8, alpha=0.5)
+        # Species separator
+        if spec_col and len(species_list) > 1:
+            n_ac = sum(1 for sp, _ in groups if sp_abbr(sp) == "AC")
+            if 0 < n_ac < len(groups):
+                ax.axvline(x=n_ac - 0.5, color="black", linewidth=1.5)
 
-            # Horizontal stacked bars
-            left = np.zeros(len(reg_idx))
-            for j in range(k):
-                ax.barh(range(len(reg_idx)), q[:, j], left=left,
-                        color=cluster_colors[j % len(cluster_colors)],
-                        height=1.0, edgecolor="none")
-                left += q[:, j]
-
-            ax.set_xlim(0, 1)
-            ax.set_ylim(-0.5, len(reg_idx) - 0.5)
-            ax.set_xticks([0, 0.5, 1])
-            ax.set_xticklabels(["0", "0.5", "1"], fontsize=7)
-            ax.tick_params(axis="x", labelsize=7)
-
-            # Species separator lines + y-axis labels at species midpoints
-            if species_col:
-                species_order = reg_meta.loc[reg_samples, species_col]
-                prev_sp = species_order.iloc[0]
-                sp_starts = {prev_sp: 0}
-                for i, sp in enumerate(species_order):
-                    if sp != prev_sp:
-                        ax.axhline(y=i - 0.5, color="black", linewidth=1.5)
-                        sp_starts[sp] = i
-                        prev_sp = sp
-                # y-axis: species midpoint labels
-                yticks, ylabels = [], []
-                sp_list = list(sp_starts.keys())
-                for si, sp in enumerate(sp_list):
-                    start = sp_starts[sp]
-                    end = sp_starts[sp_list[si + 1]] if si + 1 < len(sp_list) else len(reg_samples)
-                    yticks.append((start + end) / 2)
-                    sp_short = sp.replace("Acervicornis", "Acer").replace("Apalmata", "Apal")
-                    ylabels.append(sp_short)
-                ax.set_yticks(yticks)
-                ax.set_yticklabels(ylabels, fontsize=8)
-            else:
-                ax.set_yticks([])
-
-            if ki == 0:
-                ax.set_title(region, fontsize=11, fontweight="bold")
-            if ri == 0:
-                ax.set_ylabel(f"K = {k}", fontsize=10)
-            else:
-                ax.set_ylabel("")
-
-    fig.suptitle("Admixture Analysis (PCAngsd) — faceted by region", fontsize=13, y=1.01)
+    fig.suptitle("Admixture proportions — K=2 and K=3 (PCAngsd)", fontsize=13)
     plt.tight_layout()
     return save_fig(fig, figures_dir, "admixture")
 
@@ -490,14 +494,22 @@ def fig_heterozygosity(het_df, metadata, figures_dir):
     if het_df is None or het_df.empty:
         return ""
 
-    sort_cols = [c for c in ["species", "population"] if c in metadata.columns]
-    join_cols  = sort_cols if sort_cols else []
+    spec_col = "species" if "species" in metadata.columns else None
+    reg_col  = "region"  if "region"  in metadata.columns else None
+    join_cols = [c for c in [spec_col, reg_col] if c]
     df = het_df.join(metadata[join_cols], how="inner")
-    if sort_cols:
-        df = df.sort_values(sort_cols + ["heterozygosity"])
+    if join_cols:
+        sort_key = [c for c in [spec_col, reg_col] if c]
+        df["_reg_order"] = df[reg_col].map({r: i for i, r in enumerate(REGION_ORDER)}) if reg_col else 0
+        df = df.sort_values(([spec_col] if spec_col else []) + ["_reg_order", "heterozygosity"])
 
-    pops = metadata["population"].unique() if "population" in metadata.columns else []
-    colors = [pop_color(p, pops) for p in df.get("population", [""] * len(df))]
+    # Assign color per sample by species × region
+    def _bar_color(row):
+        sp  = row.get(spec_col, "") if spec_col else ""
+        reg = row.get(reg_col,  "") if reg_col  else ""
+        return group_color(sp, reg)
+
+    colors = [_bar_color(row) for _, row in df.iterrows()]
     mean_h = df["heterozygosity"].mean()
     sd_h   = df["heterozygosity"].std()
 
@@ -508,35 +520,37 @@ def fig_heterozygosity(het_df, metadata, figures_dir):
                linestyle="--", alpha=0.7, label="±2 SD")
     ax.axhline((mean_h - 2 * sd_h) * 100, color="red", linewidth=1, linestyle="--", alpha=0.7)
 
-    # Population boundary lines + midpoint labels
-    if "population" in df.columns:
-        prev_grp = (df.get("species", pd.Series([""] * len(df))).iloc[0],
-                    df["population"].iloc[0])
-        start = 0
+    # Group boundary lines + AC_FL / AP_FL style x-axis labels
+    if join_cols:
+        cur_grp  = (df.iloc[0].get(spec_col,""), df.iloc[0].get(reg_col,""))
+        start    = 0
         ticks, tick_labels = [], []
-        for i, (_, row) in enumerate(df.iterrows()):
-            grp = (row.get("species", ""), row["population"])
-            if grp != prev_grp:
-                ax.axvline(x=i - 0.5, color="black", linewidth=1.2, alpha=0.5)
+        rows = list(df.iterrows())
+        for i, (_, row) in enumerate(rows):
+            grp = (row.get(spec_col,""), row.get(reg_col,""))
+            if grp != cur_grp:
+                ax.axvline(x=i - 0.5, color="black", linewidth=1.2, alpha=0.4)
                 ticks.append((start + i) / 2)
-                tick_labels.append(f"{prev_grp[1]}\n({prev_grp[0][:4] if prev_grp[0] else ''})")
-                start = i
-                prev_grp = grp
+                tick_labels.append(group_label(*cur_grp))
+                start, cur_grp = i, grp
         ticks.append((start + len(df)) / 2)
-        tick_labels.append(f"{prev_grp[1]}\n({prev_grp[0][:4] if prev_grp[0] else ''})")
+        tick_labels.append(group_label(*cur_grp))
         ax.set_xticks(ticks)
-        ax.set_xticklabels(tick_labels, fontsize=8)
+        ax.set_xticklabels(tick_labels, fontsize=9)
     else:
         ax.set_xticks([])
 
     ax.set_xlim(-0.5, len(df) - 0.5)
     ax.set_ylabel("Heterozygosity (%)")
-    ax.set_title("Per-Individual Heterozygosity (grouped by species × population)")
-    from matplotlib.patches import Patch
-    handles = [Patch(color=pop_color(p, pops), label=p) for p in sorted(pops)]
-    handles += [plt.Line2D([0], [0], color="gray", label="Mean"),
-                plt.Line2D([0], [0], color="red", linestyle="--", label="±2 SD")]
-    ax.legend(handles=handles, fontsize=8, ncol=3)
+    ax.set_title("Per-Individual Heterozygosity")
+    from matplotlib.lines import Line2D
+    handles = [Line2D([0],[0], marker="o", color="w", markerfacecolor=group_color(sp, reg),
+                      markersize=9, label=group_label(sp, reg), markeredgecolor="white")
+               for sp in (["Acervicornis","Apalmata"] if spec_col else [""])
+               for reg in ([r for r in REGION_ORDER if reg_col and r in df[reg_col].values] if reg_col else [""])]
+    handles += [Line2D([0],[0], color="gray",  label="Mean"),
+                Line2D([0],[0], color="red", linestyle="--", label="±2 SD")]
+    ax.legend(handles=handles, fontsize=8, ncol=4)
     return save_fig(fig, figures_dir, "heterozygosity")
 
 
