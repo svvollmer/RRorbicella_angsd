@@ -3,35 +3,37 @@
 Snakefile.demography — Segment 6: Demographic Inference
 ================================================================================
 
-Input:  results/bams/{sample}.filtered.BAM/CRAM  (from Segment 1)
-        results/relatedness/unrelated_samples.txt  (from Segment 2 Gate 3)
+Input:  results/bams/{sample}.filtered.BAM  (pre-existing BAMs on HPC)
+        results/relatedness/unrelated_samples.txt  (from Segment 2)
         results/admixture/lineage_assignments.txt  (from Gate 3b)
-        samples.csv admix_fraction column  (from Segment 3 PCAngsd)
 
-Architecture:
-  Phase 1 (Florida only): strongest data, primary publication result
-    Stage 1: 2-pop Apal FL (lineageA vs lineageB)      [dadi]
-    Stage 2: 2-pop Apal FL vs Acer FL clean             [dadi]
-    Stage 3: 4-pop lineage + clean/admixed Acer FL      [moments]
-    Stage 4: 4-pop with admixture pulse model           [moments]
-  Phase 2 (future): Panama + Bonaire — uncomment in config once
-    Apal Panama n >= 25.
+Architecture (two analytical paths from K2/K3 admixture results):
+
+  K2 path — hybridization / Apal-Acer species divergence
+    Tests whether Apal–Acer gene flow is ongoing (IM), recent (SC), or ancient (AM)
+    apal_vs_acer_fl   — FL Apal (FL_RR, n=76) vs all FL Acer (n=85)
+    apal_vs_acer_bon  — BON Apal (n=24) vs BON Acer (n=24) [geographic replicate]
+
+  K3 path — within-Acer geographic population structure
+    acer_fl_vs_pa     — Florida Acer (n=85) vs Panama Acer (n=39)
+    acer_fl_vs_bon    — Florida Acer (n=85) vs Bonaire Acer (n=24)
+    acer_pa_vs_bon    — Panama Acer (n=39) vs Bonaire Acer (n=24)
+
+Models fitted per comparison (moments, folded SFS, 20 random restarts each):
+  SI   — strict isolation
+  IM   — isolation with migration (symmetric)
+  IM_a — isolation with migration (asymmetric)
+  SC   — secondary contact (split → isolation → contact)
+  AM   — ancient migration (split → migration → isolation)
 
 Key design decisions:
   - Re-run ANGSD with -doSaf 1, NO MAF filter (existing SNP outputs
-    used -minMaf which truncates rare variants critical for demography)
+    used -minMaf 0.05 which truncates rare variants critical for demography)
   - SAF covers all non-repeat sites (monomorphic + variable)
-  - Pairwise projections per comparison (not global minimum)
+  - Pairwise projections per comparison (80% of 2n, auto-calculated)
   - Folded SFS throughout (no reliable ancestral outgroup)
-  - Gate 4 (auto): filter admix_fraction from samples.csv to build
-    clean cervicornis bamlists
-  - Gate 5 (auto): calculate optimal projection sizes per comparison
-  - "clean" vs "full" parallel runs to probe recent vs historical introgression
-
-BAM source: existing BAMs on HPC/S3, pulled to AWS for ANGSD re-run.
-  BAM/CRAM format: controlled by bam_ext in config.yaml (default: cram).
-
-Instance recommendation: c6i.16xlarge on-demand (~4-6 hrs for Phase 1)
+  - Geographic restriction: apal_fl = FL_RR only; apal_bon = BON only
+    (avoids Wahlund effect from pooling FL+BON Apal into one SFS group)
 ================================================================================
 """
 
@@ -39,6 +41,8 @@ include: "common.smk"
 
 import os
 import json
+
+PIPELINE = os.path.dirname(os.path.dirname(os.path.abspath(workflow.snakefile)))
 
 # ---------------------------------------------------------------------------
 # Demography config
@@ -64,15 +68,25 @@ def _load_unrelated():
 
 def get_demog_bamlist(group):
     """
-    Resolve a demography group name to a list of BAM paths.
-    Group naming convention (parsed left to right):
-      [lineage_][population][_species][_clean|_admixed]
-    Examples:
-      florida_Apalmata          → all Apal florida unrelated samples
-      florida_Acervicornis_clean → Acer florida admix_fraction < threshold
-      lineageA_florida_Apalmata  → lineageA Apal florida samples
+    Resolve a demography group name to a list of sample IDs.
+
+    Checks population_groups config first (explicit multi-population definitions).
+    Falls back to the string-parsing convention for backward compatibility.
     """
     unrelated = _load_unrelated()
+
+    # Check population_groups config first
+    pop_groups = DEMOG_CFG.get("population_groups", {})
+    if group in pop_groups:
+        grp_def = pop_groups[group]
+        sp   = grp_def.get("species")
+        pops = grp_def.get("populations", [])
+        mask = samples["sample_id"].isin(unrelated)
+        if sp:
+            mask &= samples["species"] == sp
+        if pops:
+            mask &= samples["population"].isin(pops)
+        return samples.loc[mask, "sample_id"].tolist()
 
     # Parse suffixes
     admix_filter = None
@@ -249,7 +263,7 @@ rule angsd_saf_demography:
     threads: 8
     resources:
         mem_mb=16000,
-        runtime=90,
+        runtime=480,
     shell:
         """
         mkdir -p results/demography/saf
@@ -281,7 +295,7 @@ rule realsfs_demography:
     threads: 8
     resources:
         mem_mb=8000,
-        runtime=30,
+        runtime=480,
     shell:
         "realSFS {input} -P {threads} -fold 1 > {output}"
 
@@ -314,7 +328,7 @@ rule realsfs_dadi:
     threads: 8
     resources:
         mem_mb=16000,
-        runtime=60,
+        runtime=480,
     run:
         import json, subprocess
         with open(input.projections) as f:
@@ -334,17 +348,15 @@ rule realsfs_dadi:
         )
 
 # ============================================================================
-# INFERENCE ENGINE STUBS
-# Placeholder rules — filled in during Segment 6c implementation.
-# Each comparison runs the appropriate tool (dadi or moments) based on config.
+# INFERENCE ENGINE
 # ============================================================================
 
 rule moments_2pop:
     """
-    2-population demographic model fitting with moments.
-    Models: split_no_mig, split_sym_mig, split_asym_mig, IM, secondary_contact.
-    Seeded with 50 random starts; best-fit parameters written to JSON.
-    TODO: implement workflow/scripts/run_moments_2pop.py
+    Two-population demographic model fitting with moments.
+    Models: SI, IM, IM_a (asymmetric), SC (secondary contact), AM (ancient migration).
+    Each model fit with {moments_restarts} random starts; best log-likelihood kept.
+    AIC used for model comparison. Results written to JSON + human-readable summary.
     """
     input:
         sfs="results/demography/dadi/{name}.dadi.txt",
@@ -353,46 +365,24 @@ rule moments_2pop:
         results="results/demography/inference/{name}.moments.json",
         bestfit="results/demography/inference/{name}.bestfit.txt",
     params:
-        tool=lambda wc: next(
-            (c.get("tool", DEMOG_CFG.get("default_tool", "moments"))
-             for c in DEMOG_COMPS if c["name"] == wc.name), "moments"
+        out=lambda wc: f"results/demography/inference/{wc.name}",
+        restarts=DEMOG_CFG.get("moments_restarts", 20),
+        models=" ".join(["SI", "IM", "IM_a", "SC", "AM"]),
+        pop_ids=lambda wc: " ".join(
+            next((c["groups"] for c in DEMOG_COMPS if c["name"] == wc.name), ["pop1", "pop2"])
         ),
-    threads: 8
+    threads: 1
     resources:
         mem_mb=8000,
-        runtime=120,
+        runtime=480,
     shell:
         """
-        echo "TODO: implement run_moments_2pop.py" >&2
-        echo '{{"status": "stub"}}' > {output.results}
-        touch {output.bestfit}
-        """
-
-rule moments_4pop:
-    """
-    4-population demographic model fitting with moments.
-    Models: split_IM_pulse (directional introgression), 4pop_isolation.
-    Seeded from 2-pop parameter estimates (run moments_2pop first).
-    TODO: implement workflow/scripts/run_moments_4pop.py
-    """
-    input:
-        sfs="results/demography/dadi/{name}.dadi.txt",
-        projections="results/demography/projections/{name}.json",
-        seed_params=lambda wc: (
-            "results/demography/inference/apal_vs_acer_fl_clean.moments.json"
-            if os.path.exists("results/demography/inference/apal_vs_acer_fl_clean.moments.json")
-            else []
-        ),
-    output:
-        results="results/demography/inference/{name}.moments4pop.json",
-        bestfit="results/demography/inference/{name}.bestfit4pop.txt",
-    threads: 8
-    resources:
-        mem_mb=16000,
-        runtime=360,
-    shell:
-        """
-        echo "TODO: implement run_moments_4pop.py" >&2
-        echo '{{"status": "stub"}}' > {output.results}
-        touch {output.bestfit}
+        mkdir -p results/demography/inference
+        python {PIPELINE}/workflow/scripts/run_moments_2pop.py \
+            --sfs {input.sfs} \
+            --projections {input.projections} \
+            --pop-ids {params.pop_ids} \
+            --out {params.out} \
+            --restarts {params.restarts} \
+            --models {params.models}
         """
