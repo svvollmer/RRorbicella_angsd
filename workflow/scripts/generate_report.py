@@ -412,7 +412,7 @@ def fig_heterozygosity(het_df, metadata, figures_dir):
     ax.axhline((mean_h - 2 * sd_h) * 100, color="red", linewidth=1,
                linestyle="--", alpha=0.7)
     ax.set_xticks(range(len(df)))
-    ax.set_xticklabels(df.index, rotation=45, ha="right", fontsize=9)
+    ax.set_xticklabels(df.index if len(df) <= 60 else [], rotation=45, ha="right", fontsize=9)
     ax.set_ylabel("Heterozygosity (%)")
     ax.set_title("Per-Individual Heterozygosity")
     from matplotlib.patches import Patch
@@ -490,10 +490,14 @@ def fig_kinship(rel_matrix, figures_dir):
     mat = rel_matrix.values.astype(float)
     np.fill_diagonal(mat, 0)
     im = ax.imshow(mat, cmap="YlOrRd", vmin=0, vmax=0.5)
-    ax.set_xticks(range(len(rel_matrix)))
-    ax.set_yticks(range(len(rel_matrix)))
-    ax.set_xticklabels(rel_matrix.columns, rotation=90, fontsize=8)
-    ax.set_yticklabels(rel_matrix.index, fontsize=8)
+    if len(rel_matrix) <= 60:
+        ax.set_xticks(range(len(rel_matrix)))
+        ax.set_yticks(range(len(rel_matrix)))
+        ax.set_xticklabels(rel_matrix.columns, rotation=90, fontsize=8)
+        ax.set_yticklabels(rel_matrix.index, fontsize=8)
+    else:
+        ax.set_xticks([])
+        ax.set_yticks([])
     plt.colorbar(im, ax=ax, label="KING Kinship", shrink=0.8)
     ax.set_title("Pairwise Kinship (KING)")
     return save_fig(fig, figures_dir, "kinship")
