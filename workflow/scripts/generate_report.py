@@ -295,10 +295,11 @@ def fig_pca(eigenvectors, pct_var, metadata, figures_dir):
         ax.scatter(eigenvectors[idx, 0], eigenvectors[idx, 1],
                    c=pop_color(pop, pops), label=pop,
                    s=100, edgecolors="black", linewidth=0.6, alpha=0.9, zorder=3)
-    for i, s in enumerate(samples):
-        ax.annotate(s, (eigenvectors[i, 0], eigenvectors[i, 1]),
-                    fontsize=7, alpha=0.65, xytext=(5, 5),
-                    textcoords="offset points")
+    if len(samples) <= 60:
+        for i, s in enumerate(samples):
+            ax.annotate(s, (eigenvectors[i, 0], eigenvectors[i, 1]),
+                        fontsize=7, alpha=0.65, xytext=(5, 5),
+                        textcoords="offset points")
     ax.set_xlabel(f"PC1 ({pct_var[0]:.1f}% variance)")
     ax.set_ylabel(f"PC2 ({pct_var[1]:.1f}% variance)")
     ax.set_title("PCA — LD-pruned SNPs")
@@ -347,7 +348,7 @@ def fig_admixture(admix, metadata, figures_dir):
                 ax.axvline(x=i - 0.5, color="black", linewidth=1.5)
                 prev = p
 
-        if ki == len(k_values) - 1:
+        if ki == len(k_values) - 1 and len(order_idx) <= 60:
             ax.set_xticks(range(len(order_idx)))
             ax.set_xticklabels(list(order), rotation=90, fontsize=8)
         else:
