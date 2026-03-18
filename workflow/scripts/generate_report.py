@@ -309,52 +309,113 @@ def fig_pca(eigenvectors, pct_var, metadata, figures_dir):
 
 
 def fig_admixture(admix, metadata, figures_dir):
+    """
+    Faceted admixture plot: rows = K values, columns = geographic regions.
+    Within each panel: horizontal bars, samples sorted by species then population.
+    Species boundary lines drawn as horizontal separators.
+    """
     plt, gs_mod = setup_matplotlib()
     if not admix:
         return ""
+
     samples = metadata.index.tolist()
-    pops = metadata["population"].unique()
     k_values = sorted(admix.keys())
-
-    # Order samples by population then name
-    order = metadata.sort_values("population").index
-    order_idx = [samples.index(s) for s in order if s in samples]
-
-    fig = plt.figure(figsize=(max(12, len(samples) * 0.6), 3 * len(k_values)))
-    gs = gs_mod.GridSpec(len(k_values), 1, hspace=0.4, figure=fig)
 
     cluster_colors = ["#2166AC", "#D6604D", "#4DAC26", "#8073AC",
                       "#01665E", "#8C510A", "#F4A582", "#92C5DE"]
 
+    region_col  = "region"  if "region"  in metadata.columns else None
+    species_col = "species" if "species" in metadata.columns else None
+    pop_col     = "population" if "population" in metadata.columns else None
+
+    regions = sorted(metadata[region_col].unique()) if region_col else ["all"]
+    n_regions = len(regions)
+    n_k = len(k_values)
+
+    # Max samples per region for figure height
+    max_n = max(
+        len([s for s in samples
+             if (region_col is None or metadata.loc[s, region_col] == r)
+             and s in metadata.index])
+        for r in regions
+    )
+
+    fig, axes = plt.subplots(
+        n_k, n_regions,
+        figsize=(5 * n_regions, max(3, max_n * 0.12) * n_k),
+        squeeze=False
+    )
+
     for ki, k in enumerate(k_values):
-        ax = fig.add_subplot(gs[ki])
-        q = admix[k][order_idx, :]
-        bottom = np.zeros(len(order_idx))
-        for j in range(k):
-            ax.bar(range(len(order_idx)), q[:, j], bottom=bottom,
-                   color=cluster_colors[j % len(cluster_colors)],
-                   width=1.0, edgecolor="none")
-            bottom += q[:, j]
-        ax.set_xlim(-0.5, len(order_idx) - 0.5)
-        ax.set_ylim(0, 1)
-        ax.set_ylabel(f"K = {k}", fontsize=11)
-        ax.set_yticks([0, 0.5, 1])
+        q_all = admix[k]
 
-        # Population separator lines
-        pop_order = metadata.loc[order, "population"]
-        prev = pop_order.iloc[0]
-        for i, p in enumerate(pop_order):
-            if p != prev:
-                ax.axvline(x=i - 0.5, color="black", linewidth=1.5)
-                prev = p
+        for ri, region in enumerate(regions):
+            ax = axes[ki][ri]
 
-        if ki == len(k_values) - 1 and len(order_idx) <= 60:
-            ax.set_xticks(range(len(order_idx)))
-            ax.set_xticklabels(list(order), rotation=90, fontsize=8)
-        else:
-            ax.set_xticks([])
+            # Samples in this region, sorted by species then population
+            sort_cols = [c for c in [species_col, pop_col] if c]
+            if region_col:
+                reg_meta = metadata[metadata[region_col] == region]
+            else:
+                reg_meta = metadata
+            if sort_cols:
+                reg_meta = reg_meta.sort_values(sort_cols)
 
-    fig.suptitle("Admixture Analysis (PCAngsd)", fontsize=14, y=1.01)
+            reg_samples = [s for s in reg_meta.index if s in samples]
+            if not reg_samples:
+                ax.set_visible(False)
+                continue
+
+            reg_idx = [samples.index(s) for s in reg_samples]
+            q = q_all[reg_idx, :]
+
+            # Horizontal stacked bars
+            left = np.zeros(len(reg_idx))
+            for j in range(k):
+                ax.barh(range(len(reg_idx)), q[:, j], left=left,
+                        color=cluster_colors[j % len(cluster_colors)],
+                        height=1.0, edgecolor="none")
+                left += q[:, j]
+
+            ax.set_xlim(0, 1)
+            ax.set_ylim(-0.5, len(reg_idx) - 0.5)
+            ax.set_xticks([0, 0.5, 1])
+            ax.set_xticklabels(["0", "0.5", "1"], fontsize=7)
+            ax.tick_params(axis="x", labelsize=7)
+
+            # Species separator lines + y-axis labels at species midpoints
+            if species_col:
+                species_order = reg_meta.loc[reg_samples, species_col]
+                prev_sp = species_order.iloc[0]
+                sp_starts = {prev_sp: 0}
+                for i, sp in enumerate(species_order):
+                    if sp != prev_sp:
+                        ax.axhline(y=i - 0.5, color="black", linewidth=1.5)
+                        sp_starts[sp] = i
+                        prev_sp = sp
+                # y-axis: species midpoint labels
+                yticks, ylabels = [], []
+                sp_list = list(sp_starts.keys())
+                for si, sp in enumerate(sp_list):
+                    start = sp_starts[sp]
+                    end = sp_starts[sp_list[si + 1]] if si + 1 < len(sp_list) else len(reg_samples)
+                    yticks.append((start + end) / 2)
+                    sp_short = sp.replace("Acervicornis", "Acer").replace("Apalmata", "Apal")
+                    ylabels.append(sp_short)
+                ax.set_yticks(yticks)
+                ax.set_yticklabels(ylabels, fontsize=8)
+            else:
+                ax.set_yticks([])
+
+            if ki == 0:
+                ax.set_title(region, fontsize=11, fontweight="bold")
+            if ri == 0:
+                ax.set_ylabel(f"K = {k}", fontsize=10)
+            else:
+                ax.set_ylabel("")
+
+    fig.suptitle("Admixture Analysis (PCAngsd) — faceted by region", fontsize=13, y=1.01)
+    plt.tight_layout()
     return save_fig(fig, figures_dir, "admixture")
 
 
