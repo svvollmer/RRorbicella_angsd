@@ -167,7 +167,7 @@ rule make_demog_bamlist:
         unrelated="results/relatedness/unrelated_samples.txt",
     output:
         bamlist="results/demography/bamlists/{group}.bamlist",
-        count="results/demography/bamlists/{group}.n.txt",
+        n_samples="results/demography/bamlists/{group}.n.txt",
     wildcard_constraints:
         group="[a-zA-Z0-9_]+",
     run:
@@ -181,7 +181,7 @@ rule make_demog_bamlist:
         with open(output.bamlist, 'w') as f:
             for sid in sample_ids:
                 f.write(f"results/bams/{sid}.filtered.{BAM_EXT}\n")
-        with open(output.count, 'w') as f:
+        with open(output.n_samples, 'w') as f:
             f.write(f"{len(sample_ids)}\n")
         print(f"[demography] Group '{wildcards.group}': {len(sample_ids)} samples",
               file=__import__('sys').stderr)
@@ -198,7 +198,7 @@ rule calculate_projections:
     Writes JSON with {group: n_haploids} per comparison.
     """
     input:
-        counts=lambda wc: expand(
+        n_samples=lambda wc: expand(
             "results/demography/bamlists/{group}.n.txt",
             group=[g for c in DEMOG_COMPS if c["name"] == wc.name for g in c["groups"]]
         ),
@@ -212,7 +212,7 @@ rule calculate_projections:
         if projection is None:
             # Auto-calculate: project to 80% of each group's sample count (haploids = 2n)
             ns = []
-            for f in input.counts:
+            for f in input.n_samples:
                 with open(f) as fh:
                     ns.append(int(fh.read().strip()))
             projection = [int(n * 2 * 0.8) for n in ns]
