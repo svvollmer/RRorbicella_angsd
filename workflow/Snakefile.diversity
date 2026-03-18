@@ -171,7 +171,7 @@ rule angsd_saf_chrom:
     threads: 8
     resources:
         mem_mb=8000,
-        runtime=30,
+        runtime=480,
         cpus_per_task=8,
     shell:
         """
@@ -206,9 +206,9 @@ rule merge_saf:
     threads: 4
     resources:
         mem_mb=8000,
-        runtime=30,
+        runtime=480,
     shell:
-        "realSFS cat {input.safs} -P {threads} -o results/sfs/{wildcards.group}"
+        "realSFS cat {input.safs} -P {threads} -outnames results/sfs/{wildcards.group}"
 
 # ============================================================================
 # 17. 1D SFS + DIVERSITY
@@ -226,7 +226,7 @@ rule realsfs:
     threads: 8
     resources:
         mem_mb=8000,
-        runtime=30,
+        runtime=480,
     shell:
         "realSFS {input} -P {threads} -fold 1 > {output}"
 
@@ -246,7 +246,7 @@ rule thetas:
     threads: 8
     resources:
         mem_mb=8000,
-        runtime=30,
+        runtime=480,
     shell:
         """
         mkdir -p results/diversity
@@ -276,7 +276,7 @@ rule realsfs_2d:
     threads: 16
     resources:
         mem_mb=16000,
-        runtime=60,
+        runtime=480,
     shell:
         """
         mkdir -p results/fst
@@ -338,7 +338,7 @@ rule individual_saf:
     threads: 4
     resources:
         mem_mb=8000,
-        runtime=30,
+        runtime=480,
     shell:
         """
         mkdir -p results/heterozygosity
@@ -361,6 +361,6 @@ rule individual_het:
         "results/heterozygosity/{sample}.het",
     resources:
         mem_mb=4000,
-        runtime=10,
+        runtime=480,
     shell:
         "realSFS {input} > {output}"
