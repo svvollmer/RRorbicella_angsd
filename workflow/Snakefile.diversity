@@ -280,7 +280,7 @@ rule realsfs_2d:
     shell:
         """
         mkdir -p results/fst
-        realSFS {input.saf1} {input.saf2} -P {threads} -nSites 20000000 -tole 1e-3 > {output}
+        realSFS {input.saf1} {input.saf2} -P {threads} -nSites 20000000 -tole 1e-3 | tail -1 > {output}
         """
 
 rule fst_index:
