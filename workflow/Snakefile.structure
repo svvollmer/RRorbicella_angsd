@@ -33,6 +33,7 @@ rule all:
         "results/angsd/all.unrelated.ldpruned.beagle.gz",
         "results/pca/pcangsd.cov",
         expand("results/admixture/pcangsd_K{k}.Q", k=range(2, config.get("max_k", 5) + 1)),
+        expand("results/admixture/ngsadmix_K{k}.Q", k=range(2, config.get("max_k", 5) + 1)),
 
 # ============================================================================
 # 13. LD ANALYSIS
@@ -45,7 +46,6 @@ rule ngsld_estimate_chrom:
     ngsLD. Merged by merge_ngsld (plain cat — ngsLD output has no header).
     Runtime: ~5-10 min per chrom with 8 threads.
     """
-    container: "docker://quay.io/biocontainers/ngsld:2.1.2--h5b5514e_1"
     input:
         beagle="results/angsd/all.unrelated.beagle.gz",
         mafs="results/angsd/all.mafs.gz",
@@ -64,6 +64,7 @@ rule ngsld_estimate_chrom:
 
         os.makedirs("results/ld", exist_ok=True)
         chrom = wildcards.chrom
+        ngsld_bin = os.path.join(workflow.basedir, "..", "bin", "ngsLD")
 
         with open(input.unrelated) as f:
             n_ind = sum(1 for l in f if l.strip())
@@ -93,7 +94,7 @@ rule ngsld_estimate_chrom:
         if n_sites > 0:
             with open(output.ld_chrom, 'w') as fout:
                 subprocess.run(
-                    ["ngsLD",
+                    [ngsld_bin,
                      "--geno", beagle_tmp,
                      "--probs",
                      "--n_ind", str(n_ind),
@@ -124,8 +125,9 @@ rule merge_ngsld:
 
 rule ld_decay:
     """
-    LD decay vs physical distance. Reads in 500K-row chunks for safety.
+    LD decay vs physical distance.
     ngsLD columns: site1, site2, dist, r2_ExpG, D, Dp, r2.
+    Uses awk to extract cols 3+7 and skip bad/header lines before numpy binning.
     """
     input:
         "results/ld/ld_raw.tsv",
@@ -136,22 +138,39 @@ rule ld_decay:
         threshold=config.get("ld_decay_threshold", 0.1),
     run:
         import numpy as np
-        import pandas as pd
-        import csv
+        import subprocess, csv
 
         bins      = [0, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000]
         bin_sum   = np.zeros(len(bins) - 1)
         bin_count = np.zeros(len(bins) - 1)
+        CHUNK     = 1_000_000
 
-        for chunk in pd.read_csv(
-            input[0], sep='\t', chunksize=500000, usecols=['dist', 'r2']
-        ):
-            idxs  = np.digitize(chunk['dist'].values, bins) - 1
+        # awk: skip header and any line without exactly 7 fields; emit dist\tr2
+        awk_cmd = ["awk", "-F\t", 'NF==7 && $1!="site1" {print $3"\t"$7}', input[0]]
+        proc = subprocess.Popen(awk_cmd, stdout=subprocess.PIPE,
+                                bufsize=1 << 23, text=True)
+
+        buf_d, buf_r = [], []
+        def flush():
+            if not buf_d:
+                return
+            d = np.array(buf_d, dtype=np.float32)
+            r = np.array(buf_r, dtype=np.float32)
+            idxs  = np.searchsorted(bins, d, side='right') - 1
             valid = (idxs >= 0) & (idxs < len(bins) - 1)
             for i in range(len(bins) - 1):
-                mask = valid & (idxs == i)
-                bin_sum[i]   += chunk.loc[mask, 'r2'].sum()
-                bin_count[i] += mask.sum()
+                m = valid & (idxs == i)
+                bin_sum[i]   += float(r[m].sum())
+                bin_count[i] += int(m.sum())
+            buf_d.clear(); buf_r.clear()
+
+        for line in proc.stdout:
+            p = line.split('\t')
+            buf_d.append(p[0]); buf_r.append(p[1])
+            if len(buf_d) >= CHUNK:
+                flush()
+        flush()
+        proc.wait()
 
         bin_labels = [f"{bins[i]}-{bins[i+1]}" for i in range(len(bins) - 1)]
         with_data  = bin_count > 0
@@ -352,3 +371,83 @@ rule pcangsd_admixture:
         mv {params.out}.admix.{wildcards.k}.Q {output.Q}
         mv {params.out}.admix.{wildcards.k}.P {output.F}
         """
+
+# ============================================================================
+# 14b. NGSAdmix (ANGSD-ecosystem admixture from beagle likelihoods)
+# ============================================================================
+
+NGSADMIX_REPS = config.get("ngsadmix_reps", config.get("admixture_replicates", 10))
+
+rule ngsadmix_rep:
+    """
+    NGSAdmix replicate run for K ancestral populations.
+    Uses LD-pruned beagle likelihoods (same input as PCAngsd).
+    Runs NGSADMIX_REPS replicates per K for robust log-likelihood comparison.
+    Best replicate selected by ngsadmix_best.
+    Runtime: ~5-15 min per rep per K.
+    """
+    container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
+    input:
+        "results/angsd/all.unrelated.ldpruned.beagle.gz",
+    output:
+        Q=temp("results/admixture/ngsadmix_K{k}_rep{r}.Q"),
+        F=temp("results/admixture/ngsadmix_K{k}_rep{r}.fopt.gz"),
+        log="results/admixture/ngsadmix_K{k}_rep{r}.log",
+    params:
+        out="results/admixture/ngsadmix_K{k}_rep{r}",
+    wildcard_constraints:
+        k="[0-9]+",
+        r="[0-9]+",
+    threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=480,
+    shell:
+        """
+        mkdir -p results/admixture
+        NGSadmix -likes {input} -K {wildcards.k} -seed {wildcards.r} \
+            -o {params.out} -CPU {threads}
+        """
+
+rule ngsadmix_best:
+    """
+    Select best NGSAdmix replicate for K by highest log-likelihood.
+    Reads loglike from each .log file (line matching 'best like=').
+    Copies best Q file to ngsadmix_K{k}.Q and logs best loglike.
+    """
+    input:
+        logs=expand("results/admixture/ngsadmix_K{{k}}_rep{r}.log",
+                    r=range(NGSADMIX_REPS)),
+        Qs=expand("results/admixture/ngsadmix_K{{k}}_rep{r}.Q",
+                  r=range(NGSADMIX_REPS)),
+    output:
+        Q="results/admixture/ngsadmix_K{k}.Q",
+        best_log="results/admixture/ngsadmix_K{k}.best.log",
+    wildcard_constraints:
+        k="[0-9]+",
+    run:
+        import re, shutil
+
+        best_ll = -float("inf")
+        best_q  = None
+        best_log_path = None
+
+        for log_path, q_path in zip(input.logs, input.Qs):
+            with open(log_path) as f:
+                for line in f:
+                    m = re.search(r"best like=\s*([0-9eE.+\-]+)", line)
+                    if m:
+                        ll = float(m.group(1))
+                        if ll > best_ll:
+                            best_ll   = ll
+                            best_q    = q_path
+                            best_log_path = log_path
+                        break
+
+        if best_q is None:
+            raise ValueError(f"No log-likelihood found in NGSAdmix logs for K={wildcards.k}")
+
+        shutil.copy(best_q, output.Q)
+        with open(output.best_log, "w") as f:
+            f.write(f"best_rep: {best_log_path}\n")
+            f.write(f"best_loglike: {best_ll}\n")
