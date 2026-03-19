@@ -80,10 +80,15 @@ def get_group_samples(group):
                 ]
 
     # Plain population
-    return samples.loc[
-        samples[config.get("primary_grouping", "population")] == group,
-        "sample_id"
-    ].tolist()
+    pop_col = config.get("primary_grouping", "population")
+    result = samples.loc[samples[pop_col] == group, "sample_id"].tolist()
+    if result:
+        return result
+
+    # Fallback: match by region column (e.g. FL, PA, BON)
+    if "region" in samples.columns:
+        return samples.loc[samples["region"] == group, "sample_id"].tolist()
+    return result
 
 
 # FST comparisons from config
