@@ -374,7 +374,7 @@ rule moments_2pop:
     threads: 1
     resources:
         mem_mb=8000,
-        runtime=480,
+        runtime=2880,
     shell:
         """
         mkdir -p results/demography/inference
