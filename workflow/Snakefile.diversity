@@ -58,23 +58,40 @@ LINEAGE_ASSIGNMENTS = load_lineage_assignments()
 def get_group_samples(group):
     """
     Return sample IDs for a given group name.
-    Group can be a population (e.g. 'florida') or lineage group
-    (e.g. 'lineageA_florida', 'lineageB_all').
+    Supported formats:
+      lineageA_all / lineageB_all  — all samples of that lineage
+      lineageA_{region}            — lineage × region (e.g. lineageA_FL)
+      lineageA_{pop}               — lineage × population code
+      {population}                 — plain population code
+      {region}                     — region code (FL, PA, BON) — all species
     """
+    REGIONS = set(samples["region"].dropna().unique()) if "region" in samples.columns else set()
+
     if '_all' in group:
         lineage = group.replace('_all', '')
         return [s for s, lin in LINEAGE_ASSIGNMENTS.items()
                 if lin == lineage and s in SAMPLES]
 
-    # Try lineage_population format
+    # lineage_region format (e.g. lineageA_FL, lineageB_PA)
+    if LINEAGE_ASSIGNMENTS:
+        for lin in set(LINEAGE_ASSIGNMENTS.values()):
+            prefix = f"{lin}_"
+            if group.startswith(prefix):
+                suffix = group[len(prefix):]
+                if suffix in REGIONS:
+                    return [
+                        s for s in SAMPLES
+                        if LINEAGE_ASSIGNMENTS.get(s) == lin
+                        and samples.loc[samples["sample_id"] == s, "region"].values[0] == suffix
+                    ]
+
+    # lineage_population format (e.g. lineageA_FL_CRF)
     for pop in POPS:
-        prefix = f"lineageA_{pop}", f"lineageB_{pop}"
-        for pfx in prefix:
-            if group == pfx:
-                lineage = 'lineageA' if group.startswith('lineageA') else 'lineageB'
+        for lin in ("lineageA", "lineageB"):
+            if group == f"{lin}_{pop}":
                 return [
                     s for s in SAMPLES
-                    if LINEAGE_ASSIGNMENTS.get(s) == lineage
+                    if LINEAGE_ASSIGNMENTS.get(s) == lin
                     and samples.loc[samples["sample_id"] == s,
                                     config.get("primary_grouping", "population")].values[0] == pop
                 ]
@@ -85,7 +102,7 @@ def get_group_samples(group):
     if result:
         return result
 
-    # Fallback: match by region column (e.g. FL, PA, BON)
+    # Fallback: region (e.g. FL, PA, BON — all species)
     if "region" in samples.columns:
         return samples.loc[samples["region"] == group, "sample_id"].tolist()
     return result
