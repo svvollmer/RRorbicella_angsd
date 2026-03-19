@@ -135,12 +135,25 @@ def load_fastp_stats(results_dir, samples):
 
 
 def load_depth_summary(results_dir):
-    path = Path(results_dir) / "qc" / "depth_summary.txt"
-    if not path.exists():
+    """Load per-sample depth from individual {sample}.depth.txt files in qc/."""
+    qc_dir = Path(results_dir) / "qc"
+    records = []
+    for p in sorted(qc_dir.glob("*.depth.txt")):
+        sample = p.stem.replace(".depth", "")
+        try:
+            val = float(p.read_text().strip().split()[0])
+            records.append({"sample_id": sample, "mean_depth": val})
+        except Exception:
+            pass
+    if not records:
+        # fallback: depth_summary.txt
+        path = qc_dir / "depth_summary.txt"
+        if path.exists():
+            df = pd.read_csv(path, sep="\t")
+            df.columns = ["sample_id", "mean_depth"]
+            return df.set_index("sample_id")
         return pd.DataFrame()
-    df = pd.read_csv(path, sep="\t")
-    df.columns = ["sample_id", "mean_depth"]
-    return df.set_index("sample_id")
+    return pd.DataFrame(records).set_index("sample_id")
 
 
 def load_pca(results_dir):
@@ -286,24 +299,54 @@ def fig_mapping_rates(filt_df, metadata, figures_dir):
 
 
 def fig_depth(depth_df, metadata, figures_dir):
+    """Per-sample depth as violin plots grouped by AC_FL/AP_FL etc."""
     plt, _ = setup_matplotlib()
-    if depth_df.empty:
+    if depth_df is None or depth_df.empty:
         return ""
-    pops = metadata["population"].unique()
-    df = depth_df.join(metadata[["population"]], how="inner").sort_values(
-        ["population", "mean_depth"])
-    colors = [pop_color(p, pops) for p in df["population"]]
 
-    fig, ax = plt.subplots(figsize=(max(10, len(df) * 0.7), 5))
-    ax.bar(range(len(df)), df["mean_depth"].astype(float), color=colors, edgecolor="white")
+    spec_col = "species" if "species" in metadata.columns else None
+    reg_col  = "region"  if "region"  in metadata.columns else None
+    join_cols = [c for c in [spec_col, reg_col] if c]
+    df = depth_df.join(metadata[join_cols], how="inner")
+
+    species_list = ["Acervicornis", "Apalmata"] if spec_col else [None]
+    regions      = [r for r in REGION_ORDER if reg_col and r in df[reg_col].values]
+    groups = [(sp, reg) for sp in species_list for reg in regions
+              if len(df[(df[spec_col] == sp) & (df[reg_col] == reg)]) > 0]
+    xlabels = [group_label(sp, reg) for sp, reg in groups]
+    colors  = [group_color(sp, reg) for sp, reg in groups]
+
+    fig, ax = plt.subplots(figsize=(max(8, len(groups) * 1.2), 5))
+
+    all_depths = []
+    for gi, (sp, reg) in enumerate(groups):
+        mask = pd.Series([True] * len(df), index=df.index)
+        if spec_col: mask &= df[spec_col] == sp
+        if reg_col:  mask &= df[reg_col]  == reg
+        vals = df.loc[mask, "mean_depth"].astype(float).values
+        all_depths.extend(vals)
+        if len(vals) < 2:
+            ax.scatter([gi], vals, color=colors[gi], s=60, zorder=3)
+            continue
+        vp = ax.violinplot(vals, positions=[gi], widths=0.7,
+                           showmedians=True, showextrema=True)
+        for pc in vp["bodies"]:
+            pc.set_facecolor(colors[gi])
+            pc.set_alpha(0.75)
+            pc.set_edgecolor("white")
+        for part in ["cmedians", "cmins", "cmaxes", "cbars"]:
+            vp[part].set_color("black")
+            vp[part].set_linewidth(1.2)
+
     ax.axhline(10, color="red", linestyle="--", linewidth=1, label="10× threshold")
-    ax.set_xticks(range(len(df)))
-    ax.set_xticklabels(df.index, rotation=45, ha="right", fontsize=9)
-    ax.set_ylabel("Mean Depth (×)")
-    ax.set_title("Per-Sample Sequencing Depth")
-    from matplotlib.patches import Patch
-    handles = [Patch(color=pop_color(p, pops), label=p) for p in sorted(pops)]
-    ax.legend(handles=handles, title="Population")
+    mean_d = np.mean(all_depths)
+    ax.axhline(mean_d, color="gray", linestyle="-", linewidth=1,
+               alpha=0.7, label=f"Mean {mean_d:.1f}×")
+    ax.set_xticks(range(len(groups)))
+    ax.set_xticklabels(xlabels, fontsize=10)
+    ax.set_ylabel("Mean depth (×)")
+    ax.set_title("Sequencing depth per sample (grouped by species × region)")
+    ax.legend(fontsize=9)
     return save_fig(fig, figures_dir, "depth")
 
 
@@ -943,33 +986,49 @@ def main():
 
     # ── Overview metrics
     parts.append("<h2>1. Overview</h2>")
-    boxes = [metric_box(len(samples), "Samples"),
-             metric_box(len(pops), "Populations")]
+
+    # Sample counts by group
+    spec_col = "species" if "species" in metadata.columns else None
+    reg_col  = "region"  if "region"  in metadata.columns else None
+    group_counts = []
+    if spec_col and reg_col:
+        for sp in ["Acervicornis", "Apalmata"]:
+            for reg in REGION_ORDER:
+                n = int(((metadata[spec_col] == sp) & (metadata[reg_col] == reg)).sum())
+                if n > 0:
+                    group_counts.append(f"{group_label(sp, reg)} n={n}")
+    sample_desc = " | ".join(group_counts) if group_counts else f"{len(samples)} samples"
+
+    boxes = [metric_box(len(samples), "Total samples"),
+             metric_box(sum(1 for l in open(unrel_path) if l.strip()) if unrel_path.exists() else "—", "Unrelated")]
     if n_pass1:
         boxes.append(metric_box(f"{n_pass1:,}", "Pass-1 SNPs"))
     if n_pass2:
         boxes.append(metric_box(f"{n_pass2:,}", "Pass-2 SNPs"))
-    if not filt_df.empty and "mapping_rate" in filt_df.columns:
-        mr = filt_df["mapping_rate"].mean()
-        boxes.append(metric_box(f"{mr:.1%}", "Mean Mapping Rate"))
     if not depth_df.empty:
         md = depth_df["mean_depth"].astype(float).mean()
-        boxes.append(metric_box(f"{md:.1f}×", "Mean Depth"))
+        boxes.append(metric_box(f"{md:.1f}×", "Mean depth"))
     parts.append("".join(boxes))
+    parts.append(f"<p style='color:#555;font-size:0.95em'>{sample_desc}</p>")
 
     if flagged:
-        parts.append(f'<div class="warn">⚠ {len(flagged)} sample(s) flagged for low mapping rate or depth: '
-                     f'{", ".join(flagged)}</div>')
+        parts.append(f'<div class="warn">⚠ {len(flagged)} sample(s) flagged for low depth (&lt;10×): '
+                     f'{", ".join(flagged[:20])}{"…" if len(flagged) > 20 else ""}</div>')
     else:
-        parts.append('<div class="ok">✓ All samples passed QC thresholds</div>')
+        parts.append('<div class="ok">✓ All samples passed depth QC (≥10×)</div>')
 
     # ── Sequencing QC
     parts.append("<h2>2. Sequencing &amp; Mapping Quality</h2>")
-    parts.append("<h3>2a. Filtering Summary</h3>")
+    parts.append("<h3>2a. Per-sample sequencing depth</h3>")
+    if not depth_df.empty:
+        d = depth_df["mean_depth"].astype(float)
+        parts.append(f"<p>n={len(d)} samples | mean={d.mean():.1f}× | median={d.median():.1f}× | "
+                     f"min={d.min():.1f}× | max={d.max():.1f}× | "
+                     f"samples &lt;10×: {(d < 10).sum()}</p>")
+    parts.append(img_depth)
+    parts.append("<h3>2b. Filtering Summary</h3>")
     parts.append(df_to_html(filt_df, "{:.4f}"))
     parts.append(img_mapping)
-    parts.append("<h3>2b. Sequencing Depth</h3>")
-    parts.append(img_depth)
     parts.append("<h3>2c. fastp Read Quality</h3>")
     parts.append(df_to_html(fastp_df, "{:.4f}"))
 
