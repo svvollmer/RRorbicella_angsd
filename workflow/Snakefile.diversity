@@ -276,11 +276,11 @@ rule realsfs_2d:
     threads: 16
     resources:
         mem_mb=16000,
-        runtime=480,
+        runtime=1440,
     shell:
         """
         mkdir -p results/fst
-        realSFS {input.saf1} {input.saf2} -P {threads} -fold 1 -nSites 20000000 > {output}
+        realSFS {input.saf1} {input.saf2} -P {threads} -fold 1 -nSites 20000000 -tole 1e-3 > {output}
         """
 
 rule fst_index:
