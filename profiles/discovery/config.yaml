@@ -1,0 +1,37 @@
+# Snakemake SLURM profile — Northeastern Discovery HPC
+#
+# Partitions:
+#   short    — 2-day limit, default for most rules
+#   sharing  — 1-hour limit, low-priority shared nodes
+#   gpu      — 8-hour limit (not needed for ANGSD pipeline)
+#
+# Account: s.vollmer (default)
+# Conda/Snakemake: /projects/vollmer/software/miniconda3/envs/snakemake/bin/snakemake
+# Containers via Apptainer (singularity-compatible), available at /usr/bin/singularity
+#
+# BAMs: already mapped at /projects/vollmer/RR_heat-tolerance/Acropora/2_mapping.bwa/
+#   → symlinked into results/bams/ via scripts/setup_local_bams.sh before running
+#
+# Usage:
+#   bash scripts/run_segment_discovery.sh <segment>
+
+executor: slurm
+jobs: 50
+use-singularity: true
+singularity-args: "--bind /projects --bind /home --bind /scratch --bind /tmp"
+default-resources:
+  slurm_partition: "short"
+  slurm_account: "s.vollmer"
+  mem_mb: 32000
+  runtime: 480
+  cpus_per_task: 4
+  slurm_extra: "'--mail-type=END,FAIL --mail-user=s.vollmer@northeastern.edu'"
+keep-going: true
+latency-wait: 120
+rerun-incomplete: true
+rerun-triggers:
+  - mtime
+scheduler: greedy
+
+# SLURM email notifications
+# Sends email when each job ends or fails

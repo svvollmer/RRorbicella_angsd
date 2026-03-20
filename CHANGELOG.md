@@ -163,3 +163,54 @@ Development history of the coral ANGSD pipeline from local prototype to AWS prod
 - **Bug 4**: `zcat`/`awk` not installed system-wide; replaced with `python3 -c "import gzip..."` one-liners
 - **Bug 5**: `\t`/`\n` in shell-embedded Python strings — Snakemake expands them before bash sees them → SyntaxError; fixed with `\\t` and `\\n`
 - **Bug 6**: `process_relatedness` used wrong column names `ida`/`idb`; ngsRelate output uses `a`/`b`
+
+
+
+---
+
+## v0.5 — Segments 3-6 production run (2026-03-17 to ongoing)
+
+**Status**: Seg3 (structure) complete; Seg4 (diversity/FST) running; Seg6 (demography) running
+
+### Segments completed / in progress
+
+- **Seg3 (Snakefile.structure)**: PCAngsd PCA + admixture K2-K5 complete
+  - K=2 gate passed: lineageA = *A. palmata* (105 samples), lineageB = *A. cervicornis* (148 samples), 0 admixed
+  - LD pruning complete: all.unrelated.ldpruned.beagle.gz
+  - NGSAdmix K2-K5 (10 replicates each) launched 2026-03-20, in progress
+- **Seg4 (Snakefile.diversity)**: running — diversity/FST across all 15 population groups
+  - Completed: individual SAF (per-sample het), merge_saf (most groups), 1D SFS (all groups),
+    diversity theta/pi/Tajimas D (15 groups), 3 of 6 FST global comparisons
+  - Pending: merge_saf FL_RR (retrying), fst_index FL pairs, heterozygosity report
+- **Seg6 (Snakefile.demography)**: running — 5 pairwise comparisons (K2/K3 paths)
+  - Completed: bamlists, projections, all SAF files, 3 of 5 1D SFS, 2 of 5 dadi SFS
+  - Pending: acer_fl + apal_fl 1D SFS (long-running SLURM jobs)
+
+### Bugs fixed
+
+- **Bug 30**: merge_saf used -o flag (old syntax) and runtime=30 min; should be -outnames and runtime=480;
+  fixed in Snakefile.diversity; stale cached job caused crash on 2026-03-18
+- **Bug 31**: fst_index race condition — submitted before upstream realsfs_2d wrote output;
+  realSFS reported file looks empty; resolved by pipeline restart; no code change needed
+- **Bug 32**: angsd_saf_demography, realsfs_demography, realsfs_dadi runtime too short (480 min);
+  increased to 2880 min (48 h) in Snakefile.demography
+- **Bug 33**: run_moments_2pop.py used moments.Spectrum.from_file() which expects dadi SFS histogram format,
+  but realSFS dadi outputs a per-site data table — format mismatch (ValueError on load);
+  fixed by adding load_realsfs_2dsfs() and --sfs-format realsfs|dadi + --n-ind N1 N2 CLI args;
+  default is now realsfs format
+
+### New / modified scripts
+
+- **run_moments_2pop.py**: added load_realsfs_2dsfs() for realSFS flat 2D SFS; added --sfs-format
+  and --n-ind args; backward-compatible via --sfs-format dadi
+- **Prototype SLURM scripts** (manual, not yet in pipeline):
+  - run_2dsfs.sh: pairwise 2D SFS via realSFS with singularity bind mount
+  - run_moments_test.sh: prototype moments fitting on completed dadi comparisons
+
+### FST global results (completed comparisons)
+
+| Comparison | Fst (unweighted) | Fst (weighted) |
+|------------|-----------------|----------------|
+| lineageA FL vs lineageA BON (*Apal*) | 0.0077 | 0.0533 |
+| lineageB PA vs lineageB BON (*Acer*) | 0.0086 | 0.0933 |
+| lineageB BON vs lineageA BON (species) | 0.0194 | 0.4556 |

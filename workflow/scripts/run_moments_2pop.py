@@ -191,9 +191,30 @@ def aic(ll, k):
     return 2 * k - 2 * ll
 
 
+
+def load_realsfs_2dsfs(path, n_ind1, n_ind2, ns, pop_ids):
+    """
+    Load a realSFS 2D SFS flat file (output of: realSFS saf1.idx saf2.idx -fold 1).
+    Dimensions: (2*n_ind1+1) x (2*n_ind2+1). Projects to ns and folds.
+    """
+    data = np.fromstring(open(path).read(), sep=" ")
+    dim1 = 2 * n_ind1 + 1
+    dim2 = 2 * n_ind2 + 1
+    if data.size != dim1 * dim2:
+        raise ValueError(
+            f"Expected {dim1}x{dim2}={dim1*dim2} values for n_ind=({n_ind1},{n_ind2}), "
+            f"got {data.size}. Check --n-ind values."
+        )
+    fs = moments.Spectrum(data.reshape((dim1, dim2)), pop_ids=pop_ids)
+    return fs.project(ns).fold()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Two-population demographic inference with moments")
-    parser.add_argument("--sfs",         required=True,              help="dadi-format 2D SFS file")
+    parser.add_argument("--sfs",         required=True,              help="2D SFS file (dadi or realSFS format)")
+    parser.add_argument("--sfs-format",  default="realsfs",
+                        choices=["realsfs", "dadi"],            help="SFS file format (default: realsfs)")
+    parser.add_argument("--n-ind",       nargs=2, type=int,     help="Actual n_individuals per pop (required for realsfs format)")
     parser.add_argument("--projections", required=True,              help="JSON {group: n_haploids}")
     parser.add_argument("--pop-ids",     nargs=2,                    help="Population IDs")
     parser.add_argument("--out",         required=True,              help="Output prefix")
@@ -217,14 +238,18 @@ def main():
     print(f"Loading SFS: {args.sfs}")
     print(f"Populations: {pop_ids[0]} (n={ns[0]}) vs {pop_ids[1]} (n={ns[1]})")
 
-    # from_file gained pop_ids kwarg in moments 1.1; use try/except for 1.0.x compat
-    try:
-        fs_raw = moments.Spectrum.from_file(args.sfs, pop_ids=pop_ids)
-    except TypeError:
-        fs_raw = moments.Spectrum.from_file(args.sfs)
-        if hasattr(fs_raw, "pop_ids"):
-            fs_raw.pop_ids = pop_ids
-    fs_data = fs_raw.project(ns).fold()
+    if args.sfs_format == "realsfs":
+        if not args.n_ind:
+            parser.error("--n-ind N1 N2 required when --sfs-format realsfs")
+        fs_data = load_realsfs_2dsfs(args.sfs, args.n_ind[0], args.n_ind[1], ns, pop_ids)
+    else:
+        try:
+            fs_raw = moments.Spectrum.from_file(args.sfs, pop_ids=pop_ids)
+        except TypeError:
+            fs_raw = moments.Spectrum.from_file(args.sfs)
+            if hasattr(fs_raw, "pop_ids"):
+                fs_raw.pop_ids = pop_ids
+        fs_data = fs_raw.project(ns).fold()
     print(f"SFS projected to {ns}, S={fs_data.S():.0f} segregating sites")
     print()
 
