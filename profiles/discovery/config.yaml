@@ -18,7 +18,7 @@
 executor: slurm
 jobs: 50
 use-singularity: true
-singularity-args: "--bind /projects --bind /home --bind /scratch --bind /tmp"
+singularity-args: "--bind /projects --bind /home --bind /scratch --bind /tmp --bind /work"
 default-resources:
   slurm_partition: "short"
   slurm_account: "s.vollmer"
@@ -27,7 +27,7 @@ default-resources:
   cpus_per_task: 4
   slurm_extra: "'--mail-type=END,FAIL --mail-user=s.vollmer@northeastern.edu'"
 keep-going: true
-latency-wait: 120
+latency-wait: 300
 rerun-incomplete: true
 rerun-triggers:
   - mtime
