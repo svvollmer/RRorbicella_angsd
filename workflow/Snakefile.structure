@@ -406,7 +406,7 @@ rule ngsadmix_rep:
         """
         mkdir -p results/admixture
         NGSadmix -likes {input} -K {wildcards.k} -seed {wildcards.r} \
-            -o {params.out} -CPU {threads}
+            -o {params.out} -P {threads}
         """
 
 rule ngsadmix_best:
