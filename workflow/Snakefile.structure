@@ -390,7 +390,7 @@ rule ngsadmix_rep:
     input:
         "results/angsd/all.unrelated.ldpruned.beagle.gz",
     output:
-        Q=temp("results/admixture/ngsadmix_K{k}_rep{r}.Q"),
+        Q=temp("results/admixture/ngsadmix_K{k}_rep{r}.qopt"),
         F=temp("results/admixture/ngsadmix_K{k}_rep{r}.fopt.gz"),
         log="results/admixture/ngsadmix_K{k}_rep{r}.log",
     params:
@@ -418,7 +418,7 @@ rule ngsadmix_best:
     input:
         logs=expand("results/admixture/ngsadmix_K{{k}}_rep{r}.log",
                     r=range(NGSADMIX_REPS)),
-        Qs=expand("results/admixture/ngsadmix_K{{k}}_rep{r}.Q",
+        Qs=expand("results/admixture/ngsadmix_K{{k}}_rep{r}.qopt",
                   r=range(NGSADMIX_REPS)),
     output:
         Q="results/admixture/ngsadmix_K{k}.Q",
