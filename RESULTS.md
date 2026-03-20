@@ -128,20 +128,24 @@ intermediate-frequency alleles. Full 290-sample run will separate by species and
 
 ### FST and Population Differentiation
 
-*Genome-wide FST and per-comparison SFS pending — Segment 4.*
+![FST heatmap](docs/figures/fst_heatmap.png)
 
-Planned comparisons (from `config/config.yaml`):
-- FL vs. PA (*A. cervicornis*, species-wide)
-- FL vs. PA (*A. palmata*, species-wide)
-- FL vs. BON and PA vs. BON (both species)
-- Within-lineage geography: lineageA_FL vs. lineageA_PA; lineageB_FL vs. lineageB_PA
-- Cross-lineage: lineageA_all vs. lineageB_all
+Genome-wide pairwise FST (realSFS fst). Remaining FL comparisons pending (fst_index running).
 
-Prior 5-sample pilot (reference only):
+| Comparison | FST (unweighted) | FST (weighted) |
+|------------|-----------------|----------------|
+| lineageA FL vs lineageA BON (*Apal*) | 0.0077 | 0.0533 |
+| lineageB PA vs lineageB BON (*Acer*) | 0.0086 | 0.0933 |
+| lineageB BON vs lineageA BON (species) | 0.0194 | 0.4556 |
+| lineageB FL vs lineageA FL (species) | pending | pending |
+| lineageB FL vs lineageB BON (*Acer*) | pending | pending |
+| lineageA FL vs lineageA BON repeat | pending | pending |
 
-| Population Pair | FST (unweighted) | FST (weighted) |
-|----------------|-----------------|----------------|
-| *A. cervicornis* FL vs. PA | 0.127 | 0.162 |
+**Key patterns (preliminary):**
+- Species-level divergence (lineageB_BON vs lineageA_BON): weighted FST = 0.456 — strong
+  differentiation consistent with near-species-level separation
+- Within-species geographic FST extremely low (0.008-0.009 unweighted) — *Apal* FL-BON and
+  *Acer* PA-BON show similar low structure, suggesting high historical gene flow
 
 ---
 
