@@ -102,11 +102,41 @@ Notable clusters:
 
 ### Population Structure
 
-*PCA and admixture (K=2–5) pending — Segment 3.*
+**Status:** Complete — Segment 3 (253 unrelated individuals).
 
-Expected: K=2 as primary structure based on prior 96-sample *A. cervicornis* run (Science paper).
-Two-lineage structure (lineage A / lineage B) does not split cleanly by geography — both lineages
-are present in FL and PA, consistent with the Vollmer Lab hybridization findings.
+#### PCAngsd (PCA + admixture)
+
+![PCA by species](docs/figures/pca_species.png)
+![PCA by population](docs/figures/pca_population.png)
+![PCAngsd admixture K2–K5](docs/figures/admixture_K2_K5.png)
+
+- PC1 cleanly separates species (*A. palmata* vs *A. cervicornis*); PC2 separates geography within *A. cervicornis*
+- K=2: **105 lineageA** (*A. palmata*), **148 lineageB** (*A. cervicornis*), **0 admixed** — clean species separation
+
+#### NGSAdmix (likelihood-based admixture)
+
+![NGSAdmix K=2](docs/figures/ngsadmix_K2.png)
+![NGSAdmix delta-K](docs/figures/ngsadmix_deltaK.png)
+![NGSAdmix K2–K5](docs/figures/ngsadmix_admixture_K2_K5.png)
+
+| K | Mean log-likelihood | ΔK |
+|---|--------------------|----|
+| 2 | −3,974,237 | — |
+| **3** | **−3,853,454** | **1.74 ← best** |
+| 4 | −3,793,769 | 0.40 |
+| 5 | −3,721,078 | — |
+
+- **Best K = 3** by Evanno delta-K method
+- K=2 confirms species separation identical to PCAngsd (0 admixed individuals)
+- K=3 adds geographic sub-structure within *A. cervicornis* (FL vs PA/BON)
+
+#### PCAngsd vs NGSAdmix comparison
+
+![Admixture comparison K=2](docs/figures/admix_compare_K2.png)
+![Admixture comparison K2–K5](docs/figures/admix_compare_K2_K5.png)
+
+Both methods agree completely at K=2. At K=3+ both identify the same geographic sub-structure
+within *A. cervicornis*, with NGSAdmix showing slightly cleaner separation.
 
 ---
 
