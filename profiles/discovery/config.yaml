@@ -25,13 +25,10 @@ default-resources:
   mem_mb: 32000
   runtime: 480
   cpus_per_task: 4
-  slurm_extra: "'--mail-type=END,FAIL --mail-user=s.vollmer@northeastern.edu'"
+  slurm_extra: "'--mail-type=NONE'"
 keep-going: true
 latency-wait: 300
 rerun-incomplete: true
 rerun-triggers:
   - mtime
 scheduler: greedy
-
-# SLURM email notifications
-# Sends email when each job ends or fails
