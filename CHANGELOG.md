@@ -168,49 +168,135 @@ Development history of the coral ANGSD pipeline from local prototype to AWS prod
 
 ---
 
-## v0.5 — Segments 3-6 production run (2026-03-17 to ongoing)
+## v0.5 — Segments 3–6 production run (2026-03-17 → ongoing)
 
-**Status**: Seg3 (structure) complete; Seg4 (diversity/FST) running; Seg6 (demography) running
+**Status**: Seg3 complete; Seg4 (diversity/FST) mostly complete; Seg6 (demography) 2D SFS running
+**NGSAdmix**: K=1–10, 20 reps — COMPLETE. Best K=2 by Evanno delta-K.
+**Moments**: 5 pairwise 2D SFS jobs running (external scripts), watcher auto-submitting fits when ready.
 
-### Segments completed / in progress
+### Segments completed
 
-- **Seg3 (Snakefile.structure)**: PCAngsd PCA + admixture K2-K5 complete
-  - K=2 gate passed: lineageA = *A. palmata* (105 samples), lineageB = *A. cervicornis* (148 samples), 0 admixed
-  - LD pruning complete: all.unrelated.ldpruned.beagle.gz
-  - NGSAdmix K2-K5 (10 replicates each) launched 2026-03-20, in progress
-- **Seg4 (Snakefile.diversity)**: running — diversity/FST across all 15 population groups
-  - Completed: individual SAF (per-sample het), merge_saf (most groups), 1D SFS (all groups),
-    diversity theta/pi/Tajimas D (15 groups), 3 of 6 FST global comparisons
-  - Pending: merge_saf FL_RR (retrying), fst_index FL pairs, heterozygosity report
-- **Seg6 (Snakefile.demography)**: running — 5 pairwise comparisons (K2/K3 paths)
-  - Completed: bamlists, projections, all SAF files, 3 of 5 1D SFS, 2 of 5 dadi SFS
-  - Pending: acer_fl + apal_fl 1D SFS (long-running SLURM jobs)
+#### Segment 3 — Population structure (Snakefile.structure)
 
-### Bugs fixed
+- PCAngsd PCA: PC1 separates species (45.1%); PC2 captures geography within *A. cervicornis* (3.1%)
+- PCAngsd admixture K=2–5: all complete
+- **Lineage gate (K=2) passed**: lineageA = *A. palmata* (105), lineageB = *A. cervicornis* (148), 0 admixed
+- LD pruning: `all.unrelated.ldpruned.beagle.gz` (29,127 SNPs after pruning)
+- **NGSAdmix K=1–10, 20 reps** — completed 2026-03-21
+  - Best K=2 by Evanno delta-K (K=1 anchor): delta-K = 116,672,186 — dominant species split signal
+  - K=3 secondary (delta-K=2.06): geographic structure within *A. cervicornis* (FL vs PA/BON)
+  - K=2 SD near-zero (0.021): all 20 reps converge identically — high confidence
+  - 0 admixed individuals at K=2 (identical to PCAngsd; both methods agree completely)
+- Admixture figures: bar plots K=2–5, violin plots K=2/K=3 by species×region, PCAngsd vs NGSAdmix comparison panels
 
-- **Bug 30**: merge_saf used -o flag (old syntax) and runtime=30 min; should be -outnames and runtime=480;
-  fixed in Snakefile.diversity; stale cached job caused crash on 2026-03-18
-- **Bug 31**: fst_index race condition — submitted before upstream realsfs_2d wrote output;
-  realSFS reported file looks empty; resolved by pipeline restart; no code change needed
-- **Bug 32**: angsd_saf_demography, realsfs_demography, realsfs_dadi runtime too short (480 min);
-  increased to 2880 min (48 h) in Snakefile.demography
-- **Bug 33**: run_moments_2pop.py used moments.Spectrum.from_file() which expects dadi SFS histogram format,
-  but realSFS dadi outputs a per-site data table — format mismatch (ValueError on load);
-  fixed by adding load_realsfs_2dsfs() and --sfs-format realsfs|dadi + --n-ind N1 N2 CLI args;
-  default is now realsfs format
+#### Segment 4 — Diversity and FST (Snakefile.diversity)
 
-### New / modified scripts
+- Individual SAF (per-sample heterozygosity): all 253 samples complete
+- Merge SAF, 1D SFS, diversity (π, θ_W, Tajima's D): all 15 population groups complete
+- FST global (realSFS fst): completed comparisons:
 
-- **run_moments_2pop.py**: added load_realsfs_2dsfs() for realSFS flat 2D SFS; added --sfs-format
-  and --n-ind args; backward-compatible via --sfs-format dadi
-- **Prototype SLURM scripts** (manual, not yet in pipeline):
-  - run_2dsfs.sh: pairwise 2D SFS via realSFS with singularity bind mount
-  - run_moments_test.sh: prototype moments fitting on completed dadi comparisons
-
-### FST global results (completed comparisons)
-
-| Comparison | Fst (unweighted) | Fst (weighted) |
+| Comparison | FST (unweighted) | FST (weighted) |
 |------------|-----------------|----------------|
 | lineageA FL vs lineageA BON (*Apal*) | 0.0077 | 0.0533 |
 | lineageB PA vs lineageB BON (*Acer*) | 0.0086 | 0.0933 |
 | lineageB BON vs lineageA BON (species) | 0.0194 | 0.4556 |
+| lineageB FL vs lineageB BON (*Acer*) | pending | pending |
+| lineageB FL vs lineageB PA (*Acer*) | pending | pending |
+| lineageA FL vs lineageA BON (repeat) | pending | pending |
+
+- lineageB_FL vs lineageA_FL (inter-species): **deliberately skipped** — timed out at 24h
+  repeatedly; scientifically redundant given 0 admixed individuals (split is obvious, FST≈0.45
+  same as BON species comparison)
+
+### Segment 6 — Demographic inference (prototype, external scripts)
+
+Five pairwise 2D SFS comparisons running via manual SLURM scripts:
+- `acer_pa_vs_bon` (Acer PA n=39, BON n=24)
+- `apal_vs_acer_bon` (Apal BON n=24, Acer BON n=24)
+- `acer_fl_vs_acer_pa` (FL n=85, PA n=39) — with `-maxIter 100` to cap EM
+- `acer_fl_vs_acer_bon` (FL n=85, BON n=24) — with `-maxIter 100`
+- `apal_fl_vs_apal_bon` (FL n=76, BON n=24) — with `-maxIter 100`
+
+`watch_and_submit_moments.sh` polls every 30 min and auto-submits moments fitting when each
+2D SFS file becomes non-zero. Projection JSONs auto-created for FL comparisons (project to 40
+haploids to reduce compute while retaining segregating sites).
+
+Inter-species FL comparison (lineageB_FL vs lineageA_FL) skipped from moments — too large,
+repeatedly times out at 24h wall time, and scientifically not needed (deep species split).
+
+### Bugs fixed (this session)
+
+- **Bug 30**: `merge_saf` used `-o` flag (old realSFS syntax) and `runtime=30`; correct flag is
+  `-outnames`; runtime increased to 480 min; stale cached job caused crash 2026-03-18
+- **Bug 31**: `fst_index` race condition — submitted before upstream `realsfs_2d` wrote output;
+  resolved by pipeline restart; no code change needed
+- **Bug 32**: `angsd_saf_demography`, `realsfs_demography`, `realsfs_dadi` runtime too short (480 min);
+  increased to 2880 min in Snakefile.demography
+- **Bug 33**: `run_moments_2pop.py` used `moments.Spectrum.from_file()` expecting dadi histogram format
+  but realSFS dadi writes a per-site data table; fixed: added `load_realsfs_2dsfs()` +
+  `--sfs-format realsfs|dadi` and `--n-ind N1 N2` CLI args; default is now `realsfs`
+- **Bug 34**: NGSAdmix shell command used `-CPU {threads}` — NGSAdmix flag is `-P`, not `-CPU`;
+  caused `Unknown arg:-CPU` exit with no output; fixed in `Snakefile.structure`
+- **Bug 35**: NGSAdmix output declared as `.Q` but NGSAdmix writes `.qopt`; Snakemake waited for
+  `.Q`, never found it, marked job failed; fixed: output changed to `.qopt` in `ngsadmix_rep`
+  and input updated in `ngsadmix_best`
+- **Bug 36**: `/work` not included in Singularity bind mounts; NGSAdmix inside container could not
+  read input beagle from `/work/vollmer/...`; fixed: added `--bind /work` to `singularity-args`
+  in `profiles/discovery/config.yaml`
+- **Bug 37**: `latency-wait: 120` too short for NFS `/work` filesystem — NGSAdmix wrote outputs
+  successfully but Snakemake couldn't detect them in time, marking jobs failed; increased to 300
+- **Bug 38**: Cancelling SLURM jobs caused Snakemake to delete their partial output files; on
+  relaunch Snakemake resubmitted everything; resolved by clearing stale locks
+  (`rm -f .snakemake/locks/*`) before relaunch
+- **Bug 39**: Sample ordering in `plot_admix_compare.py` — `sort_idx` captured *after*
+  `reset_index(drop=True)`, giving `[0,1,...,252]` (no reorder); mixed species in bar plots;
+  fixed: capture `sort_idx = meta_sorted.index.values` *before* `reset_index`
+- **Bug 40**: `lineage` column conflict in admixture compare script — `samples_RR.csv` already has
+  a `lineage` column; merging with `lineage_assignments.txt` created `lineage_x`/`lineage_y`;
+  fixed: drop `lineage` from samples before merge
+- **Bug 41**: Admixture violin plots entirely empty — `lineage_assignments.txt` read with default
+  CSV separator (comma) but file is tab-delimited; entire tab-delimited row became dict key,
+  all `lineage_map.get()` lookups returned None; fixed: use `meta['species']` column directly
+  (Acervicornis/Apalmata) for group assignment — no separate file needed
+- **Bug 42**: `realsfs_2d` for lineageB_FL vs lineageA_FL timed out at 24h wall time (twice);
+  decision: skip this comparison — scientifically redundant given 0 admixed individuals
+- **Bug 43**: NGSAdmix K=3 showed multiple likelihood modes (2 reps at −3,923,784 vs 8 at
+  −3,835,871 with only 10 reps); resolved by increasing to K=1–10 with 20 reps each for
+  publication quality; K=2 dominates after including K=1 as Evanno anchor
+- **Bug 44**: SLURM email spam from pipeline failures — `slurm_extra` had `--mail-type=END,FAIL`;
+  changed to `--mail-type=NONE` in `profiles/discovery/config.yaml`
+
+### Profile and config changes (profiles/discovery/config.yaml)
+
+```yaml
+# Added /work bind mount (Bug 36)
+singularity-args: "--bind /projects --bind /home --bind /scratch --bind /tmp --bind /work"
+# Increased NFS latency tolerance (Bug 37)
+latency-wait: 300   # was 120
+# Disabled SLURM email notifications (Bug 44)
+slurm_extra: "'--mail-type=NONE'"   # was '--mail-type=END,FAIL --mail-user=...'
+```
+
+### config/config.yaml changes
+
+```yaml
+max_k: 10                  # was 5
+admixture_replicates: 20   # was 10
+```
+
+### New / modified scripts (all in /work/vollmer/acropora_genomics/scripts/)
+
+- **`plot_ngsadmix.py`** — updated for K=1–10, 20 reps; Evanno delta-K with K=1 anchor;
+  generates `ngsadmix_deltaK.png`, `ngsadmix_admixture_K2_K5.png`, `ngsadmix_K2_K5_compact.png`
+- **`plot_admix_compare.py`** — PCAngsd vs NGSAdmix comparison (Bug 39/40 fixed); generates
+  `admix_compare_K2.png`, `admix_compare_K2_K5.png`
+- **`plot_admix_violin.py`** — admixture violin plots by species×region for PCAngsd and NGSAdmix
+  K=2/K=3; generates `admixture_violin_pcangsd.png`, `admixture_violin_ngsadmix.png`,
+  `admixture_violin_compare.png` (2×2 panel)
+- **`run_moments_2pop.py`** — `load_realsfs_2dsfs()` for flat realSFS 2D format; `--sfs-format`,
+  `--n-ind` CLI args; projects to smaller n before fitting (default 40 haploids for FL comps)
+- **`run_2dsfs.sh`** — external SLURM: pairwise 2D SFS via realSFS (non-FL, no maxIter cap,
+  24h limit)
+- **`run_2dsfs_fl.sh`** — external SLURM: FL pairwise 2D SFS with `-maxIter 100` to cap EM
+- **`watch_and_submit_moments.sh`** — polls every 30 min, auto-submits moments fitting when
+  each 2D SFS becomes non-zero; running as nohup, logs to `logs/moments_watcher.log`

@@ -1,216 +1,184 @@
 # Next Steps
 
-Current state as of 2026-03-17. 290-sample Discovery HPC run in progress.
-Segment 2 complete (SNP discovery + relatedness). Grouped ngsRelate running.
-Next: review grouped clone results, then kick off Segment 3 (PCA/admixture).
+Current state as of 2026-03-21. 290-sample Discovery HPC run.
+Segments 2–3 complete. Segment 4 (diversity/FST) mostly complete. Moments 2D SFS running.
 
 ---
 
-## Immediate next steps (Discovery HPC)
+## Current pipeline status
+
+| Segment | Status | Notes |
+|---------|--------|-------|
+| Seg 2: SNP discovery + relatedness | ✅ Complete | 2,034,805 SNPs; 253 unrelated samples |
+| Seg 3: PCA + admixture | ✅ Complete | PCAngsd + NGSAdmix K=1–10, 20 reps |
+| Seg 4: Diversity + FST | 🔄 Mostly complete | 3/6 FST comparisons done; FL pairs pending |
+| Seg 6: Demography (prototype) | 🔄 2D SFS running | 5 jobs running; watcher auto-submitting moments |
+
+---
+
+## Immediate next steps
+
+### 1. Moments 2D SFS — check tonight / tomorrow morning
 
 ```bash
-# 1. Check grouped ngsRelate status (jobs submitted 2026-03-17 ~08:00)
+ssh s.vollmer@login.discovery.neu.edu
+# Check 2D SFS files
+ls -lh /work/vollmer/acropora_genomics/results/demography/sfs/*.2dsfs
+# Check watcher log
+tail -20 /work/vollmer/acropora_genomics/logs/moments_watcher.log
+# Check queue — non-FL jobs at 24h limit, FL jobs with -maxIter 100
 squeue -u s.vollmer
-tail -20 /work/vollmer/acropora_genomics/logs/run_2c_v2.log
-
-# 2. Compare grouped vs all-vs-all clone results
-# Review grouped report interactively:
-python3 /projects/vollmer/coral-angsd-pipeline/workflow/scripts/clone_approve.py \
-  --results results/relatedness/grouped
-
-# 3. If grouped results look good, kick off Segment 3 (PCA/admixture/LD)
-bash run.sh 2b   # completes Segment 2 — subsets beagle (already done, may be a no-op)
-bash run.sh 3    # PCA, admixture K=2..5, LD decay
 ```
 
----
+Non-FL jobs (`acer_pa_vs_bon`, `apal_vs_acer_bon`) hit 24h wall at ~19:30 on 2026-03-21.
+If they timed out with 0-byte output, relaunch:
+```bash
+cd /work/vollmer/acropora_genomics
+bash run_2dsfs.sh   # submits acer_pa_vs_bon and apal_vs_acer_bon
+```
+
+FL jobs (`acer_fl_vs_acer_pa`, `acer_fl_vs_acer_bon`, `apal_fl_vs_apal_bon`) have `-maxIter 100`
+and should finish faster — check output size.
+
+### 2. When moments 2D SFS lands
+
+The watcher auto-submits moments jobs. Verify fits ran:
+```bash
+ls -lh /work/vollmer/acropora_genomics/results/demography/moments/
+tail -20 /work/vollmer/acropora_genomics/logs/moments_watcher.log
+```
+
+If watcher missed a job (restart), submit manually:
+```bash
+# Example for acer_pa_vs_bon (39 PA, 24 BON samples, project to 40/38 haploids)
+/home/s.vollmer/.conda/envs/snakemake2/bin/python \
+  /work/vollmer/acropora_genomics/scripts/run_moments_2pop.py \
+  --sfs /work/vollmer/acropora_genomics/results/demography/sfs/acer_pa_vs_bon.2dsfs \
+  --sfs-format realsfs --n-ind 39 24 \
+  --pop1 acer_pa --pop2 acer_bon \
+  --outdir /work/vollmer/acropora_genomics/results/demography/moments/acer_pa_vs_bon
+```
+
+### 3. Remaining FST (Segment 4)
+
+Three FST comparisons still pending (lineageB_FL vs FL/PA/BON pairs for Acer):
+```bash
+# Check seg4 log
+tail -50 /work/vollmer/acropora_genomics/logs/run_seg4.log
+# Restart seg4 if needed
+bash run.sh 4
+```
+
+The inter-species FL comparison (lineageB_FL vs lineageA_FL) has been **skipped** — scientifically
+redundant given 0 admixed individuals; repeatedly times out at 24h.
+
+### 4. Update figures and RESULTS.md when Seg4 + moments complete
+
+Once FST and moments results are in hand:
+- Pull FST heatmap and diversity plots from HPC
+- Update RESULTS.md diversity and FST sections (currently showing "pending")
+- Update moments section when fits complete
+- Commit and push
 
 ---
 
-## Running on FAU KoKo HPC
+## Pending analysis decisions
 
-### One-time setup
+### Admixture interpretation for paper
+- **Primary figure**: NGSAdmix K=2 (best by Evanno with K=1 anchor; delta-K = 116M)
+- **Secondary figure**: NGSAdmix K=3 (geography within *A. cervicornis*)
+- PCAngsd and NGSAdmix fully agree at K=2 (0 admixed in both)
+- PCAngsd shows more spread in violin plots — expected (continuous PCA model vs discrete cluster model)
+
+### Inter-lineage FL FST
+Skipped from pipeline. The BON species FST (weighted = 0.456) already establishes the species-level
+divergence. The FL equivalent is biologically uninformative beyond that.
+
+### Moments demographic inference — prototype → pipeline
+Once prototype fits validate on the 5 pairwise comparisons:
+1. Add `moments_2pop` rule to `Snakefile.demography`
+2. Add Segment 6 to `scripts/run_segment.sh`
+3. Run full 290-sample demography on Discovery or AWS
+
+Comparisons planned:
+- `acer_pa_vs_bon` — Acer geographic gene flow PA↔BON
+- `apal_vs_acer_bon` — species divergence (BON, cleanest signal)
+- `acer_fl_vs_acer_pa` — Acer geographic FL↔PA
+- `acer_fl_vs_acer_bon` — Acer geographic FL↔BON
+- `apal_fl_vs_apal_bon` — Apal geographic FL↔BON
+
+---
+
+## Longer-term analysis work
+
+### Chr 14 outlier investigation
+NC_133895.1 has highest Tajima's D in both FL and PA populations in the 96-sample run
+(FL D=+1.10, PA D=+0.74) and elevated per-site π. Check gene content and repeat structure —
+candidate sex chromosome or major introgression hotspot. Investigate with 290-sample diversity
+results once Seg4 FST is complete.
+
+### 4-pop moments model
+After 2-pop prototype validates, fit 4-pop model:
+`run_moments_4pop.py` (not yet written) for lineageA_FL + lineageB_FL + Acer_PA + Acer_BON.
+
+### HTML report (Snakefile.report)
+`generate_report.py` updated to handle multiple FST comparisons and lineage assignment.
+Needs full Seg4 FST results to render completely. Run after FST complete:
+```bash
+bash run.sh 5
+```
+
+### Liftover to native A. cervicornis assembly
+All SNP coordinates are in *A. palmata* reference space. Liftover to a native *A. cervicornis*
+assembly pending — not yet prioritized.
+
+---
+
+## How to check status (quick reference)
 
 ```bash
-# 1. Edit the SLURM profile with your account name
-nano profiles/slurm/config.yaml
-# → change FILL_IN_YOUR_ACCOUNT to your KoKo allocation (e.g. ecos)
-# → add your scratch path to singularity-args if not under /blue or /scratch
+# Queue
+squeue -u s.vollmer
 
-# 2. Stage data from S3 to KoKo scratch (run from KoKo login node)
-#    Requires AWS CLI and credentials configured on KoKo
-SCRATCH="/blue/yourgroup/yourusername/coral-angsd"   # adjust path
-mkdir -p $SCRATCH
+# Seg4 FST progress
+tail -30 /work/vollmer/acropora_genomics/logs/run_seg4.log
 
-# Reference
-aws s3 sync s3://coral-angsd-728009587639/reference/ $SCRATCH/reference/
+# Moments watcher
+tail -20 /work/vollmer/acropora_genomics/logs/moments_watcher.log
 
-# BAMs (large — ~500 GB, use a batch job or screen session)
-aws s3 sync s3://coral-angsd-728009587639/results-production/results/bams/ \
-    $SCRATCH/results/bams/ --exclude '*.fastq*' --exclude '*.raw.bam'
+# 2D SFS file sizes
+ls -lh /work/vollmer/acropora_genomics/results/demography/sfs/*.2dsfs
 
-# Pass 1 outputs (to skip pass 1 re-run)
-aws s3 sync s3://coral-angsd-728009587639/results-production/results/angsd/ \
-    $SCRATCH/results/angsd/ \
-    --include 'pass1.mafs.gz' --include 'pass1_snps.txt*' \
-    --include 'nonrepeat_sites.txt*' --include 'depth_thresholds.txt'
+# NGSAdmix (complete — K=1-10 .Q files all present)
+ls /work/vollmer/acropora_genomics/results/admixture/ngsadmix_K*.Q
 
-# QC + filtering
-aws s3 sync s3://coral-angsd-728009587639/results-production/results/qc/ \
-    $SCRATCH/results/qc/
-aws s3 sync s3://coral-angsd-728009587639/results-production/results/filtering/ \
-    $SCRATCH/results/filtering/
-
-# 3. Clone pipeline and link scratch
-git clone https://github.com/svvollmer/coral-angsd-pipeline.git $SCRATCH/pipeline
-cd $SCRATCH/pipeline
-ln -s $SCRATCH/results results          # point results/ at scratch
-ln -s $SCRATCH/reference reference      # point reference/ at scratch
-```
-
-### Running on KoKo
-
-```bash
-# From the pipeline directory on KoKo:
-
-# SNP filter gate (interactive — run on login node, needs pass1.mafs.gz)
-python workflow/scripts/filter_select.py
-
-# Then submit each segment via SLURM profile:
-bash scripts/run_segment.sh 2 --profile slurm   # pass 2 + relatedness
-# clone gate → re-run
-bash scripts/run_segment.sh 3 --profile slurm   # LD/PCA/admixture
-# lineage gate → run_segment.sh 4
-bash scripts/run_segment.sh 4 --profile slurm   # SAF/SFS/FST
-bash scripts/run_segment.sh 5 --profile local   # report (login node is fine)
-```
-
-### KoKo notes
-- Edit `config/config.yaml`: comment out `local_conda_env` line (Singularity handles tools)
-- Segment 4 (SAF) may need `himem` partition — if jobs OOM, add
-  `slurm_partition: "himem"` to the SAF rule's `resources:` block
-- Gate scripts (`filter_select.py`, `clone_approve.py`, `lineage_assign.py`)
-  are interactive — run on login node, not in a job
-
----
-
-## To resume the 96-sample run
-
-All 96 CRAMs are in S3. Segment 1 is done. Start from Segment 2:
-
-```bash
-# 1. Launch c6i.16xlarge on-demand, run aws_setup.sh
-bash scripts/aws_setup.sh
-
-# 2. Run Segment 2 (pass 1 ~2h, then SNP filter gate, pass 2 ~30 min, relatedness)
-bash scripts/run_segment.sh 2
-
-# 3. SNP Filter Gate — runs automatically after pass 1, then:
-python workflow/scripts/filter_select.py
-# → shows SNP count table at MAF × minInd grid
-# → recommend: MAF 0.05, minInd 0.90 (Science paper match)
-# → writes results/angsd/filter_params.yaml
-# → re-run: bash scripts/run_segment.sh 2
-
-# 4. Clone Gate — after ngsRelate:
-python workflow/scripts/clone_approve.py
-# → re-run: bash scripts/run_segment.sh 2  (subsets beagle)
-
-# 5. Segment 3: LD, PCA, admixture (c6i.8xlarge)
-bash scripts/run_segment.sh 3
-
-# 6. Lineage Gate — after admixture:
-python workflow/scripts/lineage_assign.py
-# → shows log-likelihoods for K=2..5, select K
-# → shows Q table, confirm/adjust threshold, writes lineage_assignments.txt
-
-# 7. Segment 4: SAF, SFS, diversity, FST (c6i.16xlarge)
-bash scripts/run_segment.sh 4
-
-# 8. Segment 5: report (run locally)
-bash scripts/run_segment.sh 5 --profile local
+# Restart seg4 if needed
+cd /work/vollmer/acropora_genomics && bash run.sh 4
 ```
 
 ---
 
-## Parameter corrections applied in segmented pipeline
-
-| Parameter | Old | New | Location |
-|-----------|-----|-----|----------|
-| min_maf | 0.10 | user-selected via filter gate | filter_params.yaml |
-| min_ind_frac | 0.80 | user-selected via filter gate | filter_params.yaml |
-| -setMinDepthInd 2 | missing from pass2 | added | Snakefile.snps angsd_gl_snps |
-| realSFS -maxIter 200 | FST 2D only | replaced with -nSites 20000000 (2026-03-14) | Snakefile.diversity realsfs_2d |
-| individual_saf -anc | missing (Bug 21) | added | Snakefile.diversity individual_saf |
-
----
-
-## Segmented pipeline files
+## Pipeline files reference
 
 | File | Purpose |
 |------|---------|
 | `workflow/common.smk` | Shared config/samples/helpers |
 | `workflow/Snakefile.align` | Segment 1: download, trim, map, QC |
 | `workflow/Snakefile.snps` | Segment 2: pass1, filter gate, pass2, relatedness |
-| `workflow/Snakefile.structure` | Segment 3: LD, PCA, admixture |
+| `workflow/Snakefile.structure` | Segment 3: LD, PCA, NGSAdmix K=1–10 |
 | `workflow/Snakefile.diversity` | Segment 4: SAF, SFS, diversity, lineage FST |
 | `workflow/Snakefile.report` | Segment 5: annotation, HTML report |
-| `workflow/Snakefile.demography` | Segment 6: demographic inference (Gate 4+5, SAF, SFS, dadi/moments) |
+| `workflow/Snakefile.demography` | Segment 6: Gate 4+5, SAF, SFS, dadi/moments |
 | `scripts/run_segment.sh` | Launcher: S3 sync + snakemake + auto-stop |
 | `workflow/scripts/filter_select.py` | SNP Filter Gate: select MAF + minInd |
+| `workflow/scripts/clone_approve.py` | Clone Gate: approve exclusions |
 | `workflow/scripts/lineage_assign.py` | Gate 3: select K, assign lineages |
+| `workflow/scripts/run_moments_2pop.py` | Moments 2-pop model fitting (prototype) |
+| `workflow/scripts/plot_ngsadmix.py` | NGSAdmix delta-K + bar plots |
+| `workflow/scripts/plot_admix_compare.py` | PCAngsd vs NGSAdmix comparison panels |
+| `workflow/scripts/plot_admix_violin.py` | Admixture violin plots by species×region |
 
----
-
-## Remaining analysis work
-
-### nonrepeat_sites.txt (Bug 9 — RESOLVED)
-SAF rules correctly use `nonrepeat_sites.txt` (monomorphic + variable sites).
-The `-rf chromosomes.bed` interaction bug was fixed by removing `-rf` and relying
-on the binary sites index alone. Do NOT revert to `pass1_snps.txt` — SNP-only SAF
-inflates π and biases Tajima's D. Confirmed by Gemini pipeline review 2026-03-14.
-
-### Segment 6: demographic inference (Snakefile.demography)
-Skeleton complete (Gate 4, Gate 5, SAF, 1D SFS, dadi-format SFS). Pending:
-- `workflow/scripts/run_moments_2pop.py` — 2-pop dadi/moments model fitting
-- `workflow/scripts/run_moments_4pop.py` — 4-pop moments model fitting
-- Add Segment 6 to `scripts/run_segment.sh` launcher
-- Requires BAMs synced from HPC/S3 to AWS, run on c6i.16xlarge (~4-6 hrs Phase 1)
-
-### HTML report
-`generate_report.py` updated to handle multiple FST comparisons and lineage
-assignment figure. Needs FST results to fully render.
-
-### Chr 14 outlier investigation
-NC_133895.1 has highest Tajima's D in both populations (FL D=+1.10, PA D=+0.74)
-and elevated per-site π. Check gene content and repeat structure — candidate
-sex chromosome or major introgression region.
-
-### Within-lineage diversity
-Now built into Segment 4 via `fst_comparisons` config — thetas are computed
-for all FST groups including lineageA_florida, lineageA_panama etc.
-
----
-
-## FST comparisons (config/config.yaml)
-
-```yaml
-fst_comparisons:
-  - [florida, panama]                       # overall geographic
-  - [lineageA_florida, lineageA_panama]     # geography within pure lineage
-  - [lineageB_florida, lineageB_panama]     # geography within hybrid lineage
-  - [lineageA_all, lineageB_all]            # lineage divergence pooled
-```
-
-Approximate group sizes from 96-sample run (may shift with corrected params):
-
-| Group | N |
-|-------|---|
-| FL lineageA | ~9 |
-| FL lineageB | ~30 |
-| FL admixed | ~1 |
-| PA lineageA | ~22 |
-| PA lineageB | ~9 |
-| PA admixed | ~4 |
-
-FL lineageA (n≈9) is the smallest group — flag low N in paper.
+HPC scripts (not yet in pipeline, `/work/vollmer/acropora_genomics/scripts/`):
+- `run_2dsfs.sh` — realSFS 2D SFS for non-FL pairs (24h, no maxIter cap)
+- `run_2dsfs_fl.sh` — realSFS 2D SFS for FL pairs (-maxIter 100)
+- `watch_and_submit_moments.sh` — auto-submits moments fits when 2D SFS files land
