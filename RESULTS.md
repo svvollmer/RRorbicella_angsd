@@ -3,8 +3,8 @@
 Multi-species *Acropora* population genomics — *A. cervicornis* and *A. palmata* across
 Florida, Panama, and Bonaire, aligned to the *A. palmata* reference genome (Vollmer Lab).
 
-> **Status (2026-03-17):** 290-sample Discovery HPC run — Segment 2 complete (SNP discovery,
-> relatedness/clonality). Segment 3 (PCA, admixture) and Segment 4 (diversity, FST) pending.
+> **Status (2026-03-21):** 290-sample Discovery HPC run — Segments 2–3 complete (SNP discovery,
+> relatedness, PCA, admixture K=1–10). Segment 4 (diversity, FST) running; moments 2D SFS in progress.
 
 ---
 
@@ -115,28 +115,41 @@ Notable clusters:
 
 #### NGSAdmix (likelihood-based admixture)
 
-![NGSAdmix K=2](docs/figures/ngsadmix_K2.png)
+Publication run: K=1–10, 20 replicates per K. Sample order: *A. palmata* (lineageA) then
+*A. cervicornis* (lineageB), within each species ordered FL → PA → BON.
+
 ![NGSAdmix delta-K](docs/figures/ngsadmix_deltaK.png)
 ![NGSAdmix K2–K5](docs/figures/ngsadmix_admixture_K2_K5.png)
 
-| K | Mean log-likelihood | ΔK |
-|---|--------------------|----|
-| 2 | −3,974,237 | — |
-| **3** | **−3,853,454** | **1.74 ← best** |
-| 4 | −3,793,769 | 0.40 |
-| 5 | −3,721,078 | — |
+| K | Mean log-likelihood | SD | ΔK |
+|---|--------------------|----|-----|
+| 1 | −6,549,622 | 0.000 | — |
+| **2** | **−3,974,237** | **0.021** | **116,672,186 ← best** |
+| 3 | −3,849,058 | 31,391 | 2.06 |
+| 4 | −3,788,521 | 24,258 | 0.05 |
+| 5 | −3,726,893 | 18,489 | 1.18 |
+| 6 | −3,687,051 | 12,578 | 1.45 |
+| 7 | −3,665,497 | 7,290 | 0.25 |
+| 8 | −3,645,779 | 6,426 | 0.45 |
+| 9 | −3,628,977 | 5,994 | 0.09 |
+| 10 | −3,611,633 | 1,949 | — |
 
-- **Best K = 3** by Evanno delta-K method
-- K=2 confirms species separation identical to PCAngsd (0 admixed individuals)
-- K=3 adds geographic sub-structure within *A. cervicornis* (FL vs PA/BON)
+- **Best K = 2** by Evanno delta-K (K=1 anchor included) — massively dominant signal is the
+  *A. palmata* / *A. cervicornis* species split
+- K=2 SD near-zero (0.021) → 20/20 reps converge to identical solution; high confidence
+- K=3 secondary signal (delta-K = 2.06): geographic sub-structure within *A. cervicornis*
+  (FL vs PA/BON); same result as PCAngsd PC2
+- K=4–10 show low, noisy delta-K consistent with stochastic over-splitting
+- **106 lineageA** (*A. palmata*), **147 lineageB** (*A. cervicornis*), **0 admixed** at K=2
+  (identical to PCAngsd result)
 
 #### PCAngsd vs NGSAdmix comparison
 
 ![Admixture comparison K=2](docs/figures/admix_compare_K2.png)
 ![Admixture comparison K2–K5](docs/figures/admix_compare_K2_K5.png)
 
-Both methods agree completely at K=2. At K=3+ both identify the same geographic sub-structure
-within *A. cervicornis*, with NGSAdmix showing slightly cleaner separation.
+Both methods agree completely. K=2 best by Evanno in NGSAdmix; same clean species separation
+in PCAngsd. At K=3 both identify FL vs PA/BON sub-structure within *A. cervicornis*.
 
 ---
 
