@@ -56,8 +56,8 @@ ld_r2_threshold: 0.3         # prune pairs above this r2
 ld_decay_threshold: 0.1      # r2 level to determine pruning window
 
 # --- Admixture ---
-max_k: 5                     # test K=2 through this
-admixture_replicates: 10     # replicates per K
+max_k: 10                    # test K=1 through this
+admixture_replicates: 20     # replicates per K
 
 # --- Lineage assignment (Gate 3) ---
 # Samples with Q > lineage_q_threshold assigned to that lineage; others = admixed

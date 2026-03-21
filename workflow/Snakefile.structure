@@ -33,7 +33,7 @@ rule all:
         "results/angsd/all.unrelated.ldpruned.beagle.gz",
         "results/pca/pcangsd.cov",
         expand("results/admixture/pcangsd_K{k}.Q", k=range(2, config.get("max_k", 5) + 1)),
-        expand("results/admixture/ngsadmix_K{k}.Q", k=range(2, config.get("max_k", 5) + 1)),
+        expand("results/admixture/ngsadmix_K{k}.Q", k=range(1, config.get("max_k", 10) + 1)),
 
 # ============================================================================
 # 13. LD ANALYSIS
@@ -401,7 +401,7 @@ rule ngsadmix_rep:
     threads: 8
     resources:
         mem_mb=16000,
-        runtime=480,
+        runtime=1440,
     shell:
         """
         mkdir -p results/admixture
