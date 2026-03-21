@@ -136,16 +136,21 @@ MODELS = {
     "AM":  (model_AM,  ["nu1", "nu2", "T1", "T2", "m"],  5),
 }
 
-# Log-uniform sampling ranges for random starts
+# Log-uniform sampling ranges for random starts.
+# Migration lower bound is 1e-5: critical for inter-species comparisons where true
+# m may be near-zero (rare introgression). A bound of 0.01 would prevent the
+# optimizer from finding solutions in the plausible range and bias SI vs IM AIC
+# comparisons — the IM model would always report m=0.01 at the lower bound,
+# making it look like migration is supported even when it isn't.
 PARAM_RANGES = {
-    "nu1": (0.01, 10.0),
-    "nu2": (0.01, 10.0),
-    "T":   (0.01,  5.0),
-    "T1":  (0.01,  4.0),
-    "T2":  (0.001, 2.0),
-    "m":   (0.01, 10.0),
-    "m12": (0.01, 10.0),
-    "m21": (0.01, 10.0),
+    "nu1": (0.01,  10.0),
+    "nu2": (0.01,  10.0),
+    "T":   (0.01,   5.0),
+    "T1":  (0.01,   4.0),
+    "T2":  (0.001,  2.0),
+    "m":   (1e-5,  10.0),   # allow near-zero gene flow
+    "m12": (1e-5,  10.0),   # allow near-zero gene flow
+    "m21": (1e-5,  10.0),   # allow near-zero gene flow
 }
 
 
@@ -167,9 +172,13 @@ def fit_model(fs_data, model_name, restarts, ns, rng, verbose=False):
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
+                # lower_bound per-parameter: migration params allow 1e-6 to
+                # detect near-zero inter-species gene flow; size/time params 1e-4
+                lb = [1e-6 if n in ("m","m12","m21") else 1e-4
+                      for n in param_names]
                 popt = moments.Inference.optimize_log(
                     p0, fs_data, func,
-                    lower_bound=[1e-4] * k,
+                    lower_bound=lb,
                     upper_bound=[100.0] * k,
                     verbose=0,
                     maxiter=200,
