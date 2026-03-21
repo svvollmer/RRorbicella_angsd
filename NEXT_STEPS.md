@@ -100,12 +100,22 @@ Once prototype fits validate on the 5 pairwise comparisons:
 2. Add Segment 6 to `scripts/run_segment.sh`
 3. Run full 290-sample demography on Discovery or AWS
 
-Comparisons planned:
-- `acer_pa_vs_bon` — Acer geographic gene flow PA↔BON
-- `apal_vs_acer_bon` — species divergence (BON, cleanest signal)
-- `acer_fl_vs_acer_pa` — Acer geographic FL↔PA
-- `acer_fl_vs_acer_bon` — Acer geographic FL↔BON
-- `apal_fl_vs_apal_bon` — Apal geographic FL↔BON
+Comparisons planned, with scientific role:
+
+| Comparison | Type | Restarts | Key question |
+|------------|------|----------|-------------|
+| `apal_vs_acer_bon` | **Inter-species** | 50 | Is gene flow between species rare? SI vs IM AIC |
+| `acer_pa_vs_bon` | Intra-species | 20 | Acer PA↔BON geographic gene flow |
+| `acer_fl_vs_acer_pa` | Intra-species | 20 | Acer FL↔PA gene flow + split time |
+| `acer_fl_vs_acer_bon` | Intra-species | 20 | Acer FL↔BON gene flow + split time |
+| `apal_fl_vs_apal_bon` | Intra-species | 20 | Apal FL↔BON gene flow + split time |
+
+**Inter-species gene flow (apal_vs_acer_bon)** is the primary test for the paper narrative.
+K=2 admixture shows 0 admixed individuals → expectation is SI model best or very low m in IM.
+Migration lower bound set to 1e-5 (not 0.01) so the optimizer can find near-zero solutions.
+If SI wins: "isolation is strict — introgression rare or absent."
+If IM wins with low m: "rare gene flow quantified — consistent with near-complete reproductive isolation."
+BON used (not FL) because BON has 100% genet diversity, no clonal contamination, smallest N → cleanest 2D SFS.
 
 ---
 
