@@ -15,9 +15,14 @@ PC1 (45.1%) separates species; PC2 (3.1%) captures within-*A. cervicornis* geogr
 
 ## 2. Admixture (K=2–5)
 
-Faceted by geographic region (FL, PA, BON). Horizontal bars sorted by species then population within each panel.
+Bar plots sorted by species (Apal first) then region (FL → PA → BON). Violin plots show
+per-group ancestry distributions (species × region) for K=2 and K=3.
 
-![Admixture](figures/admixture.png)
+![PCAngsd admixture K2–K5](figures/admixture_K2_K5.png)
+![PCAngsd violin K2 and K3](figures/admixture_violin_pcangsd.png)
+![NGSAdmix admixture K2–K5](figures/ngsadmix_admixture_K2_K5.png)
+![NGSAdmix violin K2 and K3](figures/admixture_violin_ngsadmix.png)
+![PCAngsd vs NGSAdmix violin comparison](figures/admixture_violin_compare.png)
 
 ---
 

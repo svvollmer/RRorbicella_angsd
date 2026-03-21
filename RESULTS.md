@@ -109,9 +109,12 @@ Notable clusters:
 ![PCA by species](docs/figures/pca_species.png)
 ![PCA by population](docs/figures/pca_population.png)
 ![PCAngsd admixture K2–K5](docs/figures/admixture_K2_K5.png)
+![PCAngsd admixture violin K2 and K3](docs/figures/admixture_violin_pcangsd.png)
 
 - PC1 cleanly separates species (*A. palmata* vs *A. cervicornis*); PC2 separates geography within *A. cervicornis*
 - K=2: **105 lineageA** (*A. palmata*), **148 lineageB** (*A. cervicornis*), **0 admixed** — clean species separation
+- Violin plots show per-group ancestry distributions (Acer/Apal × FL/PA/BON); K=2 pure species
+  assignments with no within-species variance; K=3 adds geographic component within *A. cervicornis*
 
 #### NGSAdmix (likelihood-based admixture)
 
@@ -120,6 +123,7 @@ Publication run: K=1–10, 20 replicates per K. Sample order: *A. palmata* (line
 
 ![NGSAdmix delta-K](docs/figures/ngsadmix_deltaK.png)
 ![NGSAdmix K2–K5](docs/figures/ngsadmix_admixture_K2_K5.png)
+![NGSAdmix admixture violin K2 and K3](docs/figures/admixture_violin_ngsadmix.png)
 
 | K | Mean log-likelihood | SD | ΔK |
 |---|--------------------|----|-----|
@@ -147,9 +151,11 @@ Publication run: K=1–10, 20 replicates per K. Sample order: *A. palmata* (line
 
 ![Admixture comparison K=2](docs/figures/admix_compare_K2.png)
 ![Admixture comparison K2–K5](docs/figures/admix_compare_K2_K5.png)
+![Admixture violin comparison PCAngsd vs NGSAdmix](docs/figures/admixture_violin_compare.png)
 
 Both methods agree completely. K=2 best by Evanno in NGSAdmix; same clean species separation
 in PCAngsd. At K=3 both identify FL vs PA/BON sub-structure within *A. cervicornis*.
+Violin comparison (2×2 panel) shows per-group ancestry distributions for both methods at K=2 and K=3.
 
 ---
 
