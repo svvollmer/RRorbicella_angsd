@@ -192,3 +192,33 @@ HPC scripts (not yet in pipeline, `/work/vollmer/acropora_genomics/scripts/`):
 - `run_2dsfs.sh` — realSFS 2D SFS for non-FL pairs (24h, no maxIter cap)
 - `run_2dsfs_fl.sh` — realSFS 2D SFS for FL pairs (-maxIter 100)
 - `watch_and_submit_moments.sh` — auto-submits moments fits when 2D SFS files land
+
+---
+
+## Planned: SMC++ population size history
+
+**Goal:** Estimate Ne(t) curves for lineageA (A. palmata) and lineageB (A. cervicornis)
+to test LGM expansion hypothesis and characterize demographic history of both species.
+
+**Motivation:** Tajima's D is uniformly negative across all chromosomes in A. palmata
+(windowed mean = -0.77, median = -0.95), suggesting a genome-wide demographic signal
+rather than selective sweeps. SMC++ will resolve whether this reflects a post-LGM
+population expansion (~12-18 kya) and how the two species' size histories compare.
+
+**What needs to be built:**
+1. Add  rule to Snakefile.diversity — ANGSD doVcf on per-lineage BAMs,
+   restricted to nonrepeat_sites.txt, with existing depth thresholds
+2. Add  rule — smc++ vcf2smc per population, subsampling pairs
+3. Add  rule — smc++ fit, ~30-60 min per population
+4. Add  rule — smc++ plot, outputs Ne(t) PNG
+
+**Calibration assumptions (to document):**
+- Mutation rate: ~3.4e-8 per site per generation (A. millepora estimate)
+- Generation time: 10-25 years (sexual reproduction; clonal growth not relevant for coalescent)
+- Results scale linearly with mutation rate — treat as sensitivity parameter
+
+**Populations to run:** lineageA_FL, lineageA_BON, lineageB_FL, lineageB_PA, lineageB_BON
+
+**Expected result if LGM hypothesis correct:** Ne bottleneck ~18-20 kya followed by
+expansion, most pronounced in A. palmata (shallow reef crest habitat most affected
+by sea level drop).
