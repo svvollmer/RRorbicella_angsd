@@ -307,4 +307,137 @@ if all(os.path.exists(f) for f in windowed_files):
 else:
     print("Windowed .pestPG files not yet available -- skipping windowed plots")
 
+
+# ── 7. Per-chromosome diversity BY SPECIES ───────────────────────────────────
+# Each chromosome on x-axis; all lineage populations as grouped bars by species
+# lineageA = A. palmata (blue shades), lineageB = A. cervicornis (orange/red shades)
+
+SPECIES_POPS = {
+    "lineageA": {
+        "lineageA_FL":  "#1565C0",   # dark blue
+        "lineageA_BON": "#42A5F5",   # light blue
+    },
+    "lineageB": {
+        "lineageB_FL":  "#BF360C",   # dark orange-red
+        "lineageB_PA":  "#FF7043",   # medium orange
+        "lineageB_BON": "#FFCC80",   # pale orange
+    },
+}
+ALL_POPS_SP = {p: c for sp in SPECIES_POPS.values() for p, c in sp.items()}
+
+CHROM_ORDER_SP = [
+    "NC_133882.1","NC_133883.1","NC_133884.1","NC_133885.1",
+    "NC_133886.1","NC_133887.1","NC_133888.1","NC_133889.1",
+    "NC_133890.1","NC_133891.1","NC_133892.1","NC_133893.1",
+    "NC_133894.1","NC_133895.1",
+]
+CHROM_LABELS_SP = {f"NC_1338{82+i:02d}.1": str(i+1) for i in range(14)}
+CHR14_ID = "NC_133895.1"
+
+# Load all data
+chrom_data = {}   # pop -> {chrom -> {tW, tP, D}}
+for pop in ALL_POPS_SP:
+    f = f"{WORKDIR}/results/diversity/{pop}.thetas.idx.pestPG"
+    if not os.path.exists(f):
+        continue
+    df = pd.read_csv(f, sep="\t", comment="#",
+                     names=["win","Chr","WinCenter","tW","tP","tF","tH","tL",
+                            "Tajima","fuf","fud","fayh","zeng","nSites"])
+    chrom_data[pop] = {}
+    for _, row in df.iterrows():
+        chrom_data[pop][row["Chr"]] = {
+            "tW": row["tW"] / row["nSites"],
+            "tP": row["tP"] / row["nSites"],
+            "D":  row["Tajima"],
+        }
+
+pops_ordered = list(ALL_POPS_SP.keys())
+n_pops = len(pops_ordered)
+n_chroms = len(CHROM_ORDER_SP)
+width = 0.13
+x = np.arange(n_chroms)
+
+fig, axes = plt.subplots(3, 1, figsize=(16, 13), sharex=True)
+for ax, stat, ylabel in zip(axes,
+        ["tW", "tP", "D"],
+        ["Watterson's theta per site", "pi per site", "Tajima's D"]):
+    for i, pop in enumerate(pops_ordered):
+        if pop not in chrom_data:
+            continue
+        vals = [chrom_data[pop].get(c, {}).get(stat, np.nan) for c in CHROM_ORDER_SP]
+        offset = (i - n_pops / 2 + 0.5) * width
+        edge = ["#d32f2f" if c == CHR14_ID else "none" for c in CHROM_ORDER_SP]
+        lw   = [1.5 if c == CHR14_ID else 0 for c in CHROM_ORDER_SP]
+        ax.bar(x + offset, vals, width=width,
+               color=ALL_POPS_SP[pop], edgecolor=edge, linewidth=lw,
+               label=pop.replace("lineage", "Lin").replace("_", " "))
+    if stat == "D":
+        ax.axhline(0, c="grey", lw=0.8, ls="--")
+    ax.set_ylabel(ylabel, fontsize=10)
+    # species dividers on x-axis (shading)
+    for j, chrom in enumerate(CHROM_ORDER_SP):
+        if j % 2 == 0:
+            ax.axvspan(j - 0.5, j + 0.5, color="#f5f5f5", zorder=0)
+
+axes[0].set_xticks(x)
+axes[0].set_xticklabels([])
+axes[2].set_xticks(x)
+axes[2].set_xticklabels(
+    [("★14" if c == CHR14_ID else CHROM_LABELS_SP[c]) for c in CHROM_ORDER_SP],
+    fontsize=9)
+axes[2].set_xlabel("Chromosome (★ = outlier)", fontsize=10)
+
+# Legend split by species
+import matplotlib.patches as mpatches2
+handles = []
+for sp_name, pop_dict in SPECIES_POPS.items():
+    sp_label = "A. palmata" if sp_name == "lineageA" else "A. cervicornis"
+    handles.append(mpatches2.Patch(color="none", label=f"— {sp_label} —"))
+    for pop, col in pop_dict.items():
+        loc = pop.split("_")[1] if "_" in pop else pop
+        handles.append(mpatches2.Patch(color=col, label=loc))
+axes[0].legend(handles=handles, fontsize=8, frameon=False,
+               ncol=2, bbox_to_anchor=(1.01, 1), loc="upper left")
+
+fig.suptitle(
+    "Per-chromosome diversity by species\n"
+    "A. palmata (blue) vs A. cervicornis (orange/red) — Chr 14 outlined in red",
+    fontweight="bold")
+plt.tight_layout()
+fig.savefig(f"{OUTDIR}/chrom_diversity_by_species.png", dpi=150, bbox_inches="tight")
+plt.close()
+print("Per-chromosome by-species plot done")
+
+# ── 8. Species mean D profile across chromosomes (line plot) ─────────────────
+fig, ax = plt.subplots(figsize=(13, 5))
+for sp_name, pop_dict in SPECIES_POPS.items():
+    sp_label = "A. palmata" if sp_name == "lineageA" else "A. cervicornis"
+    sp_color = "#1565C0" if sp_name == "lineageA" else "#BF360C"
+    pop_keys = [p for p in pop_dict if p in chrom_data]
+    means, mins, maxs = [], [], []
+    for chrom in CHROM_ORDER_SP:
+        vals = [chrom_data[p][chrom]["D"] for p in pop_keys if chrom in chrom_data.get(p,{})]
+        means.append(np.mean(vals) if vals else np.nan)
+        mins.append(np.min(vals) if vals else np.nan)
+        maxs.append(np.max(vals) if vals else np.nan)
+    xi = np.arange(n_chroms)
+    ax.plot(xi, means, color=sp_color, lw=2, marker="o", ms=5, label=sp_label)
+    ax.fill_between(xi, mins, maxs, color=sp_color, alpha=0.15)
+
+ax.axhline(0, c="grey", lw=0.8, ls="--")
+ax.axvspan(n_chroms - 1.5, n_chroms - 0.5, color="#ffebee", zorder=0, label="Chr 14")
+ax.set_xticks(np.arange(n_chroms))
+ax.set_xticklabels([CHROM_LABELS_SP[c] for c in CHROM_ORDER_SP])
+ax.set_xlabel("Chromosome", fontsize=10)
+ax.set_ylabel("Tajima's D (mean ± range across populations)", fontsize=10)
+ax.legend(fontsize=10, frameon=False)
+fig.suptitle(
+    "Tajima's D profile across chromosomes by species\n"
+    "Shaded region = range across populations; Chr 14 (pink) is the outlier",
+    fontweight="bold")
+plt.tight_layout()
+fig.savefig(f"{OUTDIR}/tajima_profile_by_species.png", dpi=150, bbox_inches="tight")
+plt.close()
+print("Tajima profile by species done")
+
 print(f"\nAll plots saved to {OUTDIR}/")
