@@ -206,7 +206,7 @@ rather than selective sweeps. SMC++ will resolve whether this reflects a post-LG
 population expansion (~12-18 kya) and how the two species' size histories compare.
 
 **What needs to be built:**
-1. Add  rule to Snakefile.diversity — ANGSD doVcf on per-lineage BAMs,
+1. Add call_vcf rule to Snakefile.diversity — ANGSD doVcf on per-lineage BAMs,
    restricted to nonrepeat_sites.txt, with existing depth thresholds
 2. Add  rule — smc++ vcf2smc per population, subsampling pairs
 3. Add  rule — smc++ fit, ~30-60 min per population
