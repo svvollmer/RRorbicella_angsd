@@ -315,8 +315,12 @@ rule fst_index:
         "results/fst/{g1}_vs_{g2}.fst.idx",
     params:
         out="results/fst/{g1}_vs_{g2}",
+    threads: 8
+    resources:
+        mem_mb=32000,
+        runtime=2880,
     shell:
-        "realSFS fst index {input.saf1} {input.saf2} -sfs {input.sfs} -fstout {params.out}"
+        "realSFS fst index {input.saf1} {input.saf2} -sfs {input.sfs} -fstout {params.out} -P {threads}"
 
 rule fst_global:
     """Global FST + windowed FST (50kb windows, 10kb step)."""
