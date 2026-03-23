@@ -1420,7 +1420,8 @@ rule thetas:
 rule realsfs_2d:
     """
     2D SFS (joint SFS for two populations). Used as prior for FST.
-    Runtime: 15-20 min per population pair.
+    Cross-lineage pairs (lineageA vs lineageB) are very large and need 24h+.
+    -nSites 5000000 limits to 5M sites for tractability; -tole 1e-2 speeds convergence.
     """
     container: "docker://quay.io/biocontainers/angsd:0.940--h13024bc_4"
     input:
@@ -1428,14 +1429,14 @@ rule realsfs_2d:
         saf2="results/sfs/{p2}.saf.idx",
     output:
         "results/fst/{p1}_vs_{p2}.2dsfs",
-    threads: 8
+    threads: 16
     resources:
         mem_mb=16000,
-        runtime=30,
+        runtime=1440,
     shell:
         """
         mkdir -p results/fst
-        realSFS {input.saf1} {input.saf2} -P {threads} -fold 1 > {output}
+        realSFS {input.saf1} {input.saf2} -P {threads} -fold 1             -nSites 5000000 -tole 1e-2 | tail -1 > {output}
         """
 
 rule fst_index:

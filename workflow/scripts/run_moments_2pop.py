@@ -205,13 +205,19 @@ def load_realsfs_2dsfs(path, n_ind1, n_ind2, ns, pop_ids):
     """
     Load a realSFS 2D SFS flat file (output of: realSFS saf1.idx saf2.idx -fold 1).
     Dimensions: (2*n_ind1+1) x (2*n_ind2+1). Projects to ns and folds.
+    Some realSFS versions output two rows (iteration log + ML estimate); if so,
+    the last row is the ML estimate.
     """
     data = np.fromstring(open(path).read(), sep=" ")
     dim1 = 2 * n_ind1 + 1
     dim2 = 2 * n_ind2 + 1
-    if data.size != dim1 * dim2:
+    expected = dim1 * dim2
+    if data.size == 2 * expected:
+        # Two-row output: take last row (ML estimate)
+        data = data[expected:]
+    elif data.size != expected:
         raise ValueError(
-            f"Expected {dim1}x{dim2}={dim1*dim2} values for n_ind=({n_ind1},{n_ind2}), "
+            f"Expected {dim1}x{dim2}={expected} values for n_ind=({n_ind1},{n_ind2}), "
             f"got {data.size}. Check --n-ind values."
         )
     fs = moments.Spectrum(data.reshape((dim1, dim2)), pop_ids=pop_ids)
