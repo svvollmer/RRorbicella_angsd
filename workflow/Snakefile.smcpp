@@ -1,0 +1,264 @@
+"""
+================================================================================
+Snakefile.smcpp — Population size history via SMC++
+================================================================================
+
+Input:  results/smcpp/apal_fl_Q99.bamlist   (49 A. palmata FL, Q>=0.99)
+        results/smcpp/acer_fl_Q99.bamlist   (82 A. cervicornis FL, Q>=0.99)
+        results/angsd/nonrepeat_sites.txt   (callable sites mask)
+        results/angsd/depth_thresholds.txt  (per-individual depth ceiling)
+
+Steps:
+  1. call_vcf     — ANGSD genotype calling -> per-chromosome VCF.gz + index
+  2. merge_vcf    — bcftools concat -> whole-genome VCF.gz per species
+  3. make_mask    — nonrepeat sites -> BED mask for SMC++
+  4. vcf2smc      — smc++ vcf2smc: one file per chromosome x distinguished pair
+  5. smc_fit      — smc++ fit: demographic model per species
+  6. smc_plot     — smc++ plot: Ne(t) PNG
+
+Calibration:
+  mutation_rate = 3.4e-8  (A. millepora estimate)
+  generation_time = 10    (years; sexual reproduction)
+
+SMC++ container: results/smcpp/smcpp_latest.sif
+================================================================================
+"""
+
+include: "common.smk"
+
+import os, glob
+
+SMCPP_SIF  = "results/smcpp/smcpp_latest.sif"
+ANGSD_SIF  = "/work/vollmer/acropora_genomics/.snakemake/singularity/084f8dcfcfe42901022fa6e05278b43b.simg"
+BIND       = "--bind /projects --bind /work --bind /home --bind /tmp"
+MUT_RATE   = 3.4e-8
+GEN_TIME   = 10
+
+CHROMS = [
+    "NC_133882.1","NC_133883.1","NC_133884.1","NC_133885.1",
+    "NC_133886.1","NC_133887.1","NC_133888.1","NC_133889.1",
+    "NC_133890.1","NC_133891.1","NC_133892.1","NC_133893.1",
+    "NC_133894.1","NC_133895.1",
+]
+
+SPECIES = {
+    "apal": {"bamlist": "results/smcpp/apal_fl_Q99.bamlist",
+             "samples": "results/smcpp/apal_fl_Q99.samples"},
+    "acer": {"bamlist": "results/smcpp/acer_fl_Q99.bamlist",
+             "samples": "results/smcpp/acer_fl_Q99.samples"},
+}
+
+# Number of distinguished pairs per species for vcf2smc
+N_PAIRS = {"apal": 3, "acer": 5}
+
+
+rule all_smcpp:
+    input:
+        expand("results/smcpp/plots/{sp}_Ne.png", sp=SPECIES),
+        expand("results/smcpp/plots/{sp}_Ne.csv", sp=SPECIES),
+
+
+# ── 1. Per-chromosome VCF via ANGSD ─────────────────────────────────────────
+rule call_vcf:
+    """
+    Call genotypes for SMC++ using ANGSD.
+    -doVcf 1: output VCF with GP/PL fields
+    -doGeno 2: call most likely genotype
+    -doPost 1: use allele freq prior for posterior
+    -minMapQ/minQ: quality filters matching main pipeline
+    Restricts to nonrepeat_sites to avoid spurious variation.
+    """
+    input:
+        bamlist  = lambda wc: SPECIES[wc.sp]["bamlist"],
+        ref      = config["reference"],
+        sites    = "results/angsd/nonrepeat_sites.txt",
+        sites_idx= "results/angsd/nonrepeat_sites.txt.idx",
+        sites_bin= "results/angsd/nonrepeat_sites.txt.bin",
+        depth    = "results/angsd/depth_thresholds.txt",
+    output:
+        vcf = temp("results/smcpp/vcf/{sp}/{chrom}.vcf.gz"),
+        tbi = temp("results/smcpp/vcf/{sp}/{chrom}.vcf.gz.tbi"),
+    params:
+        out       = "results/smcpp/vcf/{sp}/{chrom}",
+        max_depth = lambda wc, input: int(
+            [l.split()[1] for l in open(input.depth) if l.startswith('total')][0]),
+        n_samples = lambda wc: sum(1 for _ in open(SPECIES[wc.sp]["bamlist"])),
+    threads: 8
+    resources:
+        mem_mb  = 24000,
+        runtime = 240,
+    shell:
+        """
+        mkdir -p results/smcpp/vcf/{wildcards.sp}
+        module load singularity/3.10.3
+        singularity exec {BIND} {ANGSD_SIF} angsd \
+            -bam {input.bamlist} \
+            -ref {input.ref} \
+            -r {wildcards.chrom}: \
+            -sites {input.sites} \
+            -GL 1 -doVcf 1 -doGeno 2 -doPost 1 -doMajorMinor 1 -doMaf 1 \
+            -SNP_pval 1e-6 \
+            -minMapQ 20 -minQ 20 \
+            -remove_bads 1 -only_proper_pairs 1 \
+            -setMaxDepth {params.max_depth} \
+            -minInd {params.n_samples} \
+            -nThreads {threads} \
+            -out {params.out}
+        bgzip -f {params.out}.vcf && tabix -p vcf {output.vcf}
+        """
+
+
+# ── 2. Merge per-chromosome VCFs ────────────────────────────────────────────
+rule merge_vcf:
+    input:
+        vcfs = expand("results/smcpp/vcf/{{sp}}/{chrom}.vcf.gz", chrom=CHROMS),
+        tbis = expand("results/smcpp/vcf/{{sp}}/{chrom}.vcf.gz.tbi", chrom=CHROMS),
+    output:
+        vcf = "results/smcpp/vcf/{sp}.merged.vcf.gz",
+        tbi = "results/smcpp/vcf/{sp}.merged.vcf.gz.tbi",
+    threads: 4
+    resources:
+        mem_mb  = 8000,
+        runtime = 60,
+    shell:
+        """
+        module load singularity/3.10.3
+        singularity exec {BIND} {ANGSD_SIF} bcftools concat \
+            --threads {threads} -O z -o {output.vcf} {input.vcfs}
+        singularity exec {BIND} {ANGSD_SIF} tabix -p vcf {output.vcf}
+        """
+
+
+# ── 3. Callable-sites mask (BED) ─────────────────────────────────────────────
+rule make_mask:
+    """Convert nonrepeat_sites.txt (pos list) to BED for SMC++ --mask."""
+    input:
+        sites = "results/angsd/nonrepeat_sites.txt",
+        fai   = config["reference"] + ".fai",
+    output:
+        bed = "results/smcpp/callable.bed.gz",
+    resources:
+        mem_mb  = 4000,
+        runtime = 30,
+    shell:
+        """
+        # Convert 1-based sites list to 0-based BED, merge adjacent positions
+        awk 'NR>1 {{print $1"\t"$2-1"\t"$2}}' {input.sites} \
+            | bedtools merge -i stdin \
+            | bgzip > {output.bed}
+        tabix -p bed {output.bed}
+        """
+
+
+# ── 4. vcf2smc — one file per chrom x distinguished pair ────────────────────
+rule vcf2smc:
+    """
+    Convert VCF to SMC++ format for one chromosome.
+    Runs N_PAIRS distinguished pairs (randomly selected); SMC++ averages over them.
+    -d flag specifies the distinguished pair (the two haplotypes explicitly tracked).
+    """
+    input:
+        vcf  = "results/smcpp/vcf/{sp}.merged.vcf.gz",
+        tbi  = "results/smcpp/vcf/{sp}.merged.vcf.gz.tbi",
+        mask = "results/smcpp/callable.bed.gz",
+        samp = lambda wc: SPECIES[wc.sp]["samples"],
+    output:
+        expand("results/smcpp/input/{{sp}}/{{chrom}}.pair{pair}.smc.gz",
+               pair=range(1, 4)),  # always 3 pairs; SMC++ can handle extras
+    params:
+        pop_label = "{sp}",
+    resources:
+        mem_mb  = 8000,
+        runtime = 60,
+    shell:
+        """
+        mkdir -p results/smcpp/input/{wildcards.sp}
+        module load singularity/3.10.3
+        SAMPLES=$(cat {input.samp} | tr '\n' ',' | sed 's/,$//')
+        SAMP_ARR=( $(cat {input.samp}) )
+        N=${{#SAMP_ARR[@]}}
+        for pair in 1 2 3; do
+            # pick two distinct samples for distinguished pair
+            i1=$(( (pair - 1) * 2 % N ))
+            i2=$(( (pair - 1) * 2 + 1 % N ))
+            D1=${{SAMP_ARR[$i1]}}
+            D2=${{SAMP_ARR[$i2]}}
+            singularity exec {BIND} {SMCPP_SIF} smc++ vcf2smc \
+                --mask {input.mask} \
+                --missing-cutoff 100 \
+                -d $D1 $D2 \
+                {input.vcf} \
+                results/smcpp/input/{wildcards.sp}/{wildcards.chrom}.pair${{pair}}.smc.gz \
+                {wildcards.chrom} \
+                {params.pop_label}:$SAMPLES
+        done
+        """
+
+
+# ── 5. smc++ fit ─────────────────────────────────────────────────────────────
+rule smc_fit:
+    """
+    Fit piecewise-constant population size model via SMC++.
+    --spline: cubic spline regularisation (smoother curve)
+    -o: output directory (contains model.final.json)
+    mutation_rate passed as positional argument
+    """
+    input:
+        smcs = expand(
+            "results/smcpp/input/{{sp}}/{chrom}.pair{pair}.smc.gz",
+            chrom=CHROMS, pair=[1,2,3]),
+    output:
+        model = "results/smcpp/fit/{sp}/model.final.json",
+    params:
+        outdir = "results/smcpp/fit/{sp}",
+        mu     = MUT_RATE,
+    threads: 8
+    resources:
+        mem_mb  = 16000,
+        runtime = 240,
+    shell:
+        """
+        mkdir -p {params.outdir}
+        module load singularity/3.10.3
+        singularity exec {BIND} {SMCPP_SIF} smc++ fit \
+            --cores {threads} \
+            --spline cubic \
+            -o {params.outdir} \
+            {params.mu} \
+            {input.smcs}
+        """
+
+
+# ── 6. smc++ plot ─────────────────────────────────────────────────────────────
+rule smc_plot:
+    """
+    Plot Ne(t) curves. generation_time converts coalescent time to years.
+    Outputs PNG + CSV for downstream analysis.
+    """
+    input:
+        models = expand("results/smcpp/fit/{sp}/model.final.json", sp=SPECIES),
+    output:
+        png = expand("results/smcpp/plots/{sp}_Ne.png", sp=SPECIES),
+        csv = expand("results/smcpp/plots/{sp}_Ne.csv", sp=SPECIES),
+    params:
+        g  = GEN_TIME,
+        outdir = "results/smcpp/plots",
+    shell:
+        """
+        mkdir -p {params.outdir}
+        module load singularity/3.10.3
+        # Plot both species together
+        singularity exec {BIND} {SMCPP_SIF} smc++ plot \
+            -g {params.g} \
+            --csv \
+            -o {params.outdir}/both_Ne.png \
+            {input.models}
+        # Individual plots + CSVs
+        for sp in apal acer; do
+            singularity exec {BIND} {SMCPP_SIF} smc++ plot \
+                -g {params.g} \
+                --csv \
+                -o {params.outdir}/${{sp}}_Ne.png \
+                results/smcpp/fit/${{sp}}/model.final.json
+        done
+        """
