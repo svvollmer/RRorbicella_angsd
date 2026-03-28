@@ -9,12 +9,16 @@ Input:  results/smcpp/apal_fl_Q99.bamlist   (49 A. palmata FL, Q>=0.99)
         results/angsd/depth_thresholds.txt  (per-individual depth ceiling)
 
 Steps:
-  1. call_vcf     — ANGSD genotype calling -> per-chromosome VCF.gz + index
-  2. merge_vcf    — bcftools concat -> whole-genome VCF.gz per species
-  3. make_mask    — nonrepeat sites -> BED mask for SMC++
-  4. vcf2smc      — smc++ vcf2smc: one file per chromosome x distinguished pair
-  5. smc_fit      — smc++ fit: demographic model per species
-  6. smc_plot     — smc++ plot: Ne(t) PNG
+  1. angsd_call  — ANGSD genotype calling -> per-chromosome BCF (persistent)
+  2. bcf_to_vcf  — bcftools view -> per-chromosome VCF.gz + index (temp)
+  3. merge_vcf   — bcftools concat -> whole-genome VCF.gz per species
+  4. make_mask   — nonrepeat sites -> BED mask for SMC++
+  5. vcf2smc     — smc++ vcf2smc: one file per chromosome x distinguished pair
+  6. smc_fit     — smc++ fit: demographic model per species
+  7. smc_plot    — smc++ plot: Ne(t) PNG
+
+Splitting ANGSD (step 1) from bcftools conversion (step 2) means a bcftools
+failure can be re-run without re-doing the expensive ANGSD genotyping.
 
 Calibration:
   mutation_rate = 3.4e-8  (A. millepora estimate)
@@ -56,17 +60,15 @@ rule all_smcpp:
     input:
         expand("results/smcpp/plots/{sp}_Ne.png", sp=SPECIES),
         expand("results/smcpp/plots/{sp}_Ne.csv", sp=SPECIES),
+        "results/smcpp/plots/split_Ne.png",
 
 
-# ── 1. Per-chromosome VCF via ANGSD ─────────────────────────────────────────
-rule call_vcf:
+# ── 1. Per-chromosome BCF via ANGSD ─────────────────────────────────────────
+rule angsd_call:
     """
-    Call genotypes for SMC++ using ANGSD.
-    -doVcf 1: output VCF with GP/PL fields
-    -doGeno 2: call most likely genotype
-    -doPost 1: use allele freq prior for posterior
-    -minMapQ/minQ: quality filters matching main pipeline
-    Restricts to nonrepeat_sites to avoid spurious variation.
+    Call genotypes for SMC++ using ANGSD -> BCF.
+    Output is kept (not temp) so bcf_to_vcf can be re-run independently
+    without repeating the expensive ANGSD step.
     """
     input:
         bamlist  = lambda wc: SPECIES[wc.sp]["bamlist"],
@@ -76,12 +78,11 @@ rule call_vcf:
         sites_bin= "results/angsd/nonrepeat_sites.txt.bin",
         depth    = "results/angsd/depth_thresholds.txt",
     output:
-        vcf = temp("results/smcpp/vcf/{sp}/{chrom}.vcf.gz"),
-        tbi = temp("results/smcpp/vcf/{sp}/{chrom}.vcf.gz.tbi"),
+        bcf = "results/smcpp/vcf/{sp}/{chrom}.bcf",
     params:
         out       = "results/smcpp/vcf/{sp}/{chrom}",
         max_depth = lambda wc, input: int(
-            [l.split()[1] for l in open(input.depth) if l.startswith('total')][0]),
+            [l.split()[1] for l in open(input.depth) if l.startswith("total")][0]),
         n_samples = lambda wc: sum(1 for _ in open(SPECIES[wc.sp]["bamlist"])),
     threads: 8
     resources:
@@ -96,7 +97,7 @@ rule call_vcf:
             -ref {input.ref} \
             -r {wildcards.chrom}: \
             -sites {input.sites} \
-            -GL 1 -doVcf 1 -doGeno 2 -doPost 1 -doMajorMinor 1 -doMaf 1 \
+            -GL 1 -doBcf 1 -doGeno 1 -doPost 1 -doMajorMinor 1 -doMaf 1 -doCounts 1 \
             -SNP_pval 1e-6 \
             -minMapQ 20 -minQ 20 \
             -remove_bads 1 -only_proper_pairs 1 \
@@ -104,32 +105,118 @@ rule call_vcf:
             -minInd {params.n_samples} \
             -nThreads {threads} \
             -out {params.out}
-        bgzip -f {params.out}.vcf && tabix -p vcf {output.vcf}
         """
 
 
-# ── 2. Merge per-chromosome VCFs ────────────────────────────────────────────
+# ── 2. BCF -> VCF.gz ─────────────────────────────────────────────────────────
+rule bcf_to_vcf:
+    """
+    Call variants per-chromosome using bcftools mpileup + call.
+    Uses BAMs directly (not ANGSD BCF) because ANGSD hard-calls are all 0/0
+    for rare variants (population-level EM AF signal does not translate to
+    individual-level GT calls). bcftools mpileup joint-calling produces
+    proper het/hom-alt calls needed by smc++ vcf2smc.
+    ANGSD BCF kept as dependency (already computed; no re-run needed).
+    """
+    input:
+        bcf     = "results/smcpp/vcf/{sp}/{chrom}.bcf",
+        bamlist = lambda wc: SPECIES[wc.sp]["bamlist"],
+        ref     = config["reference"],
+        mask    = "results/smcpp/callable.bed.gz",
+        mask_tbi= "results/smcpp/callable.bed.gz.tbi",
+    output:
+        vcf = temp("results/smcpp/vcf/{sp}/{chrom}.vcf.gz"),
+        tbi = temp("results/smcpp/vcf/{sp}/{chrom}.vcf.gz.tbi"),
+    threads: 4
+    resources:
+        mem_mb  = 16000,
+        runtime = 720,
+    shell:
+        """
+        module load bcftools/1.21
+        module load samtools/1.19.2
+
+        # All BAMs have SM:SampleName in their headers (set at alignment time),
+        # so bcftools mpileup merges all samples into one column.  Fix by
+        # extracting the per-chromosome region for each BAM and reheadering
+        # with the correct SM tag (derived from the filename) before calling.
+        WORK=$(mktemp -d /work/vollmer/acropora_genomics/tmp_bcf2vcf.XXXXXXXX)
+        trap "rm -rf $WORK" EXIT
+        FIXED_BAMLIST="$WORK/bamlist.txt"
+        > "$FIXED_BAMLIST"
+
+        while IFS= read -r bam; do
+            name=$(basename "$bam" .filtered.bam)
+            region_bam="$WORK/${{name}}.bam"
+            fixed_bam="$WORK/${{name}}.fixed.bam"
+            hdr="$WORK/${{name}}.hdr.sam"
+
+            # Extract chromosome region (much smaller than full BAM)
+            samtools view -bh "$bam" {wildcards.chrom} > "$region_bam"
+
+            # Write corrected header (replace SM:SampleName with actual name)
+            samtools view -H "$region_bam" \
+                | sed "s/SM:[^\\t]*/SM:$name/" > "$hdr"
+
+            # Apply new header and index
+            samtools reheader "$hdr" "$region_bam" > "$fixed_bam"
+            samtools index "$fixed_bam"
+            rm "$region_bam" "$hdr"
+
+            echo "$fixed_bam" >> "$FIXED_BAMLIST"
+        done < {input.bamlist}
+
+        bcftools mpileup \
+            --threads {threads} \
+            -r {wildcards.chrom} \
+            -T {input.mask} \
+            -f {input.ref} \
+            -b "$FIXED_BAMLIST" \
+            -q 20 -Q 20 \
+            --skip-indels \
+            -a AD,DP,QS \
+            -O u | \
+        bcftools call -m -v -O z -o {output.vcf}
+        bcftools index -t {output.vcf}
+        """
+
+
+# ── 3. Merge per-chromosome VCFs ────────────────────────────────────────────
 rule merge_vcf:
+    """
+    Merge per-chromosome VCFs and reheader to use short sample names.
+    ANGSD writes full BAM paths as VCF sample IDs; smc++ vcf2smc needs
+    plain sample names matching the -d distinguished-lineage argument.
+    Reheader strips results/bams/<name>.filtered.bam -> <name>.
+    """
     input:
         vcfs = expand("results/smcpp/vcf/{{sp}}/{chrom}.vcf.gz", chrom=CHROMS),
         tbis = expand("results/smcpp/vcf/{{sp}}/{chrom}.vcf.gz.tbi", chrom=CHROMS),
+        samp = lambda wc: SPECIES[wc.sp]["samples"],
     output:
         vcf = "results/smcpp/vcf/{sp}.merged.vcf.gz",
         tbi = "results/smcpp/vcf/{sp}.merged.vcf.gz.tbi",
     threads: 4
     resources:
         mem_mb  = 8000,
-        runtime = 60,
+        runtime = 480,
     shell:
         """
-        module load singularity/3.10.3
-        singularity exec {BIND} {ANGSD_SIF} bcftools concat \
-            --threads {threads} -O z -o {output.vcf} {input.vcfs}
-        singularity exec {BIND} {ANGSD_SIF} tabix -p vcf {output.vcf}
+        module load bcftools/1.21
+        # Merge chromosomes
+        bcftools concat --threads {threads} -O z -o {output.vcf}.tmp.vcf.gz {input.vcfs}
+        # Build rename map: full BAM path -> short sample name
+        bcftools query -l {output.vcf}.tmp.vcf.gz \
+            | sed 's|results/bams/||; s|\.filtered\.bam||' \
+            > {output.vcf}.samples.txt
+        # Reheader with short names
+        bcftools reheader -s {output.vcf}.samples.txt -o {output.vcf} {output.vcf}.tmp.vcf.gz
+        bcftools index -t {output.vcf}
+        rm -f {output.vcf}.tmp.vcf.gz {output.vcf}.samples.txt
         """
 
 
-# ── 3. Callable-sites mask (BED) ─────────────────────────────────────────────
+# ── 4. Callable-sites mask (BED) ─────────────────────────────────────────────
 rule make_mask:
     """Convert nonrepeat_sites.txt (pos list) to BED for SMC++ --mask."""
     input:
@@ -142,15 +229,18 @@ rule make_mask:
         runtime = 30,
     shell:
         """
+        module load singularity/3.10.3
+        module load bedtools/2.29.0
         # Convert 1-based sites list to 0-based BED, merge adjacent positions
+        # bgzip/tabix from ANGSD container (not available as host modules)
         awk 'NR>1 {{print $1"\t"$2-1"\t"$2}}' {input.sites} \
             | bedtools merge -i stdin \
-            | bgzip > {output.bed}
-        tabix -p bed {output.bed}
+            | singularity exec {BIND} {ANGSD_SIF} bgzip > {output.bed}
+        singularity exec {BIND} {ANGSD_SIF} tabix -p bed {output.bed}
         """
 
 
-# ── 4. vcf2smc — one file per chrom x distinguished pair ────────────────────
+# ── 5. vcf2smc — one file per chrom x distinguished pair ────────────────────
 rule vcf2smc:
     """
     Convert VCF to SMC++ format for one chromosome.
@@ -169,14 +259,16 @@ rule vcf2smc:
         pop_label = "{sp}",
     resources:
         mem_mb  = 8000,
-        runtime = 60,
+        runtime = 480,
     shell:
         """
         mkdir -p results/smcpp/input/{wildcards.sp}
         module load singularity/3.10.3
-        SAMPLES=$(cat {input.samp} | tr '\n' ',' | sed 's/,$//')
-        SAMP_ARR=( $(cat {input.samp}) )
+        module load bcftools/1.21
+        # Sample names in VCF are now short (reheadered in merge_vcf)
+        SAMP_ARR=( $(bcftools query -l {input.vcf}) )
         N=${{#SAMP_ARR[@]}}
+        SAMPLES=$(IFS=,; echo "${{SAMP_ARR[*]}}")
         for pair in 1 2 3; do
             # pick two distinct samples for distinguished pair
             i1=$(( (pair - 1) * 2 % N ))
@@ -185,7 +277,6 @@ rule vcf2smc:
             D2=${{SAMP_ARR[$i2]}}
             singularity exec {BIND} {SMCPP_SIF} smc++ vcf2smc \
                 --mask {input.mask} \
-                --missing-cutoff 100 \
                 -d $D1 $D2 \
                 {input.vcf} \
                 results/smcpp/input/{wildcards.sp}/{wildcards.chrom}.pair${{pair}}.smc.gz \
@@ -195,7 +286,7 @@ rule vcf2smc:
         """
 
 
-# ── 5. smc++ fit ─────────────────────────────────────────────────────────────
+# ── 6. smc++ fit ─────────────────────────────────────────────────────────────
 rule smc_fit:
     """
     Fit piecewise-constant population size model via SMC++.
@@ -220,8 +311,9 @@ rule smc_fit:
         """
         mkdir -p {params.outdir}
         module load singularity/3.10.3
-        singularity exec {BIND} {SMCPP_SIF} smc++ fit \
+        singularity exec {BIND} {SMCPP_SIF} smc++ estimate \
             --cores {threads} \
+            --N0 50000 \
             --spline cubic \
             -o {params.outdir} \
             {params.mu} \
@@ -229,7 +321,7 @@ rule smc_fit:
         """
 
 
-# ── 6. smc++ plot ─────────────────────────────────────────────────────────────
+# ── 7. smc++ plot ─────────────────────────────────────────────────────────────
 rule smc_plot:
     """
     Plot Ne(t) curves. generation_time converts coalescent time to years.
@@ -241,7 +333,7 @@ rule smc_plot:
         png = expand("results/smcpp/plots/{sp}_Ne.png", sp=SPECIES),
         csv = expand("results/smcpp/plots/{sp}_Ne.csv", sp=SPECIES),
     params:
-        g  = GEN_TIME,
+        g      = GEN_TIME,
         outdir = "results/smcpp/plots",
     shell:
         """
@@ -261,4 +353,137 @@ rule smc_plot:
                 -o {params.outdir}/${{sp}}_Ne.png \
                 results/smcpp/fit/${{sp}}/model.final.json
         done
+        """
+
+
+# ── 8. Combined VCF for split analysis ───────────────────────────────────────
+rule merge_combined_vcf:
+    """
+    Merge apal and acer per-species VCFs into a single multi-population VCF
+    for smc++ split (divergence time estimation).
+    Sites present in only one species get ./. for the other.
+    """
+    input:
+        apal = "results/smcpp/vcf/apal.merged.vcf.gz",
+        apal_tbi = "results/smcpp/vcf/apal.merged.vcf.gz.tbi",
+        acer = "results/smcpp/vcf/acer.merged.vcf.gz",
+        acer_tbi = "results/smcpp/vcf/acer.merged.vcf.gz.tbi",
+    output:
+        vcf = "results/smcpp/vcf/combined.merged.vcf.gz",
+        tbi = "results/smcpp/vcf/combined.merged.vcf.gz.tbi",
+    threads: 4
+    resources:
+        mem_mb  = 8000,
+        runtime = 120,
+    shell:
+        """
+        module load bcftools/1.21
+        bcftools merge --threads {threads} -O z -o {output.vcf} \
+            {input.apal} {input.acer}
+        bcftools index -t {output.vcf}
+        """
+
+
+# ── 9. vcf2smc for split (joint two-population files) ────────────────────────
+rule vcf2smc_split:
+    """
+    Convert combined VCF to SMC++ format with both populations labelled.
+    Distinguished pair drawn from apal (pop1); acer is pop2.
+    3 pairs per chromosome, matching single-species convention.
+    """
+    input:
+        vcf  = "results/smcpp/vcf/combined.merged.vcf.gz",
+        tbi  = "results/smcpp/vcf/combined.merged.vcf.gz.tbi",
+        mask = "results/smcpp/callable.bed.gz",
+        apal_samp = SPECIES["apal"]["samples"],
+        acer_samp = SPECIES["acer"]["samples"],
+    output:
+        expand("results/smcpp/input/split/{{chrom}}.pair{pair}.smc.gz",
+               pair=[1, 2, 3]),
+    resources:
+        mem_mb  = 8000,
+        runtime = 480,
+    shell:
+        """
+        mkdir -p results/smcpp/input/split
+        module load singularity/3.10.3
+        module load bcftools/1.21
+        APAL_SAMPS=$(paste -sd, {input.apal_samp})
+        ACER_SAMPS=$(paste -sd, {input.acer_samp})
+        APAL_ARR=( $(cat {input.apal_samp}) )
+        N=${{#APAL_ARR[@]}}
+        for pair in 1 2 3; do
+            i1=$(( (pair - 1) * 2 % N ))
+            i2=$(( (pair - 1) * 2 + 1 % N ))
+            D1=${{APAL_ARR[$i1]}}
+            D2=${{APAL_ARR[$i2]}}
+            singularity exec {BIND} {SMCPP_SIF} smc++ vcf2smc \
+                --mask {input.mask} \
+                -d $D1 $D2 \
+                {input.vcf} \
+                results/smcpp/input/split/{wildcards.chrom}.pair${{pair}}.smc.gz \
+                {wildcards.chrom} \
+                apal:$APAL_SAMPS \
+                acer:$ACER_SAMPS
+        done
+        """
+
+
+# ── 10. smc++ split — divergence time estimation ─────────────────────────────
+rule smc_split:
+    """
+    Estimate apal/acer divergence time using per-species Ne models as priors.
+    smc++ split refines the split time parameter T while fixing Ne trajectories.
+    """
+    input:
+        apal_model = "results/smcpp/fit/apal/model.final.json",
+        acer_model = "results/smcpp/fit/acer/model.final.json",
+        smcs = expand("results/smcpp/input/split/{chrom}.pair{pair}.smc.gz",
+                      chrom=CHROMS, pair=[1, 2, 3]),
+    output:
+        model = "results/smcpp/split/model.final.json",
+    params:
+        outdir = "results/smcpp/split",
+    threads: 8
+    resources:
+        mem_mb  = 16000,
+        runtime = 240,
+    shell:
+        """
+        mkdir -p {params.outdir}
+        module load singularity/3.10.3
+        singularity exec {BIND} {SMCPP_SIF} smc++ split \
+            --cores {threads} \
+            -o {params.outdir} \
+            {input.apal_model} \
+            {input.acer_model} \
+            {input.smcs}
+        """
+
+
+# ── 11. Plot split model ──────────────────────────────────────────────────────
+rule plot_split:
+    """
+    Plot Ne(t) + divergence time from smc++ split model.
+    """
+    input:
+        apal_model = "results/smcpp/fit/apal/model.final.json",
+        acer_model = "results/smcpp/fit/acer/model.final.json",
+        split_model = "results/smcpp/split/model.final.json",
+    output:
+        png = "results/smcpp/plots/split_Ne.png",
+        csv = "results/smcpp/plots/split_Ne.csv",
+    params:
+        g = GEN_TIME,
+    shell:
+        """
+        mkdir -p results/smcpp/plots
+        module load singularity/3.10.3
+        singularity exec {BIND} {SMCPP_SIF} smc++ plot \
+            -g {params.g} \
+            --csv \
+            -o {output.png} \
+            {input.apal_model} \
+            {input.acer_model} \
+            {input.split_model}
         """
