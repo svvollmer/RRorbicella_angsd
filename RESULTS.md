@@ -3,8 +3,9 @@
 Multi-species *Acropora* population genomics — *A. cervicornis* and *A. palmata* across
 Florida, Panama, and Bonaire, aligned to the *A. palmata* reference genome (Vollmer Lab).
 
-> **Status (2026-03-21):** 290-sample Discovery HPC run — Segments 2–3 complete (SNP discovery,
-> relatedness, PCA, admixture K=1–10). Segment 4 (diversity, FST) running; moments 2D SFS in progress.
+> **Status (2026-03-28):** 290-sample Discovery HPC run — Segments 2–4 complete (SNP discovery,
+> relatedness, PCA, admixture K=1–10, diversity, FST). Sliding-window FST outlier analysis complete.
+> Seg 6 (demography/moments) and Seg 7 (SMC++) running.
 
 ---
 
@@ -179,22 +180,57 @@ intermediate-frequency alleles. Full 290-sample run will separate by species and
 
 ![FST heatmap](docs/figures/fst_heatmap.png)
 
-Genome-wide pairwise FST (realSFS fst). Remaining FL comparisons pending (fst_index running).
+Genome-wide pairwise FST (realSFS fst, unweighted and Hudson weighted estimators).
 
 | Comparison | FST (unweighted) | FST (weighted) |
 |------------|-----------------|----------------|
-| lineageA FL vs lineageA BON (*Apal*) | 0.0077 | 0.0533 |
-| lineageB PA vs lineageB BON (*Acer*) | 0.0086 | 0.0933 |
-| lineageB BON vs lineageA BON (species) | 0.0194 | 0.4556 |
-| lineageB FL vs lineageA FL (species) | pending | pending |
-| lineageB FL vs lineageB BON (*Acer*) | pending | pending |
-| lineageA FL vs lineageA BON repeat | pending | pending |
+| lineageB FL vs lineageA FL (*Acer* vs *Apal* species) | 0.4327 | 0.0102 |
+| lineageB BON vs lineageA BON (*Acer* vs *Apal* species) | 0.4556 | 0.0194 |
+| lineageB FL vs lineageB PA (*Acer* geography) | 0.0754 | 0.0168 |
+| lineageB FL vs lineageB BON (*Acer* geography) | 0.1054 | 0.0062 |
+| lineageB PA vs lineageB BON (*Acer* geography) | 0.0933 | 0.0086 |
+| lineageA FL vs lineageA BON (*Apal* geography) | 0.0533 | 0.0077 |
 
-**Key patterns (preliminary):**
-- Species-level divergence (lineageB_BON vs lineageA_BON): weighted FST = 0.456 — strong
-  differentiation consistent with near-species-level separation
-- Within-species geographic FST extremely low (0.008-0.009 unweighted) — *Apal* FL-BON and
-  *Acer* PA-BON show similar low structure, suggesting high historical gene flow
+**Key patterns:**
+- Species-level divergence (unweighted ~0.43–0.46) is dramatically higher than within-species
+  geographic divergence (unweighted 0.05–0.11), confirming near-complete reproductive isolation
+- Within-species FST low but detectable: *Acer* FL-PA (0.075) > FL-BON (0.105) > PA-BON (0.093);
+  *Apal* FL-BON (0.053) — suggesting moderate gene flow across the Caribbean
+- Weighted FST (Hudson's) is much lower than unweighted because most inter-species divergence is
+  at high-frequency fixed differences; within-species weighted FST ≈ 0.006–0.017
+
+---
+
+### Sliding-Window FST Outlier Analysis (*Acer* FL vs *Apal* FL)
+
+50 kb windows, 10 kb step; 32,450 windows across 14 chromosomes. Outliers defined as
+genome-wide top/bottom 2.5% (FST > 0.883 = high, FST < 0.056 = low).
+
+![Stacked chromosomes — Z-score](docs/figures/fst_acer_vs_apal_FL_stacked_zscore.png)
+![Stacked chromosomes — line + blocks](docs/figures/fst_acer_vs_apal_FL_stacked_regions.png)
+![Manhattan plot](docs/figures/fst_acer_vs_apal_FL_manhattan.png)
+
+| Outlier class | Windows | Genes (±25 kb) | Interpretation |
+|---------------|---------|----------------|----------------|
+| High FST (>0.883) | 812 | 1,583 | candidate inversions / reproductive barriers |
+| Low FST (<0.056) | 812 | 1,319 | candidate introgression tracts |
+| In blocks (≥3 consecutive) | 1,380 | — | high-confidence regions |
+
+**Notable high-FST outlier regions (candidate barriers):**
+- Chr 11 ~14.5 Mb — CD59 glycoprotein-like (complement inhibitor)
+- Chr 6 ~22.9 Mb — uncharacterized block; highest per-chrom Z-score
+- Chr 13 ~18.3 Mb — E3 ubiquitin-protein ligase RNF113A-like, helicase ARIP4-like (Z=+4.4)
+- Chr 2 ~8.5 Mb — adenosine receptor A2b-like
+- Chr 3 ~1.6 Mb — concentrated high-FST block
+
+**Notable low-FST outlier regions (candidate introgression tracts):**
+- Chr 6 ~17.8 Mb — membrane progestin receptor delta/gamma (FST=0.012)
+- Chr 9 ~2–7 Mb — large introgression tract; proto-oncogene tyrosine-protein kinase Ret-like
+- Chr 1 ~21 Mb — E3 ubiquitin-protein ligase rnf213-alpha-like
+- Chr 13 ~14.9 Mb — introgression adjacent to high-FST block
+
+Full gene tables: `docs/figures/fst_acer_vs_apal_FL_genes_high_fst.tsv` and `_genes_low_fst.tsv`
+Script: `workflow/scripts/plot_fst_windows.py`
 
 ---
 
