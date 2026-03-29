@@ -5,7 +5,9 @@ Florida, Panama, and Bonaire, aligned to the *A. palmata* reference genome (Voll
 
 > **Status (2026-03-29):** 290-sample Discovery HPC run — Segments 2–4 complete (SNP discovery,
 > relatedness, PCA, admixture K=1–10, diversity, FST). Sliding-window FST outlier analysis complete.
-> Seg 7 (SMC++) complete. Seg 6 (demography/moments) running (5/7 comparisons done).
+> Seg 6 (demography/moments): 6/7 done; `apal_vs_acer_fl` still running.
+> Seg 7 (SMC++): apal model done; acer re-running (hit 4h wall, resubmitted 8h); figures use old μ=3.4×10⁻⁸ pending re-run.
+> moments restarts now parallelized (ProcessPoolExecutor, 8 threads).
 
 ---
 
@@ -243,11 +245,12 @@ species assignment). Distinguished pairs drawn from 3 random individuals per chr
 Cubic spline model; folded SFS throughout (no reliable outgroup).
 
 **Assumptions and caveats:**
-- μ = 3.4×10⁻⁸ per site per generation — from *A. millepora* (Kitchen et al. 2019 *Mol Biol Evol*).
-  This is the largest uncertainty: if the true rate is lower (e.g., 1.0×10⁻⁸ as in some coral
-  estimates), all Ne values scale up ~3.4× and all times scale forward proportionally.
-- Generation time = 10 years (onset of sexual reproduction; some studies use 5 yr for branching
-  *Acropora*, which would compress all time estimates by 2×).
+- μ = 3.4×10⁻⁸ per site per generation used in current figures — **re-run pending with corrected
+  μ = 1.8×10⁻⁸** (Matz et al.; more appropriate for *Acropora*). Corrected values will scale
+  Ne up ~1.9× and shift all times proportionally (bottleneck ~18 kya instead of ~35 kya).
+- Generation time = 5 years (branching *Acropora* sexual maturity). Note: apal and acer
+  bottlenecks are slightly offset (~2 kya); may partly reflect different true generation times
+  between species (literature: ~3 yr acer vs. ~5–7 yr apal).
 - SMC++ estimates Ne over the last ~10⁴–10⁶ years; it has low resolution at t < ~1,000 yr
   (cannot resolve post-1980 white band crash) and loses power beyond ~500 kya.
 - FL-only, high-purity samples used; Bonaire and Panama excluded.
@@ -287,20 +290,34 @@ deep interspecific split (~2–4 Mya). Species divergence time is addressed by S
 
 ### Demographic Inference (moments — Segment 6)
 
-**Status (2026-03-29):** 5/7 pairwise comparisons complete; `apal_vs_acer_fl` and
-`acer_fl_vs_pa` still running.
+**Status (2026-03-29):** 6/7 pairwise comparisons complete; `apal_vs_acer_fl` still running
+(SI and IM done, IM_a in progress).
 
 **Completed comparisons:**
 
-| Comparison | Result file |
-|-----------|-------------|
-| acer FL vs. Bonaire | `results/demography/inference/acer_fl_vs_bon.moments.json` |
-| acer FL vs. acer Bonaire | `results/demography/inference/acer_fl_vs_acer_bon.moments.json` |
-| acer FL vs. acer PA | `results/demography/inference/acer_fl_vs_acer_pa.moments.json` |
-| acer PA vs. Bonaire | `results/demography/inference/acer_pa_vs_bon.moments.json` |
-| apal vs. acer Bonaire | `results/demography/inference/apal_vs_acer_bon.moments.json` |
+| Comparison | Best model | dAIC 2nd-best | Notes |
+|-----------|------------|---------------|-------|
+| acer FL vs. Bonaire | IM_a | — | Asymmetric migration FL↔BON |
+| acer FL vs. acer Bonaire | — | — | ~12k seg sites; sparse, unreliable |
+| acer FL vs. acer PA | — | — | ~12k seg sites; sparse, unreliable |
+| acer PA vs. Bonaire | IM_a | 106 vs SC | nu1=98 artifact (optimizer); treat with caution |
+| apal vs. acer Bonaire | IM_a | — | Asymmetric interspecific gene flow |
+| **acer FL vs. PA** | **IM_a** | **+84 (AM), +156 (SC)** | Strong asymmetric migration; m21 (PA→FL) ~5× m12 |
 
-*Full interpretation pending completion of all comparisons and model selection.*
+*`apal_vs_acer_fl` pending — SI ll=−11592, IM ll=−10065 (IM >> SI by 3,051 AIC); gene flow clear.*
+
+**acer FL vs. PA — best-fit IM_a parameters** (dimensionless, scaled by N_anc):
+
+| Parameter | Value | Physical units (N_anc ~38k, gen=5yr) |
+|-----------|-------|--------------------------------------|
+| nu1 (acer_fl) | 0.159 | Ne ≈ 6,000 |
+| nu2 (acer_pa) | 0.143 | Ne ≈ 5,400 |
+| T (divergence) | 0.363 | ~138,000 yr ago |
+| m12 (FL→PA) | 8.82 | ~1.2×10⁻⁴ /gen |
+| m21 (PA→FL) | 42.6 | ~5.6×10⁻⁴ /gen |
+
+PA→FL migration is ~5× higher than FL→PA — asymmetric gene flow consistent with prevailing
+Caribbean surface currents (Yucatan/Loop Current carrying propagules northward into Florida).
 
 ---
 
