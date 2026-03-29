@@ -101,7 +101,9 @@ def parse_intersect(intersect_path):
             gene_id   = parse_gff_attr(attrs, "ID").replace("gene-", "")
             name      = parse_gff_attr(attrs, "Name")
             desc      = parse_gff_attr(attrs, "description").replace("%2C", ",").replace("%20", " ")
-            ncbi_id   = parse_gff_attr(attrs, "GeneID")
+            # GeneID is in Dbxref=GeneID:XXXXXXX (not a standalone attribute key)
+            m_gid = re.search(r"GeneID:(\d+)", attrs)
+            ncbi_id = m_gid.group(1) if m_gid else ""
             biotype   = parse_gff_attr(attrs, "gene_biotype")
 
             key = (ncbi_id or gene_id, chrom, gff_start)
