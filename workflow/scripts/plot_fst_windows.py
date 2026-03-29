@@ -93,18 +93,18 @@ def get_outlier_spans(sub, pos_col, otype):
     pos = sub.loc[mask, pos_col].values
     if len(pos) == 0:
         return []
-    # step size
+    # step size — use small pad (10% of step) so adjacent high/low blocks don't overlap
     step = np.median(np.diff(sub[pos_col].values)) if len(sub) > 1 else 10000
-    half = step / 2
+    pad  = step * 0.1
     spans = []
     start = pos[0]
     prev  = pos[0]
     for p in pos[1:]:
         if p - prev > step * 1.5:
-            spans.append((start - half, prev - start + step))
+            spans.append((start - pad, prev - start + step * 0.8))
             start = p
         prev = p
-    spans.append((start - half, prev - start + step))
+    spans.append((start - pad, prev - start + step * 0.8))
     return spans
 
 
@@ -204,9 +204,10 @@ def plot_stacked_fst(df, out, high_thresh, low_thresh):
         mask_high = sub["outlier"] == "high"
         mask_low  = sub["outlier"] == "low"
 
-        ax.fill_between(pos_mb[mask_neu],  fst[mask_neu],  color=COL_NEU,  alpha=0.6, lw=0)
-        ax.fill_between(pos_mb[mask_high], fst[mask_high], color=COL_HIGH, alpha=0.85, lw=0)
-        ax.fill_between(pos_mb[mask_low],  fst[mask_low],  color=COL_LOW,  alpha=0.85, lw=0)
+        # Use where= to avoid fill spanning gaps between non-contiguous outlier windows
+        ax.fill_between(pos_mb, fst, where=mask_neu,  color=COL_NEU,  alpha=0.6, lw=0)
+        ax.fill_between(pos_mb, fst, where=mask_high, color=COL_HIGH, alpha=0.85, lw=0)
+        ax.fill_between(pos_mb, fst, where=mask_low,  color=COL_LOW,  alpha=0.85, lw=0)
         ax.plot(pos_mb, fst, color="white", lw=0.2, alpha=0.4)
 
         ax.axhline(high_thresh,        color=COL_HIGH, lw=0.7, ls="--", alpha=0.6)
@@ -265,9 +266,9 @@ def plot_stacked_zscore(df, out):
         mask_high = sub["outlier"] == "high"
         mask_low  = sub["outlier"] == "low"
 
-        ax.fill_between(pos_mb[mask_neu],  zsc[mask_neu],  color=COL_NEU,  alpha=0.55, lw=0)
-        ax.fill_between(pos_mb[mask_high], zsc[mask_high], color=COL_HIGH, alpha=0.85, lw=0)
-        ax.fill_between(pos_mb[mask_low],  zsc[mask_low],  color=COL_LOW,  alpha=0.85, lw=0)
+        ax.fill_between(pos_mb, zsc, where=mask_neu,  color=COL_NEU,  alpha=0.55, lw=0)
+        ax.fill_between(pos_mb, zsc, where=mask_high, color=COL_HIGH, alpha=0.85, lw=0)
+        ax.fill_between(pos_mb, zsc, where=mask_low,  color=COL_LOW,  alpha=0.85, lw=0)
         ax.plot(pos_mb, zsc, color="white", lw=0.2, alpha=0.4)
 
         ax.axhline(0,       color="0.5",    lw=0.6, ls=":",  alpha=0.6)
@@ -324,10 +325,8 @@ def plot_stacked_regions(df, out, high_thresh, low_thresh):
         # Shade all outlier windows (single + block) lightly
         mask_high = sub["outlier"] == "high"
         mask_low  = sub["outlier"] == "low"
-        ax.fill_between(pos_mb[mask_high], fst[mask_high],
-                        color=COL_HIGH, alpha=0.25, lw=0)
-        ax.fill_between(pos_mb[mask_low],  fst[mask_low],
-                        color=COL_LOW,  alpha=0.25, lw=0)
+        ax.fill_between(pos_mb, fst, where=mask_high, color=COL_HIGH, alpha=0.25, lw=0)
+        ax.fill_between(pos_mb, fst, where=mask_low,  color=COL_LOW,  alpha=0.25, lw=0)
 
         # Dark spans for blocks (≥MIN_BLOCK consecutive)
         for otype, col in [("high", COL_HIGH), ("low", COL_LOW)]:
