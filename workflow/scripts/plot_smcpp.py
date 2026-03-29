@@ -22,8 +22,8 @@ import matplotlib.patches as mpatches
 import numpy as np
 
 # ── Parameters ────────────────────────────────────────────────────────────────
-MU        = 3.4e-8   # per site per generation (A. millepora; see note)
-GEN_TIME  = 10       # years per generation (sexual maturity)
+MU        = 1.8e-8   # per site per generation (Acropora; see note)
+GEN_TIME  = 5        # years per generation (branching Acropora sexual maturity)
 
 COL_APAL = "#2166ac"   # blue  — A. palmata
 COL_ACER = "#d6604d"   # red   — A. cervicornis
@@ -102,9 +102,11 @@ def main(apal_csv, acer_csv, outpng):
     assume_txt = (
         f"Assumptions:\n"
         f"  μ = {MU:.1e} per site/gen\n"
-        f"    (A. millepora; Kitchen et al. 2019)\n"
+        f"    (Acropora; see Matz et al.)\n"
         f"  Generation time = {GEN_TIME} yr\n"
-        f"  Cubic spline, folded SFS"
+        f"  Cubic spline, folded SFS\n"
+        f"  NOTE: model.final.json fit with old μ=3.4×10⁻⁸\n"
+        f"  Re-run pending with corrected μ"
     )
     ax.text(0.99, 0.03, assume_txt, transform=ax.transAxes,
             fontsize=7.5, va="bottom", ha="right",

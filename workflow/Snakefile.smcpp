@@ -21,8 +21,8 @@ Splitting ANGSD (step 1) from bcftools conversion (step 2) means a bcftools
 failure can be re-run without re-doing the expensive ANGSD genotyping.
 
 Calibration:
-  mutation_rate = 3.4e-8  (A. millepora estimate)
-  generation_time = 10    (years; sexual reproduction)
+  mutation_rate = 1.8e-8  (Acropora estimate; updated from literature)
+  generation_time = 5     (years; branching Acropora sexual maturity)
 
 SMC++ container: results/smcpp/smcpp_latest.sif
 ================================================================================
@@ -35,8 +35,8 @@ import os, glob
 SMCPP_SIF  = "results/smcpp/smcpp_latest.sif"
 ANGSD_SIF  = "/work/vollmer/acropora_genomics/.snakemake/singularity/084f8dcfcfe42901022fa6e05278b43b.simg"
 BIND       = "--bind /projects --bind /work --bind /home --bind /tmp"
-MUT_RATE   = 3.4e-8
-GEN_TIME   = 10
+MUT_RATE   = 1.8e-8
+GEN_TIME   = 5
 
 CHROMS = [
     "NC_133882.1","NC_133883.1","NC_133884.1","NC_133885.1",
