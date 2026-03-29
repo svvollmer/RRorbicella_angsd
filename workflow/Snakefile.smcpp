@@ -58,7 +58,8 @@ rule all_smcpp:
     input:
         expand("results/smcpp/plots/{sp}_Ne.png", sp=SPECIES),
         expand("results/smcpp/plots/{sp}_Ne.csv", sp=SPECIES),
-        "results/smcpp/plots/split_Ne.png",
+        # split_Ne.png excluded: smc++ split fails for interspecific divergence
+        # (OverflowError in exp() during M-step). Use moments/dadi instead (seg6).
 # ── 1. Per-chromosome BCF via ANGSD ─────────────────────────────────────────
 rule angsd_call:
     """
@@ -325,14 +326,14 @@ rule smc_plot:
         singularity exec {BIND} {SMCPP_SIF} smc++ plot \
             -g {params.g} \
             --csv \
-            -o {params.outdir}/both_Ne.png \
+            {params.outdir}/both_Ne.png \
             {input.models}
         # Individual plots + CSVs
         for sp in apal acer; do
             singularity exec {BIND} {SMCPP_SIF} smc++ plot \
                 -g {params.g} \
                 --csv \
-                -o {params.outdir}/${{sp}}_Ne.png \
+                {params.outdir}/${{sp}}_Ne.png \
                 results/smcpp/fit/${{sp}}/model.final.json
         done
         """
@@ -455,7 +456,7 @@ rule plot_split:
         singularity exec {BIND} {SMCPP_SIF} smc++ plot \
             -g {params.g} \
             --csv \
-            -o {output.png} \
+            {output.png} \
             {input.apal_model} \
             {input.acer_model} \
             {input.split_model}
