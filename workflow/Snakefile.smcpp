@@ -292,7 +292,7 @@ rule smc_fit:
     threads: 8
     resources:
         mem_mb  = 16000,
-        runtime = 240,
+        runtime = 480,
     shell:
         """
         mkdir -p {params.outdir}
