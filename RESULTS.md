@@ -3,9 +3,9 @@
 Multi-species *Acropora* population genomics — *A. cervicornis* and *A. palmata* across
 Florida, Panama, and Bonaire, aligned to the *A. palmata* reference genome (Vollmer Lab).
 
-> **Status (2026-03-28):** 290-sample Discovery HPC run — Segments 2–4 complete (SNP discovery,
+> **Status (2026-03-29):** 290-sample Discovery HPC run — Segments 2–4 complete (SNP discovery,
 > relatedness, PCA, admixture K=1–10, diversity, FST). Sliding-window FST outlier analysis complete.
-> Seg 6 (demography/moments) and Seg 7 (SMC++) running.
+> Seg 7 (SMC++) complete. Seg 6 (demography/moments) running (5/7 comparisons done).
 
 ---
 
@@ -234,12 +234,73 @@ Script: `workflow/scripts/plot_fst_windows.py`
 
 ---
 
-### Demographic Inference
+### Population Size History (SMC++)
 
-*Moments/dadi model fitting pending — Segment 6.*
+**Figure:** `docs/figures/smcpp_Ne_annotated.png`
 
-Planned: 2-pop and 4-pop models for FL/PA/BON × species comparisons.
-Scripts (`run_moments_2pop.py`, `run_moments_4pop.py`) pending implementation.
+**Method:** `smc++ estimate` on Florida-only samples filtered to Q≥0.99 (high-confidence
+species assignment). Distinguished pairs drawn from 3 random individuals per chromosome.
+Cubic spline model; folded SFS throughout (no reliable outgroup).
+
+**Assumptions and caveats:**
+- μ = 3.4×10⁻⁸ per site per generation — from *A. millepora* (Kitchen et al. 2019 *Mol Biol Evol*).
+  This is the largest uncertainty: if the true rate is lower (e.g., 1.0×10⁻⁸ as in some coral
+  estimates), all Ne values scale up ~3.4× and all times scale forward proportionally.
+- Generation time = 10 years (onset of sexual reproduction; some studies use 5 yr for branching
+  *Acropora*, which would compress all time estimates by 2×).
+- SMC++ estimates Ne over the last ~10⁴–10⁶ years; it has low resolution at t < ~1,000 yr
+  (cannot resolve post-1980 white band crash) and loses power beyond ~500 kya.
+- FL-only, high-purity samples used; Bonaire and Panama excluded.
+
+**Results:**
+
+| Species | Present Ne | Bottleneck Ne | Bottleneck time | Ancient Ne (peak) |
+|---------|-----------|---------------|-----------------|-------------------|
+| *A. palmata* | 18,073 | 4,347 | ~36 kya | 38,791 (~347 kya) |
+| *A. cervicornis* | 6,150 | 3,730 | ~34 kya | 50,357 (~426 kya) |
+
+**Interpretation:**
+
+Both species show a parallel mid-Pleistocene bottleneck at ~34–36 kya, likely reflecting
+reduced Caribbean reef habitat during the Last Glacial Maximum (sea-level ~120 m lower, restricted
+shallow-water habitat). Bottleneck depth was similar (~3.7–4.3k Ne) in both species.
+
+*A. cervicornis* had a substantially higher ancient Ne (~50k) than *A. palmata* (~39k), consistent
+with *A. cervicornis* having more segregating sites in the joint SNP dataset (3.50M SNPs in 82
+acer samples vs. 3.71M SNPs in 49 apal samples after per-species VCF calling — the higher absolute
+SNP count with *fewer* apal samples indicates higher per-individual heterozygosity in apal at
+recent timescales). The apparent paradox is resolved by the trajectories: the overall nucleotide
+diversity reflects long-term ancestral Ne (where acer > apal), while the present-day Ne reflects
+Holocene recovery success.
+
+Since the bottleneck, *A. palmata* has recovered more strongly (Ne 4k → 18k, ~4× recovery) versus
+*A. cervicornis* (Ne 3.7k → 6.2k, ~1.7× recovery). This differential recovery may reflect
+*A. cervicornis*'s greater susceptibility to disease (white band disease) and thermal stress
+reducing its effective reproductive output over the Holocene, though SMC++ has limited resolution
+for events younger than ~2,000–3,000 years and cannot detect the 1980s white band crash directly.
+
+**Note on smc++ split:** The split analysis (estimating apal/acer divergence time) was not run —
+smc++ split is designed for intraspecific population divergence and fails numerically for the
+deep interspecific split (~2–4 Mya). Species divergence time is addressed by Segment 6 (moments).
+
+---
+
+### Demographic Inference (moments — Segment 6)
+
+**Status (2026-03-29):** 5/7 pairwise comparisons complete; `apal_vs_acer_fl` and
+`acer_fl_vs_pa` still running.
+
+**Completed comparisons:**
+
+| Comparison | Result file |
+|-----------|-------------|
+| acer FL vs. Bonaire | `results/demography/inference/acer_fl_vs_bon.moments.json` |
+| acer FL vs. acer Bonaire | `results/demography/inference/acer_fl_vs_acer_bon.moments.json` |
+| acer FL vs. acer PA | `results/demography/inference/acer_fl_vs_acer_pa.moments.json` |
+| acer PA vs. Bonaire | `results/demography/inference/acer_pa_vs_bon.moments.json` |
+| apal vs. acer Bonaire | `results/demography/inference/apal_vs_acer_bon.moments.json` |
+
+*Full interpretation pending completion of all comparisons and model selection.*
 
 ---
 
