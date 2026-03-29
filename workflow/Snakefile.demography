@@ -325,12 +325,12 @@ rule realsfs_2dsfs:
         "results/demography/sfs2d/{name}.2dsfs",
     threads: 8
     resources:
-        mem_mb=16000,
+        mem_mb=32000,
         runtime=2880,
     shell:
         """
         mkdir -p results/demography/sfs2d
-        realSFS {input.safs} -P {threads} -fold 1 > {output}
+        realSFS {input.safs} -P {threads} -fold 1 -nSites 5000000 -tole 1e-2 | tail -1 > {output}
         """
 
 # ============================================================================
