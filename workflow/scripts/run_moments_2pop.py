@@ -29,6 +29,7 @@ import os
 import sys
 import time
 import warnings
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 
@@ -162,36 +163,74 @@ def random_start(param_names, rng):
     return p
 
 
-def fit_model(fs_data, model_name, restarts, ns, rng, verbose=False):
+def _single_restart(p0, fs_data, model_name, ns):
+    """Top-level function for ProcessPoolExecutor (must be picklable)."""
     func, param_names, k = MODELS[model_name]
+    lb = [1e-6 if n in ("m", "m12", "m21") else 1e-4 for n in param_names]
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            popt = moments.Inference.optimize_log(
+                p0, fs_data, func,
+                lower_bound=lb,
+                upper_bound=[100.0] * k,
+                verbose=0,
+                maxiter=200,
+            )
+        ll = moments.Inference.ll_multinom(func(popt, ns), fs_data)
+        if np.isfinite(ll):
+            return ll, list(popt)
+    except Exception:
+        pass
+    return -np.inf, None
+
+
+def fit_model(fs_data, model_name, restarts, ns, rng, verbose=False, threads=1):
+    func, param_names, k = MODELS[model_name]
+    p0_list = [random_start(param_names, rng) for _ in range(restarts)]
+
     best_ll = -np.inf
     best_params = None
 
-    for i in range(restarts):
-        p0 = random_start(param_names, rng)
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                # lower_bound per-parameter: migration params allow 1e-6 to
-                # detect near-zero inter-species gene flow; size/time params 1e-4
-                lb = [1e-6 if n in ("m","m12","m21") else 1e-4
-                      for n in param_names]
-                popt = moments.Inference.optimize_log(
-                    p0, fs_data, func,
-                    lower_bound=lb,
-                    upper_bound=[100.0] * k,
-                    verbose=0,
-                    maxiter=200,
-                )
-            ll = moments.Inference.ll_multinom(func(popt, ns), fs_data)
-            if np.isfinite(ll) and ll > best_ll:
-                best_ll = ll
-                best_params = list(popt)
+    if threads > 1:
+        with ProcessPoolExecutor(max_workers=threads) as pool:
+            futures = {pool.submit(_single_restart, p0, fs_data, model_name, ns): i
+                       for i, p0 in enumerate(p0_list)}
+            for fut in as_completed(futures):
+                i = futures[fut]
+                ll, popt = fut.result()
+                if popt is not None and ll > best_ll:
+                    best_ll = ll
+                    best_params = popt
+                    if verbose:
+                        print(f"  [{model_name}] restart {i+1}/{restarts}: ll={ll:.4f}", flush=True)
+                elif verbose and popt is None:
+                    print(f"  [{model_name}] restart {i+1}/{restarts}: failed", flush=True)
+    else:
+        for i, p0 in enumerate(p0_list):
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    # lower_bound per-parameter: migration params allow 1e-6 to
+                    # detect near-zero inter-species gene flow; size/time params 1e-4
+                    lb = [1e-6 if n in ("m","m12","m21") else 1e-4
+                          for n in param_names]
+                    popt = moments.Inference.optimize_log(
+                        p0, fs_data, func,
+                        lower_bound=lb,
+                        upper_bound=[100.0] * k,
+                        verbose=0,
+                        maxiter=200,
+                    )
+                ll = moments.Inference.ll_multinom(func(popt, ns), fs_data)
+                if np.isfinite(ll) and ll > best_ll:
+                    best_ll = ll
+                    best_params = list(popt)
+                    if verbose:
+                        print(f"  [{model_name}] restart {i+1}/{restarts}: ll={ll:.4f}", flush=True)
+            except Exception as e:
                 if verbose:
-                    print(f"  [{model_name}] restart {i+1}/{restarts}: ll={ll:.4f}", flush=True)
-        except Exception as e:
-            if verbose:
-                print(f"  [{model_name}] restart {i+1}/{restarts}: failed ({e})", flush=True)
+                    print(f"  [{model_name}] restart {i+1}/{restarts}: failed ({e})", flush=True)
 
     return best_ll, best_params
 
@@ -237,6 +276,7 @@ def main():
     parser.add_argument("--models",      nargs="+",  default=list(MODELS.keys()),
                         choices=list(MODELS.keys()))
     parser.add_argument("--seed",        type=int,   default=42)
+    parser.add_argument("--threads",     type=int,   default=1,      help="Parallel workers for restarts")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
@@ -273,7 +313,7 @@ def main():
         _, param_names, k = MODELS[model_name]
         print(f"Fitting {model_name} ({k} params, {args.restarts} restarts)...", flush=True)
         t0 = time.time()
-        best_ll, best_params = fit_model(fs_data, model_name, args.restarts, ns, rng, args.verbose)
+        best_ll, best_params = fit_model(fs_data, model_name, args.restarts, ns, rng, args.verbose, args.threads)
         elapsed = time.time() - t0
 
         if best_params is None:
