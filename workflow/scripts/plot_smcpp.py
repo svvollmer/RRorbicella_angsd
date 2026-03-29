@@ -79,13 +79,21 @@ def main(apal_csv, acer_csv, outpng):
                 color=COL_ACER, fontsize=8,
                 arrowprops=dict(arrowstyle="-", color=COL_ACER, lw=0.8))
 
-    # Shade LGM window (~20–26 kya)
-    ax.axvspan(20000, 26000, alpha=0.08, color="gray", label="LGM (~20–26 kya)")
-
-    # Annotate LGM
-    ax.text(23000, ax.get_ylim()[0] if ax.get_ylim()[0] > 0 else 3000,
-            "LGM", ha="center", va="bottom", fontsize=7.5, color="gray",
-            rotation=90)
+    # ── Caribbean reef geological/climate events ──────────────────────────────
+    # Each event: (label, x_center, span_half_width, color)
+    events = [
+        # LGM sea-level minimum — shallow Caribbean reef habitat collapsed
+        ("LGM\n(−120 m)", 21000, 3000, "#555555"),
+        # Last Interglacial highstand — Caribbean reef expansion, A. palmata dominant
+        ("MIS 5e\nhighstand", 125000, 10000, "#2ca25f"),
+        # MIS 6 glaciation — penultimate glacial maximum, large habitat loss
+        ("MIS 6\nglacial", 155000, 12000, "#555555"),
+    ]
+    ybot = 2200   # fixed y for event labels (just above ylim bottom)
+    for label, xc, hw, col in events:
+        ax.axvspan(xc - hw, xc + hw, alpha=0.10, color=col, zorder=0)
+        ax.text(xc, ybot, label, ha="center", va="bottom",
+                fontsize=6.5, color=col, rotation=90, linespacing=1.2)
 
     # ── Axes formatting ───────────────────────────────────────────────────────
     ax.set_xscale("log")
@@ -94,7 +102,7 @@ def main(apal_csv, acer_csv, outpng):
     ax.set_ylabel("Effective population size (Ne)", fontsize=11)
     ax.set_title(r"$Acropora$ population size history (SMC++)", fontsize=12)
     ax.set_xlim(1e3, 6e5)
-    ax.set_ylim(2e3, 8e4)
+    ax.set_ylim(2e3, 1.2e5)   # upper bound accommodates rescaled Ne values
 
     ax.legend(loc="upper left", fontsize=9, framealpha=0.85)
 
