@@ -81,8 +81,11 @@ def model_IM_a(params, ns):
     """
     Isolation with Migration, asymmetric.
     params: nu1, nu2, T, m12, m21
-      m12 — migration pop1 → pop2
-      m21 — migration pop2 → pop1
+      m12 — migration INTO pop1 FROM pop2  (i.e. pop2 → pop1)
+      m21 — migration INTO pop2 FROM pop1  (i.e. pop1 → pop2)
+    Convention: moments m[i,j] = rate FROM pop j INTO pop i (see moments docs).
+    In the matrix [[0, m12], [m21, 0]]: m[0][1]=m12 is FROM pop2 INTO pop1,
+    and m[1][0]=m21 is FROM pop1 INTO pop2.
     """
     nu1, nu2, T, m12, m21 = params
     sts = moments.LinearSystem_1D.steady_state_1D(ns[0] + ns[1])
@@ -367,7 +370,12 @@ def main():
             f.write(f"Best model: {best_model}\n")
             f.write("Parameters:\n")
             for pname, pval in results[best_model]["params"].items():
-                f.write(f"  {pname}: {pval:.6f}\n")
+                if pname == "m12":
+                    f.write(f"  m12: {pval:.6f}  ({pop_ids[1]} → {pop_ids[0]})\n")
+                elif pname == "m21":
+                    f.write(f"  m21: {pval:.6f}  ({pop_ids[0]} → {pop_ids[1]})\n")
+                else:
+                    f.write(f"  {pname}: {pval:.6f}\n")
 
     # Print summary
     print()
@@ -381,6 +389,15 @@ def main():
         marker = " <-- BEST" if name == best_model else ""
         print(f"{name:<8}  {res['k']:>3}  {res['ll']:>12.4f}  {res['aic']:>12.4f}  {delta:>8.2f}{marker}")
     print("=" * 50)
+    if best_model and results[best_model]["params"]:
+        print(f"\nBest model parameters ({best_model}):")
+        for pname, pval in results[best_model]["params"].items():
+            if pname == "m12":
+                print(f"  m12: {pval:.6f}  ({pop_ids[1]} → {pop_ids[0]})")
+            elif pname == "m21":
+                print(f"  m21: {pval:.6f}  ({pop_ids[0]} → {pop_ids[1]})")
+            else:
+                print(f"  {pname}: {pval:.6f}")
     print(f"\nResults: {args.out}.moments.json")
     print(f"Summary: {args.out}.bestfit.txt")
 
