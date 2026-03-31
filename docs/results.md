@@ -60,7 +60,7 @@ LD decay estimated with ngsLD on 29,127 LD-pruned SNPs.
 
 ## 7. Site Frequency Spectra
 
-Folded 1D SFS per population. *(Pending Segment 4 completion)*
+Folded 1D SFS per population (ANGSD `-doSaf 1`, no MAF filter, nonrepeat sites only).
 
 ![SFS](figures/sfs.png)
 
@@ -68,15 +68,31 @@ Folded 1D SFS per population. *(Pending Segment 4 completion)*
 
 ## 8. Genetic Diversity (π, θ, Tajima's D)
 
-*(Pending Segment 4 completion)*
+Per-population nucleotide diversity (π), Watterson's θ, and Tajima's D estimated from 1D SAFs.
+Chr 14 (NC_133895.1) shows the highest Tajima's D in every population of both species — consistent
+with a sex chromosome or large ancestral inversion (cf. *A. millepora* chr 14 sex chromosome).
 
-![Diversity](figures/diversity.png)
+![Diversity summary](figures/diversity_summary.png)
+![Diversity per chromosome](figures/chrom_diversity_by_species.png)
+![Tajima's D profile](figures/tajima_profile_by_species.png)
+![Windowed π](figures/windowed_pi.png)
+![Windowed Tajima's D](figures/windowed_tajima.png)
 
 ---
 
 ## 9. FST
 
-*(Pending Segment 4 completion — FST Manhattan plots will appear here)*
+Pairwise FST between lineageA (*A. palmata*) and lineageB (*A. cervicornis*), Florida samples.
+Genome-wide weighted FST = 0.0102; unweighted = 0.4327 (high unweighted reflects many
+low-frequency species-specific alleles; shared common alleles drive low weighted FST).
+
+Outlier windows defined as top 1% by Z-score (FST > ~0.883). 324 high-FST windows, 812 low-FST
+windows. Gene-level annotations in `docs/selection/`.
+
+![FST Manhattan](figures/fst_acer_vs_apal_FL_manhattan.png)
+![FST per chromosome](figures/fst_acer_vs_apal_FL_per_chrom.png)
+![FST stacked](figures/fst_acer_vs_apal_FL_stacked.png)
+![FST heatmap](figures/fst_heatmap.png)
 
 ---
 

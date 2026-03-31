@@ -1,0 +1,19 @@
+Two-population demographic inference — acer_fl_vs_bon
+Populations: acer_fl (n=136) vs acer_bon (n=38)
+Segregating sites: 83233  |  Restarts: 20
+
+Model       k         log-L           AIC      dAIC
+--------------------------------------------------
+IM_a        5   -11827.0721    23664.1442      0.00
+AM          5   -12405.2922    24820.5844   1156.44
+IM          4   -12758.3458    25524.6915   1860.55
+SC          5   -12758.4167    25526.8333   1862.69
+SI          3   -12975.8846    25957.7691   2293.62
+
+Best model: IM_a
+Parameters:
+  nu1: 0.358351
+  nu2: 0.130773
+  T: 0.117105
+  m12: 2.236434  (acer_bon -> acer_fl)
+  m21: 32.754833  (acer_fl -> acer_bon)

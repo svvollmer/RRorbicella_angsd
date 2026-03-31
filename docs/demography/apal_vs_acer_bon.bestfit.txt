@@ -1,0 +1,19 @@
+Two-population demographic inference — apal_vs_acer_bon
+Populations: apal_bon (n=38) vs acer_bon (n=38)
+Segregating sites: 80817  |  Restarts: 20
+
+Model       k         log-L           AIC      dAIC
+--------------------------------------------------
+AM          5   -18153.5999    36317.1998      0.00
+IM_a        5   -18384.9979    36779.9957    462.80
+IM          4   -19002.2312    38012.4623   1695.26
+SC          5   -19002.2190    38014.4380   1697.24
+SI          3   -21649.8134    43305.6267   6988.43
+
+Best model: AM
+Parameters:
+  nu1: 0.072385
+  nu2: 0.078844
+  T1: 0.371341
+  T2: 0.006163
+  m: 8.179984
