@@ -138,3 +138,64 @@ Florida-only high-purity samples (Q ≥ 0.99): apal n=49, acer n=82.
 
 Both species bottleneck at LGM (~17–18 kya); apal recovered 4× post-LGM vs acer 1.7×.
 Ancient Ne: acer > apal — acer was historically the larger/more diverse species.
+
+### SMC++ split (species divergence time)
+
+`smc++ split` was attempted using the apal and acer Florida Ne(t) models with all 14 chromosomes
+(3 distinguished pairs each). It failed with `OverflowError: math range error` — the apal/acer
+divergence (~2–4 Mya) is beyond SMC++'s estimable time window, which saturates at ~500 kya.
+Species divergence time is covered by the moments IM_a T parameter for `apal_vs_acer_fl` (~8,250 yr
+scaled; interpret cautiously given small N_anc from projected SFS). Literature places apal/acer
+divergence at ~1–3 Mya; SMC++ split is not a suitable tool for this pair.
+
+---
+
+## FST Outlier Genes and GO Enrichment (acer vs apal, Florida)
+
+FST outlier windows (top 1%, sliding window) were intersected with the *A. palmata* jaAcrPala1.3
+gene annotation. Significant GO terms tested by Fisher's exact test (goatools, FDR-BH < 0.05).
+
+**Files:** `docs/selection/acer_vs_apal_FL.genes.tsv`, `acer_vs_apal_FL_GO.go_sig.tsv`
+
+### Outlier summary
+
+- 324 FST outlier windows (FST > ~0.94 weighted)
+- 705 genes overlapping outlier windows
+- 293 significant GO terms (FDR-BH < 0.05)
+
+### Top FST outlier genes (by FST)
+
+| Gene | Description | FST |
+|---|---|---|
+| LOC141897654 | CD59 glycoprotein-like | 0.958 |
+| LOC141863290 | E3 ubiquitin-protein ligase RNF113A-like | 0.953 |
+| LOC141873931 | CCR4-NOT transcription complex subunit 6-like | 0.951 |
+| LOC141863732 | Helicase ARIP4-like | 0.949 |
+| LOC141873566 | Ras-related and estrogen-regulated growth inhibitor-like | 0.949 |
+| LOC141874147 | Adenosine receptor A2b-like | 0.947 |
+| LOC141877289 | Activating signal cointegrator 1-like | 0.948 |
+
+### Key enriched GO categories (FDR-BH < 0.05, most specific terms)
+
+| GO term | Category | Name | Study/Pop | FDR |
+|---|---|---|---|---|
+| GO:0007165 | BP | Signal transduction | 63/479 | 3.8e-09 |
+| GO:0140110 | MF | Transcription regulator activity | 28/479 | 3.1e-07 |
+| GO:0016491 | MF | Oxidoreductase activity | 28/479 | 1.1e-06 |
+| GO:0032502 | BP | Developmental process | 24/479 | 1.1e-06 |
+| GO:0016301 | MF | Kinase activity | 24/479 | 2.9e-05 |
+| GO:0030547 | MF | Signaling receptor inhibitor activity | 5/479 | 3.9e-06 |
+| GO:0022836 | MF | Gated channel activity | 17/479 | 1.7e-05 |
+| GO:0005216 | MF | Ion channel activity | 21/479 | 2.9e-05 |
+| GO:0048856 | BP | Anatomical structure development | 15/479 | 8.8e-05 |
+| GO:0005615 | CC | Extracellular space | 18/479 | 2.3e-04 |
+
+### Biological interpretation
+
+FST outliers are highly enriched for genes involved in signal transduction, receptor signaling,
+ion channels, and transcription regulation — consistent with species-level differentiation in
+cell communication, developmental pathways, and stress response. CD59 glycoprotein (top outlier)
+is a complement inhibitor relevant to immune defense. Adenosine receptor A2b is involved in
+inflammation and stress signaling. CCR4-NOT complex regulates mRNA stability and transcription.
+These categories align with known reproductive isolation and adaptive divergence loci in coral
+comparative genomics.
