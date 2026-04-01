@@ -1,36 +1,32 @@
 # ============================================================================
-# ECOS Population Genomics Pipeline — Configuration
+# RRorbicella_angsd — Project Configuration
+# Northeastern Discovery HPC
+# Pipeline: /projects/vollmer/RRorbicella_angsd
+# Samples: 140 (63 O. annularis, 55 O. faveolata, 22 O. franksi)
+# Input: pre-existing BAMs (local_bam) + merged old+new BAMs (merge_bam)
+# Reference: jaOrbFran1.1 (O. franksi genome, GCA_964199315.1)
 # ============================================================================
 
-# --- Execution environment ---
-# Set local_conda_env to the angsd-pipeline conda env path when running
-# locally without Singularity. Leave unset (or comment out) on HPC/AWS
-# where --use-singularity handles PATH inside containers.
-local_conda_env: "/home/minipc/miniconda3/envs/angsd-pipeline"
-
 # --- Input ---
-samples_csv: "config/samples_aws_test.csv"
-reference: "reference/apalmata_genome.fasta"
-gene_annotation: "reference/apalmata_genes.gff"
+samples_csv: "config/samples.csv"
+reference: "/projects/vollmer/RR_heat-tolerance/Orbicella/reference/GCA_964199315.1_jaOrbFran1.1_genomic.fna"
+gene_annotation: "/projects/vollmer/RR_heat-tolerance/Orbicella/reference/braker.gtf"
 
-# --- BAM/CRAM format ---
-# "cram" (default): space-efficient, requires reference for decoding
-# "bam":            use when working with pre-existing BAM files (e.g. Discovery HPC)
-# Pipeline is fully agnostic — change this one setting to switch formats.
-bam_ext: "cram"
+# --- BAM format (all inputs are pre-existing BAMs) ---
+bam_ext: "bam"
 
 # --- Grouping ---
-# Which metadata columns define population groupings for FST/diversity
 grouping_variables:
+  - species
   - population
-primary_grouping: population
-min_pop_size_fst: 10       # minimum samples per group for FST (flag 10-19, skip <3)
+primary_grouping: species
+min_pop_size_fst: 5
 
 # --- ANGSD parameters ---
 gl_model: 1                # 1=SAMtools, 2=GATK
 minmapq: 20                # min mapping quality
 minq: 20                   # min base quality
-min_maf: 0.10              # min minor allele frequency
+min_maf: 0.05              # min minor allele frequency
 min_ind_frac: 0.80         # fraction of individuals required per site
 snp_pval: "1e-6"           # SNP p-value threshold
 
@@ -64,15 +60,11 @@ admixture_replicates: 20     # replicates per K
 lineage_q_threshold: 0.80
 
 # --- FST comparisons (Segment 4) ---
-# Each entry is [group1, group2]. Groups can be populations (florida, panama)
-# or lineage groups (lineageA_florida, lineageB_panama, lineageA_all, lineageB_all).
-# Lineage groups require lineage_assignments.txt from Gate 3.
-# Comment out lineage comparisons if running without Gate 3.
+# Species-level comparisons across the three Orbicella species
 fst_comparisons:
-  - [florida, panama]                          # overall geographic
-  - [lineageA_florida, lineageA_panama]        # geography within pure lineage
-  - [lineageB_florida, lineageB_panama]        # geography within hybrid lineage
-  - [lineageA_all, lineageB_all]               # lineage divergence (pooled)
+  - [Oannularis, Ofaveolata]
+  - [Oannularis, Ofranksi]
+  - [Ofaveolata, Ofranksi]
 
 # --- Relatedness ---
 kinship_threshold: 0.2       # flag pairs above this
@@ -81,70 +73,3 @@ clone_threshold: 0.45        # classify as clone above this
 # --- QC thresholds ---
 min_mapping_rate_flag: 0.50  # flag samples below this
 het_sd_threshold: 2          # flag samples beyond this many SDs
-
-# --- HWE (optional) ---
-use_hwe_filter: false
-hwe_pval: 0.000001
-
-# --- Add-on modules ---
-addons:
-  selection_scan: false
-  demographic_modeling: false
-  local_ancestry: false
-  holobiont: false
-
-# --- Demography options (if demographic_modeling: true) ---
-# Segment 5: SAF/SFS generation + dadi/moments/momi2 model fitting
-# Phase 1 = Florida only (strongest data); Phase 2 = add Panama/Bonaire when ready
-demography:
-  phase: florida_only          # florida_only | all_populations
-
-  # Sample quality filter for "clean" cervicornis (admix_fraction < threshold)
-  admixture_threshold: 0.05
-
-  # Tool for each model stage
-  # Stage 1-2 (2-pop): dadi  — high precision
-  # Stage 3-4 (3-4 pop): moments — faster, more stable for shallow splits
-  default_tool: moments        # moments | dadi | momi2
-
-  # Pairwise comparisons for SAF/SFS generation and model fitting.
-  # Each entry: name, groups list, tool override (optional), projection size (optional).
-  # Groups can be: population, species_population, lineage_population, or
-  #   append _clean / _admixed suffix to filter by admix_fraction.
-  # Leave projection: null to auto-calculate (maximizes segregating sites).
-  demography_comparisons:
-    # Stage 1: intra-palmata lineage split (requires lineage column)
-    - name: apal_lineages_fl
-      groups: [lineageA_florida, lineageB_florida]
-      tool: dadi
-      projection: null
-
-    # Stage 2: species divergence + baseline gene flow (clean cervicornis only)
-    - name: apal_vs_acer_fl_clean
-      groups: [florida_Apalmata, florida_Acervicornis_clean]
-      tool: dadi
-      projection: [100, 100]
-
-    # Stage 3: 4-pop lineage + admixture model
-    - name: 4pop_fl
-      groups: [lineageA_florida_Apalmata, lineageB_florida_Apalmata,
-               florida_Acervicornis_clean, florida_Acervicornis_admixed]
-      tool: moments
-      projection: null
-
-    # Stage 4: full admixture pulse model (same groups, more complex model)
-    - name: 4pop_fl_pulse
-      groups: [lineageA_florida_Apalmata, lineageB_florida_Apalmata,
-               florida_Acervicornis_clean, florida_Acervicornis_admixed]
-      tool: moments
-      projection: null
-
-  # Phase 2 comparisons (commented out until Panama palmata n >= 25)
-  # - name: apal_vs_acer_pa_clean
-  #   groups: [panama_Apalmata, panama_Acervicornis_clean]
-  #   tool: dadi
-  #   projection: [14, 60]
-  # - name: apal_vs_acer_bon_clean
-  #   groups: [bonaire_Apalmata, bonaire_Acervicornis_clean]
-  #   tool: dadi
-  #   projection: [18, 30]

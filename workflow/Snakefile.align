@@ -20,16 +20,28 @@ Instance: spot fleet c6i.2xlarge (AWS) or SLURM allocation (HPC)
 include: "common.smk"
 
 # ---------------------------------------------------------------------------
+# Classify samples by input type
+# ---------------------------------------------------------------------------
+def _itype(sample_id):
+    row = samples.loc[samples["sample_id"] == sample_id].iloc[0]
+    return str(row.get("input_type", "sra")).strip().lower() if "input_type" in samples.columns else "sra"
+
+LOCAL_BAM_SAMPLES = [s for s in SAMPLES if _itype(s) == "local_bam"]
+MERGE_BAM_SAMPLES = [s for s in SAMPLES if _itype(s) == "merge_bam"]
+FASTQ_SAMPLES     = [s for s in SAMPLES if _itype(s) not in ("local_bam", "merge_bam")]
+
+# ---------------------------------------------------------------------------
 # Segment 1 targets
 # ---------------------------------------------------------------------------
 rule all:
     input:
-        expand("results/bams/{sample}.filtered.cram", sample=SAMPLES),
-        expand("results/bams/{sample}.filtered.cram.crai", sample=SAMPLES),
-        "results/multiqc/multiqc_report.html",
-        "results/filtering/filtering_summary.txt",
+        expand("results/bams/{sample}.filtered.{ext}", sample=SAMPLES, ext=[BAM_EXT]),
+        expand("results/bams/{sample}.filtered.{idx}", sample=SAMPLES, idx=[IDX_EXT]),
+        expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
         "results/qc/depth_summary.txt",
         "results/qc/samples_pass.txt",
+        (["results/multiqc/multiqc_report.html", "results/filtering/filtering_summary.txt"]
+         if FASTQ_SAMPLES else []),
 
 # ============================================================================
 # 1. DOWNLOAD / INGEST
@@ -118,6 +130,59 @@ rule stage_s3:
         mkdir -p results/fastq
         aws s3 cp {params.src_r1} {output.r1}
         aws s3 cp {params.src_r2} {output.r2}
+        """
+
+# ============================================================================
+# 1b. LOCAL BAM / MERGE BAM INGESTION (bypass alignment for pre-existing BAMs)
+# ============================================================================
+
+rule use_local_bam:
+    """
+    Symlink a pre-existing filtered BAM for input_type == local_bam.
+    Skips download, trimming, alignment, and deduplication entirely.
+    Requires bam_path column in samples.csv pointing to the existing BAM.
+    """
+    input:
+        bam=lambda wc: samples.loc[samples["sample_id"] == wc.sample, "bam_path"].values[0],
+    output:
+        bam="results/bams/{sample}.filtered.bam",
+        bai="results/bams/{sample}.filtered.bam.bai",
+    wildcard_constraints:
+        sample="|".join(re.escape(s) for s in LOCAL_BAM_SAMPLES) if LOCAL_BAM_SAMPLES else "NOMATCH_local",
+    resources:
+        mem_mb=1000,
+        runtime=10,
+    shell:
+        """
+        ln -sf $(realpath {input.bam}) {output.bam}
+        samtools index {output.bam}
+        """
+
+rule merge_bams:
+    """
+    Merge two existing BAMs/CRAMs for input_type == merge_bam, e.g. when a
+    sample was re-sequenced and both runs should be combined.
+    Requires bam_path (old BAM) and bam_path2 (new BAM/CRAM) columns in samples.csv.
+    """
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
+    input:
+        bam1=lambda wc: samples.loc[samples["sample_id"] == wc.sample, "bam_path"].values[0],
+        bam2=lambda wc: samples.loc[samples["sample_id"] == wc.sample, "bam_path2"].values[0],
+        ref=config["reference"],
+    output:
+        bam="results/bams/{sample}.filtered.bam",
+        bai="results/bams/{sample}.filtered.bam.bai",
+    wildcard_constraints:
+        sample="|".join(re.escape(s) for s in MERGE_BAM_SAMPLES) if MERGE_BAM_SAMPLES else "NOMATCH_merge",
+    threads: 8
+    resources:
+        mem_mb=16000,
+        runtime=120,
+    shell:
+        """
+        samtools merge -f -@ {threads} --reference {input.ref} - {input.bam1} {input.bam2} \
+        | samtools sort -@ {threads} -o {output.bam} -
+        samtools index {output.bam}
         """
 
 # ============================================================================
@@ -224,11 +289,12 @@ rule mark_duplicates:
 rule flagstat:
     container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
-        "results/bams/{sample}.dedup.bam",
+        bam=f"results/bams/{{sample}}.filtered.{BAM_EXT}",
+        ref=config["reference"],
     output:
         "results/qc/{sample}.flagstat.txt",
     shell:
-        "samtools flagstat {input} > {output}"
+        "samtools flagstat --reference {input.ref} {input.bam} > {output}"
 
 # ============================================================================
 # 5. REGION FILTERING + CRAM CONVERSION
@@ -299,15 +365,14 @@ rule filter_mapped:
 rule sample_depth:
     container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
-        cram="results/bams/{sample}.filtered.cram",
-        crai="results/bams/{sample}.filtered.cram.crai",
+        bam=f"results/bams/{{sample}}.filtered.{BAM_EXT}",
         ref=config["reference"],
         fai=config["reference"] + ".fai",
     output:
         "results/qc/{sample}.depth.txt",
     shell:
         """
-        samtools coverage --reference {input.ref} {input.cram} \
+        samtools coverage --reference {input.ref} {input.bam} \
             | awk 'NR>1 {{len+=$3-$2; dep+=$7*($3-$2)}} END {{printf "%.2f\\n", dep/len}}' \
             > {output}
         """
@@ -328,14 +393,14 @@ rule depth_summary:
 
 rule filtering_summary:
     input:
-        expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
-        expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
+        expand("results/qc/{sample}.flagstat.txt", sample=FASTQ_SAMPLES),
+        expand("results/qc/{sample}.depth.txt", sample=FASTQ_SAMPLES),
     output:
         "results/filtering/filtering_summary.txt",
     run:
         with open(output[0], 'w') as out:
             out.write("Sample\tTotal_reads\tMapped_reads\tMapping_rate\tMean_depth\n")
-            for sample in SAMPLES:
+            for sample in FASTQ_SAMPLES:
                 flagstat_file = f"results/qc/{sample}.flagstat.txt"
                 depth_file    = f"results/qc/{sample}.depth.txt"
                 with open(flagstat_file) as f:
@@ -350,9 +415,9 @@ rule filtering_summary:
 rule multiqc:
     container: "docker://quay.io/biocontainers/multiqc:1.21--pyhdfd78af_0"
     input:
-        expand("results/qc/{sample}_fastp.json", sample=SAMPLES),
-        expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
-        expand("results/qc/{sample}.dedup_metrics.txt", sample=SAMPLES),
+        expand("results/qc/{sample}_fastp.json", sample=FASTQ_SAMPLES),
+        expand("results/qc/{sample}.flagstat.txt", sample=FASTQ_SAMPLES),
+        expand("results/qc/{sample}.dedup_metrics.txt", sample=FASTQ_SAMPLES),
     output:
         "results/multiqc/multiqc_report.html",
     shell:
@@ -366,14 +431,20 @@ rule qc_report:
     QC outlier detection. Flags samples > 2 SD from mean on depth, mapping
     rate, or duplicate rate.
 
+    For local_bam/merge_bam samples: depth from samtools coverage; mapping
+    rate and dup_rate set to 1.0/0.0 (already filtered/deduped upstream).
+
     QC GATE: After this rule, run:
         python workflow/scripts/qc_approve.py
     which writes results/qc/samples_approved.txt.
     Then start Segment 2 (Snakefile.snps).
     """
     input:
-        summary="results/filtering/filtering_summary.txt",
-        dedup=expand("results/qc/{sample}.dedup_metrics.txt", sample=SAMPLES),
+        depth_files=expand("results/qc/{sample}.depth.txt", sample=SAMPLES),
+        flagstat_files=expand("results/qc/{sample}.flagstat.txt", sample=SAMPLES),
+        summary=(["results/filtering/filtering_summary.txt"] if FASTQ_SAMPLES else []),
+        dedup=(expand("results/qc/{sample}.dedup_metrics.txt", sample=FASTQ_SAMPLES)
+               if FASTQ_SAMPLES else []),
     output:
         distribution="results/qc/qc_distribution.txt",
         pass_list="results/qc/samples_pass.txt",
@@ -381,28 +452,49 @@ rule qc_report:
         import math, os, sys
 
         stats = {}
-        with open(input.summary) as f:
-            next(f)
-            for line in f:
-                parts = line.strip().split('\t')
-                sample, total, mapped, rate, depth = parts
-                stats[sample] = {
-                    'total_reads':  int(total),
-                    'mapped_reads': int(mapped),
-                    'mapping_rate': float(rate),
-                    'mean_depth':   float(depth),
-                    'dup_rate':     0.0,
-                }
 
-        for fpath in input.dedup:
-            sample = os.path.basename(fpath).replace('.dedup_metrics.txt', '')
-            if sample not in stats:
-                continue
-            with open(fpath) as f:
+        # Load FASTQ-pipeline samples from filtering_summary (has mapping rate)
+        if FASTQ_SAMPLES and input.summary:
+            with open(input.summary[0]) as f:
+                next(f)
+                for line in f:
+                    parts = line.strip().split('\t')
+                    sample, total, mapped, rate, depth = parts
+                    stats[sample] = {
+                        'total_reads':  int(total),
+                        'mapped_reads': int(mapped),
+                        'mapping_rate': float(rate),
+                        'mean_depth':   float(depth),
+                        'dup_rate':     0.0,
+                    }
+            for fpath in input.dedup:
+                sample = os.path.basename(fpath).replace('.dedup_metrics.txt', '')
+                if sample not in stats:
+                    continue
+                with open(fpath) as f:
+                    lines = f.readlines()
+                total = int(lines[0].split()[0])
+                dups  = int(lines[4].split()[0])
+                stats[sample]['dup_rate'] = dups / total if total > 0 else 0.0
+
+        # Load local_bam / merge_bam samples from depth + flagstat
+        for sample in LOCAL_BAM_SAMPLES + MERGE_BAM_SAMPLES:
+            depth_file   = f"results/qc/{sample}.depth.txt"
+            flagstat_file = f"results/qc/{sample}.flagstat.txt"
+            with open(depth_file) as f:
+                depth = float(f.read().strip())
+            with open(flagstat_file) as f:
                 lines = f.readlines()
-            total = int(lines[0].split()[0])
-            dups  = int(lines[4].split()[0])
-            stats[sample]['dup_rate'] = dups / total if total > 0 else 0.0
+            total  = int(lines[0].split()[0])
+            mapped = int(lines[6].split()[0])
+            rate   = mapped / total if total > 0 else 1.0
+            stats[sample] = {
+                'total_reads':  total,
+                'mapped_reads': mapped,
+                'mapping_rate': rate,
+                'mean_depth':   depth,
+                'dup_rate':     0.0,  # already deduped
+            }
 
         def mean_sd(vals):
             m  = sum(vals) / len(vals)

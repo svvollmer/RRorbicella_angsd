@@ -1,97 +1,141 @@
-sample_id,sra_accession,species,population,region,reef_site,lat,lon,pct_missing,mean_depth,qc_pass,clone_group,is_clone,lineage,admix_fraction,heat_tolerance_score,disease_resistance_score,heat_tolerance_class,disease_resistance_class
-Ac_FL_K1,SRR24007640,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_K2,SRR24007629,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_KW15,SRR24007618,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_M1,SRR24007596,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_M10,SRR24007607,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_M5,SRR24007591,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U17,SRR24007644,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U19,SRR24007643,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U20,SRR24007642,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U3,SRR24007635,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U31,SRR24007641,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U33,SRR24007639,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U35,SRR24007638,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U37,SRR24007637,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U39,SRR24007636,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U4,SRR24007627,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U41,SRR24007634,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U42,SRR24007633,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U43,SRR24007632,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U44,SRR24007631,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U46,SRR24007630,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U47,SRR24007628,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U5,SRR24007623,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U55,SRR24007626,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U58,SRR24007625,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U59,SRR24007624,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U62,SRR24007622,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U63,SRR24007621,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U65,SRR24007620,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U67,SRR24007619,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U69,SRR24007617,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U71,SRR24007616,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U72,SRR24007615,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U75,SRR24007614,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U9,SRR24007610,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U91,SRR24007613,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U93,SRR24007612,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U98,SRR24007611,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_PA_CK140,SRR24007609,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK141,SRR24007606,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK1410,SRR24007608,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK142,SRR24007605,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK143,SRR24007604,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK144,SRR24007603,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK145,SRR24007602,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK146,SRR24007601,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK147,SRR24007600,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK41,SRR24007598,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK410,SRR24007599,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK42,SRR24007597,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK43,SRR24007595,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK44,SRR24007594,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK45,SRR24007677,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_Tet3,SRR24007592,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_Tet4,SRR24007590,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_Tet5,SRR24007589,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_Tet6,SRR24007588,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_Tet7,SRR24007587,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_Tet8,SRR24007586,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_Tet9,SRR24007585,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_FL_B10,SRR24007680,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_B8,SRR24007679,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_M2,SRR24007669,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_M3,SRR24007658,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_M6,SRR24007678,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_M7,SRR24007649,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U100,SRR24007648,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U11,SRR24007647,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U14,SRR24007646,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_FL_U15,SRR24007645,Acervicornis,florida,Florida,,,,,,,,,,,,,,
-Ac_PA_CK46,SRR24007676,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK47,SRR24007675,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK48,SRR24007674,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_CK49,SRR24007673,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_HS1,SRR24007671,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_HS10,SRR24007672,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_HS2,SRR24007670,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_HS3,SRR24007668,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_HS4,SRR24007667,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_HS5,SRR24007666,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_HS6,SRR24007665,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_HS7,SRR24007664,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_HS8,SRR24007663,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_HS9,SRR24007662,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_SR1,SRR24007660,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_SR10,SRR24007661,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_SR2,SRR24007659,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_SR3,SRR24007657,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_SR4,SRR24007656,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_SR5,SRR24007655,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_SR6,SRR24007654,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_SR7,SRR24007653,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_SR8,SRR24007652,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_SR9,SRR24007651,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_Tet1,SRR24007650,Acervicornis,panama,Panama,,,,,,,,,,,,,,
-Ac_PA_Tet2,SRR24007593,Acervicornis,panama,Panama,,,,,,,,,,,,,,
+sample_id,input_type,bam_path,bam_path2,species,population,region,reef_site,lat,lon
+Oann_101,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_101.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_101.filtered.cram,Oannularis,FL_RR,"NFWF, Lower Keys",Patch reef off Cudjoe,24.596433,-81.461733
+Oann_102,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_102.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_102.filtered.cram,Oannularis,FL_RR,"NFWF, Middle Keys",Marathon Offshore,24.704617,-80.937767
+Oann_103,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_103.bwa.dedup.clip.bam,,Oannularis,FL_RR,"NFWF, Middle Keys",Delta Shoal,24.63245,-81.087795
+Oann_105,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_105.bwa.dedup.clip.bam,,Oannularis,FL_RR,"NFWF, Key West",Charlies Patch Reef,24.569136,-81.652676
+Oann_106,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_106.bwa.dedup.clip.bam,,Oannularis,FL_RR,"NFWF, Lower Keys",Mid Channel Patch 1,24.501167,-81.746336
+Oann_107,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_107.bwa.dedup.clip.bam,,Oannularis,FL_RR,"NFWF, Lower Keys",Mid Channel Patch 1,24.500853,-81.747037
+Oann_108,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_108.bwa.dedup.clip.bam,,Oannularis,FL_RR,"NFWF, Lower Keys",Nearshore Boca Chica,24.560485,-81.664323
+Oann_109,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_109.bwa.dedup.clip.bam,,Oannularis,FL_RR,"NFWF, Lower Keys",Nearshore Boca Chica,24.56425,-81.657394
+Oann_110,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_110.bwa.dedup.clip.bam,,Oannularis,FL_RR,"NFWF, Lower Keys",Nearshore Boca Chica,24.556209,-81.673834
+Oann_111,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_111.bwa.dedup.clip.bam,,Oannularis,FL_RR,"NFWF, Middle Keys",Lower Matecumbe Nearshore,24.837086,-80.729397
+Oann_115,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_115.bwa.dedup.clip.bam,,Oannularis,FL_RR,"NFWF, Upper Keys",North Horseshoe,25.149315,-80.291995
+Oann_116,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_116.bwa.dedup.clip.bam,,Oannularis,FL_RR,"NFWF, Upper Keys",Horseshoe,25.139001,-80.295298
+Oann_17,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_17.bwa.dedup.clip.bam,,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.989766,-80.4629666667
+Oann_21,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_21.bwa.dedup.clip.bam,,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.99305,-80.4607833333
+Oann_23,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_23.bwa.dedup.clip.bam,,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.9879,-80.4636333333
+Oann_33,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_33.bwa.dedup.clip.bam,,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.992266,-80.4637666667
+Oann_4,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_4.bwa.dedup.clip.bam,,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.988716,-80.46755
+Oann_50,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_50.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_50.filtered.cram,Oannularis,FL_RR,Upper Keys,Plantation Key Patch 1,24.9562833,-80.4925667
+Oann_51,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_51.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_51.filtered.cram,Oannularis,FL_RR,Upper Keys,Plantation Key Patch 2,24.9568667,-80.4923
+Oann_52,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_52.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_52.filtered.cram,Oannularis,FL_RR,Upper Keys,"Turtle Rocks, Federal",25.2798,-80.2076833
+Oann_53,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_53.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_53.filtered.cram,Oannularis,FL_RR,Upper Keys,"Turtle Rocks, Federal",25.2797167,-80.2073667
+Oann_54,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_54.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_54.filtered.cram,Oannularis,FL_RR,Upper Keys,White Bank,25.0407333,-80.3720167
+Oann_55,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_55.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_55.filtered.cram,Oannularis,FL_RR,Upper Keys,White Bank,25.0406667,-80.3715167
+Oann_56,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_56.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_56.filtered.cram,Oannularis,FL_RR,Upper Keys,White Bank,25.0404833,-80.3712833
+Oann_57,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_57.bwa.dedup.clip.bam,,Oannularis,FL_RR,Upper Keys,Triangles,25.0168667,-80.4258167
+Oann_58,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_58.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_58.filtered.cram,Oannularis,FL_RR,Upper Keys,Triangles,25.0176333,-80.42535
+Oann_59,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_59.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_59.filtered.cram,Oannularis,FL_RR,Upper Keys,Triangles,25.01745,-80.4253333
+Oann_60,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_60.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_60.filtered.cram,Oannularis,FL_RR,Upper Keys,Watsons Reef,25.1856667,-80.2424
+Oann_61,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_61.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_61.filtered.cram,Oannularis,FL_RR,Upper Keys,North Horseshoe,25.1466167,-80.2929167
+Oann_62,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_62.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_62.filtered.cram,Oannularis,FL_RR,Upper Keys,North Horseshoe,25.1467167,-80.2928167
+Oann_63,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_63.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_63.filtered.cram,Oannularis,FL_RR,Middle Keys,Lower Matecumbe,24.8242333,-80.6605667
+Oann_64,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_64.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_64.filtered.cram,Oannularis,FL_RR,Middle Keys,Lower Matecumbe,24.80855,-80.6799833
+Oann_65,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_65.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_65.filtered.cram,Oannularis,FL_RR,Middle Keys,Lower Matecumbe,24.8085167,-80.6801667
+Oann_66,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_66.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_66.filtered.cram,Oannularis,FL_RR,Middle Keys,Lower Matecumbe,24.8361167,-80.7278
+Oann_67,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_67.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_67.filtered.cram,Oannularis,FL_RR,Middle Keys,Lower Matecumbe,24.836,-80.7279833
+Oann_68,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_68.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_68.filtered.cram,Oannularis,FL_RR,Middle Keys,Lower Matecumbe,24.6932333,-81.0211
+Oann_69,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_69.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_69.filtered.cram,Oannularis,FL_RR,Middle Keys,Marathon,24.6929833,-81.02085
+Oann_70,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_70.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_70.filtered.cram,Oannularis,FL_RR,Middle Keys,Marathon,24.6259333,-81.11165
+Oann_71,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_71.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_71.filtered.cram,Oannularis,FL_RR,Middle Keys,Marathon,24.6263833,-81.1096167
+Oann_72,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_72.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_72.filtered.cram,Oannularis,FL_RR,Middle Keys,Marathon,24.7109,-80.9471
+Oann_73,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_73.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_73.filtered.cram,Oannularis,FL_RR,Middle Keys,Marathon,24.71095,-80.9475333
+Oann_75,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_75.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_75.filtered.cram,Oannularis,FL_RR,Upper Keys,Marathon,24.70035,-80.9664333
+Oann_76,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_76.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_76.filtered.cram,Oannularis,FL_RR,Upper Keys,Watsons Reef,25.1861167,-80.2420667
+Oann_77,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_77.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_77.filtered.cram,Oannularis,FL_RR,Upper Keys,Watsons Reef,25.1862,-80.24185
+Oann_78,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_78.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_78.filtered.cram,Oannularis,FL_RR,Upper Keys,Watsons Reef,25.1633333,-80.2778833
+Oann_79,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_79.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_79.filtered.cram,Oannularis,FL_RR,Upper Keys,Watsons Reef,25.1631667,-80.278
+Oann_80,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_80.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_80.filtered.cram,Oannularis,FL_RR,Middle Keys,Caloosa Rocks,24.8370333,-80.7287
+Oann_81,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_81.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_81.filtered.cram,Oannularis,FL_RR,Middle Keys,Lower Matecumbe,24.81295,-80.6690833
+Oann_82,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_82.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_82.filtered.cram,Oannularis,FL_RR,Middle Keys,Indian Key patch,24.8588833,-80.6581667
+Oann_83,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_83.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_83.filtered.cram,Oannularis,FL_RR,Middle Keys,Indian Key patch,24.85885,-80.65855
+Oann_84,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_84.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_84.filtered.cram,Oannularis,FL_RR,Lower Keys,Newfound Harbor Patch Reef,24.6188167,-81.3805167
+Oann_85,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_85.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_85.filtered.cram,Oannularis,FL_RR,Lower Keys,Newfound Harbor Patch Reef,24.61875,-81.38065
+Oann_86,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_86.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_86.filtered.cram,Oannularis,FL_RR,Lower Keys,Patch reef off Ballast Key,24.46385,-81.98325
+Oann_87,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_87.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_87.filtered.cram,Oannularis,FL_RR,Upper Keys,Patch reef off Tavernier,24.9973,-80.4597333
+Oann_88,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_88.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_88.filtered.cram,Oannularis,FL_RR,Lower Keys,Patch reef off Ballast Key,24.4824333,-81.9549
+Oann_89,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_89.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_89.filtered.cram,Oannularis,FL_RR,Lower Keys,Patch reef off Ballast Key,24.4827167,-81.9551833
+Oann_91,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_91.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_91.filtered.cram,Oannularis,FL_RR,Lower Keys,Newfound Harbor Patch Reef,24.618817,-81.377333
+Oann_92,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_92.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_92.filtered.cram,Oannularis,FL_RR,Lower Keys,Patch reef off Key West,24.5013333,-81.7455
+Oann_95,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_95.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_95.filtered.cram,Oannularis,FL_RR,Middle Keys,Patch reef off Vaca Cut,24.69015,-81.0302667
+Oann_96,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_96.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_96.filtered.cram,Oannularis,FL_RR,Middle Keys,Patch reef off Vaca Cut,24.6897,-81.0304333
+Oann_97,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_97.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_97.filtered.cram,Oannularis,FL_RR,Upper Keys,Triangles,25.0219167,-80.4388833
+Oann_98,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_98.bwa.dedup.clip.bam,,Oannularis,FL_RR,Middle Keys,East Turtle Shoal,24.7189333,-80.9319167
+Oann_99,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_99.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Oann_99.filtered.cram,Oannularis,FL_RR,Key West,"Key West, USCG",24.564576,-81.801855
+Ofav_100,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_100.bwa.dedup.clip.bam,,Ofaveolata,FL_RR,Lower Keys,Key West patch reef,24.5008333,-81.7415667
+Ofav_102,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_102.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_102.filtered.cram,Ofaveolata,FL_RR,Middle Keys,East Turtle Shoal,24.7247,-80.9187833
+Ofav_103,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_103.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_103.filtered.cram,Ofaveolata,FL_RR,Middle Keys,East Turtle Shoal,24.7188667,-80.9316
+Ofav_104,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_104.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_104.filtered.cram,Ofaveolata,FL_RR,Middle Keys,"184 S. Indies DR, Duck Key",24.768249,-80.915704
+Ofav_105,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_105.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_105.filtered.cram,Ofaveolata,FL_RR,Upper Keys,Rodberg Property in Islamorada,24.956315,-80.588169
+Ofav_106,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_106.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_106.filtered.cram,Ofaveolata,FL_RR,Key West,Coast Guard Station,24.566144,-81.801417
+Ofav_107,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_107.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_107.filtered.cram,Ofaveolata,FL_RR,"NFWF, Key West",Key West FKNMS Nursery,24.566144,-81.801417
+Ofav_110,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_110.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_110.filtered.cram,Ofaveolata,FL_RR,"NFWF, Lower keys",Key West Coast Guard,24.566182,-81.801796
+Ofav_50,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_50.bwa.dedup.clip.bam,,Ofaveolata,FL_RR,Upper Keys,Plantation Key Patch 1,24.9561667,-80.4927167
+Ofav_52,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_52.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_52.filtered.cram,Ofaveolata,FL_RR,Upper Keys,"Turtle Rocks, Federal",25.2842,-80.2072333
+Ofav_53,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_53.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_53.filtered.cram,Ofaveolata,FL_RR,Upper Keys,"Turtle Rocks, Federal",25.2799,-80.2077
+Ofav_54,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_54.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_54.filtered.cram,Ofaveolata,FL_RR,Upper Keys,"Turtle Rocks, Federal",25.2797167,-80.2073833
+Ofav_55,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_55.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_55.filtered.cram,Ofaveolata,FL_RR,Upper Keys,Triangles Patch 1,25.0182833,-80.4393833
+Ofav_56,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_56.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_56.filtered.cram,Ofaveolata,FL_RR,Upper Keys,Triangles Patch 1,25.00636,-80.44642
+Ofav_57,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_57.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_57.filtered.cram,Ofaveolata,FL_RR,Upper Keys,Triangles patch,25.00691,-80.42952
+Ofav_58,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_58.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_58.filtered.cram,Ofaveolata,FL_RR,Upper Keys,White Bank,25.04065,-80.3715667
+Ofav_59,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_59.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_59.filtered.cram,Ofaveolata,FL_RR,Upper Keys,White Bank,25.04015,-80.3709
+Ofav_60,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_60.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_60.filtered.cram,Ofaveolata,FL_RR,Upper Keys,Triangles Patch 2,25.0166167,-80.4268833
+Ofav_61,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_61.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_61.filtered.cram,Ofaveolata,FL_RR,Upper Keys,Triangles Patch 2,25.0164667,-80.4260333
+Ofav_62,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_62.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_62.filtered.cram,Ofaveolata,FL_RR,Upper Keys,Watsons Reef,25.1843833,-80.2457167
+Ofav_63,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_63.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_63.filtered.cram,Ofaveolata,FL_RR,Upper Keys,Watsons Reef,25.1856833,-80.2430667
+Ofav_64,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_64.bwa.dedup.clip.bam,,Ofaveolata,FL_RR,Upper Keys,North Horseshoe,25.1468333,-80.2927
+Ofav_65,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_65.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_65.filtered.cram,Ofaveolata,FL_RR,Upper Keys,North Horseshoe,25.1469833,-80.2927167
+Ofav_66,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_66.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_66.filtered.cram,Ofaveolata,FL_RR,Upper Keys,Triangles,25.0176,-80.4253833
+Ofav_67,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_67.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_67.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Lower Matecumbe,24.8274833,-80.6474167
+Ofav_68,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_68.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_68.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Lower Matecumbe,24.8278333,-80.64695
+Ofav_69,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_69.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_69.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Lower Matecumbe,24.8241833,-80.6607333
+Ofav_70,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_70.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_70.filtered.cram,Ofaveolata,FL_RR,Lower Keys,Lower Matecumbe,24.808583,-80.679983
+Ofav_71,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_71.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_71.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Lower Matecumbe,24.8086,-80.6801833
+Ofav_72,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_72.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_72.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Caloosa Rocks,24.83625,-80.7281667
+Ofav_73,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_73.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_73.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Sombrero,24.626,-81.1103167
+Ofav_74,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_74.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_74.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Caloosa Rocks,24.83665,-80.72765
+Ofav_75,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_75.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_75.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Key Colony Beach,24.6933,-81.02115
+Ofav_76,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_76.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_76.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Key Colony Beach,24.6929667,-81.0211833
+Ofav_77,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_77.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_77.filtered.cram,Ofaveolata,FL_RR,Middle Keys,East Turtle Shoal,24.7111833,-80.9467667
+Ofav_78,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_78.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_78.filtered.cram,Ofaveolata,FL_RR,Middle Keys,East Turtle Shoal,24.7113667,-80.9469167
+Ofav_79,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_79.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_79.filtered.cram,Ofaveolata,FL_RR,Middle Keys,East Turtle Shoal,24.7007167,-80.9651667
+Ofav_80,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_80.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_80.filtered.cram,Ofaveolata,FL_RR,Middle Keys,East Turtle Shoal,24.7008333,-80.96495
+Ofav_81,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_81.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_81.filtered.cram,Ofaveolata,FL_RR,Upper Keys,AAA  Reef,25.1679,-80.2677
+Ofav_82,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_82.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_82.filtered.cram,Ofaveolata,FL_RR,Upper Keys,AAA  Reef,25.1679333,-80.2672667
+Ofav_83,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_83.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_83.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Channel 2,24.8428667,-80.7512667
+Ofav_84,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_84.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_84.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Channel 2,24.8433,-80.7506833
+Ofav_85,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_85.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_85.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Caloosa Rocks,24.8370833,-80.7296667
+Ofav_86,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_86.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_86.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Indian Key,24.8588,-80.65765
+Ofav_87,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_87.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_87.filtered.cram,Ofaveolata,FL_RR,Middle Keys,Indian Key,24.8589,-80.65825
+Ofav_88,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_88.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_88.filtered.cram,Ofaveolata,FL_RR,Lower Keys,Newfound harbor patch reef,24.6188333,-81.3805167
+Ofav_89,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_89.bwa.dedup.clip.bam,,Ofaveolata,FL_RR,Lower Keys,Newfound harbor patch reef,24.6186833,-81.3806833
+Ofav_90,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_90.bwa.dedup.clip.bam,,Ofaveolata,FL_RR,Lower Keys,Ballast Key Patch reef,24.4639167,-81.9831167
+Ofav_91,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_91.bwa.dedup.clip.bam,,Ofaveolata,FL_RR,Lower Keys,Ballast Key Patch reef,24.4642833,-81.9834667
+Ofav_92,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_92.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_92.filtered.cram,Ofaveolata,FL_RR,Upper Keys,Plantation Key,24.9561833,-80.493
+Ofav_93,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_93.bwa.dedup.clip.bam,,Ofaveolata,FL_RR,Upper Keys,Plantation Key ,24.9574167,-80.4922167
+Ofav_94,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_94.bwa.dedup.clip.bam,,Ofaveolata,FL_RR,Upper Keys,Tavernier Patch Reef,25.0133333,-80.4255333
+Ofav_96,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_96.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_96.filtered.cram,Ofaveolata,FL_RR,Lower Keys,Ballast Key Patch reef,24.4824333,-81.9550167
+Ofav_97,merge_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_97.bwa.dedup.clip.bam,/work/vollmer/orbicella_genomics/results/bams/Ofav_97.filtered.cram,Ofaveolata,FL_RR,Lower Keys,Bahia Honda,24.64325,-81.2764333
+Ofav_99,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_99.bwa.dedup.clip.bam,,Ofaveolata,FL_RR,Lower Keys,Key West patch reef,24.50075,-81.7417
+Ofra_1,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_1.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Lower Keys,Ballast Key patch reef,24.48245,-81.9550333
+Ofra_10,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_10.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Middle Keys,East Turtle Shoal,24.7111167,-80.9467167
+Ofra_11,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_11.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Middle Keys,East Turtle Shoal,24.7007167,-80.9651
+Ofra_12,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_12.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Middle Keys,East Turtle Shoal,24.7007167,-80.96585
+Ofra_13,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_13.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Upper Keys,AAA,25.16785,-80.2678833
+Ofra_14,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_14.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Middle Keys,Caloosa Rocks,24.83715,-80.7287833
+Ofra_16,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_16.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Middle Keys,Lower Matecumbe,24.8129167,-80.6693333
+Ofra_17,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_17.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Middle Keys,Indian Key Patch,24.8589333,-80.6583667
+Ofra_18,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_18.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Upper Keys,Triangles 1,25.0156,-80.4256667
+Ofra_19,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_19.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Upper Keys,Tavernier Patch reef,24.9974333,-80.4596167
+Ofra_2,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_2.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Upper Keys,North of Horseshoe,25.1471167,-80.2925167
+Ofra_20,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_20.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Upper Keys,Tavernier Patch reef,24.9973833,-80.4595667
+Ofra_21,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_21.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Lower Keys,Key West patch reef,24.50135,-81.7458833
+Ofra_26,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_26.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Upper Keys,East Turtle Shoal,24.7247167,-80.91865
+Ofra_29,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_29.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Key West,"Coast Guard Station, Key West",24.564635,-81.801061
+Ofra_3,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_3.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Upper Keys,Triangles 1,25.01845,-80.43915
+Ofra_4,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_4.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Upper Keys,Watsons Reef,25.1853833,-80.24275
+Ofra_5,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_5.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Upper Keys,Triangles 1,25.0208,-80.4248833
+Ofra_6,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_6.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Middle Keys,Lower Matecumbe,24.8276333,-80.6476
+Ofra_7,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_7.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Middle Keys,Lower Matecumbe,24.8276333,-80.6471
+Ofra_8,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_8.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Middle Keys,Lower Matecumbe,24.8086667,-80.67985
+Ofra_9,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_9.bwa.dedup.clip.bam,,Ofranksi,FL_RR,Middle Keys,East Turtle Shoal,24.7109333,-80.9468833

@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # =============================================================================
-# run.sh — Launch coral-angsd-pipeline from acropora_genomics project dir
+# run.sh — Launch RRorbicella_angsd pipeline
 #
 # Usage:
 #   bash run.sh <segment> [--dry-run]
 #
 # Segments:
+#   1   — BAM ingestion (local_bam symlink + merge_bam merge) + QC gate
 #   2a  — SNP discovery + GL + relatedness (stops at clone gate)
 #   2b  — Subset BEAGLE after clone_approve.py (completes Segment 2)
 #   3   — LD pruning, PCA, admixture
 #   4   — SAF, SFS, theta, FST
-#   6   — Demography (dadi/moments)
 # =============================================================================
 
 set -euo pipefail
 
-PIPELINE=/projects/vollmer/coral-angsd-pipeline
+PIPELINE=/projects/vollmer/RRorbicella_angsd
 SNAKEMAKE=/home/s.vollmer/.conda/envs/snakemake2/bin/snakemake
 PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE="$PIPELINE/profiles/discovery"
@@ -26,7 +26,7 @@ EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        2a|2b|2c|3|4|6|7) SEGMENT="$1" ;;
+        1|2a|2b|2c|3|4) SEGMENT="$1" ;;
         --dry-run|-n) DRY_RUN="--dry-run" ;;
         *) EXTRA_ARGS+=("$1") ;;
     esac
@@ -34,14 +34,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$SEGMENT" ]]; then
-    echo "Usage: bash run.sh <2a|2b|3|4|6|7> [--dry-run]"
-    echo "  2a = SNP discovery + GL + relatedness (run first)"
-    echo "  2b = subset BEAGLE after clone_approve.py (run second)"
-    echo "  2c = grouped ngsRelate (per species+region, full MAF>0.3 sites)"
+    echo "Usage: bash run.sh <1|2a|2b|3|4> [--dry-run]"
+    echo "   1 = BAM ingestion (local_bam symlink + merge_bam merge) + QC gate"
+    echo "  2a = SNP discovery + GL + relatedness (stops at clone gate)"
+    echo "  2b = subset BEAGLE after clone_approve.py"
+    echo "  2c = grouped ngsRelate (per species)"
     echo "   3 = LD + PCA + admixture"
     echo "   4 = SAF + SFS + FST"
-    echo "   6 = demography"
-    echo "   7 = SMC++ population size history"
     exit 1
 fi
 
@@ -51,6 +50,11 @@ mkdir -p "$PROJECT/logs"
 
 # Segment → Snakefile + targets
 case "$SEGMENT" in
+    1)
+        SNAKEFILE="$PIPELINE/workflow/Snakefile.align"
+        TARGETS=""
+        SEG_NAME="bam_ingest"
+        ;;
     2a)
         SNAKEFILE="$PIPELINE/workflow/Snakefile.snps"
         TARGETS="results/relatedness/clones_report.txt"
@@ -75,16 +79,6 @@ case "$SEGMENT" in
         SNAKEFILE="$PIPELINE/workflow/Snakefile.diversity"
         TARGETS=""
         SEG_NAME="diversity"
-        ;;
-    6)
-        SNAKEFILE="$PIPELINE/workflow/Snakefile.demography"
-        TARGETS=""
-        SEG_NAME="demography"
-        ;;
-    7)
-        SNAKEFILE="$PIPELINE/workflow/Snakefile.smcpp"
-        TARGETS="all_smcpp"
-        SEG_NAME="smcpp"
         ;;
 esac
 
