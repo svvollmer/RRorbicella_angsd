@@ -132,6 +132,8 @@ rule stage_s3:
         aws s3 cp {params.src_r2} {output.r2}
         """
 
+ruleorder: use_local_bam > merge_bams > filter_mapped
+
 # ============================================================================
 # 1b. LOCAL BAM / MERGE BAM INGESTION (bypass alignment for pre-existing BAMs)
 # ============================================================================
@@ -142,6 +144,7 @@ rule use_local_bam:
     Skips download, trimming, alignment, and deduplication entirely.
     Requires bam_path column in samples.csv pointing to the existing BAM.
     """
+    container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         bam=lambda wc: samples.loc[samples["sample_id"] == wc.sample, "bam_path"].values[0],
     output:
