@@ -1,15 +1,16 @@
 """
 ================================================================================
-ECOS Population Genomics Pipeline - Optimized Two-Pass ANGSD Workflow
+RRorbicella_angsd — Three-Species Orbicella Population Genomics Pipeline
 ================================================================================
 
-Author: Vollmer Lab, Florida Atlantic University
-Purpose: Production coral genomics pipeline for Acropora palmata
+Author: Vollmer Lab, Northeastern University
+Purpose: Population genomics of O. annularis, O. faveolata, O. franksi
+         Reference: jaOrbFran1.1 (O. franksi, GCA_964199315.1)
 
 Workflow:
-  Stage 1: BAM Processing (mapping, filtering, QC)
+  Stage 1: BAM Processing (ingestion / alignment / QC)
   Stage 2A: SNP Discovery → GL → LD → PCA/Admixture/Relatedness
-  Stage 2B: SAF → SFS → Diversity/FST (uses all sites)
+  Stage 2B: SAF → SFS → Diversity/FST (uses all sites; all 3 species pairs)
 
 Key design decisions:
 - Two-pass ANGSD: discovery (relaxed, whole genome) → GL (strict, SNPs only)

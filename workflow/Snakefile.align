@@ -3,17 +3,18 @@
 Snakefile.align — Segment 1: Alignment, QC, Gate 1
 ================================================================================
 
-Input:  SRA accessions (or local/S3 FASTQs — see samples.csv input_type column)
-Output: results/bams/*.filtered.cram + results/qc/samples_pass.txt
+Input:  Pre-existing BAMs (local_bam / merge_bam) or FASTQs (local / sra)
+        See samples.csv input_type column.
+Output: results/bams/*.filtered.{bam,cram} + results/qc/samples_pass.txt
 
 Gate 1 (QC): After this segment completes, review QC and approve samples:
     python workflow/scripts/qc_approve.py
     → writes results/qc/samples_approved.txt
 
 Then start Segment 2:
-    snakemake --snakefile workflow/Snakefile.snps --profile profiles/aws
+    bash run.sh 2a
 
-Instance: spot fleet c6i.2xlarge (AWS) or SLURM allocation (HPC)
+Instance: SLURM allocation (Northeastern Discovery HPC)
 ================================================================================
 """
 

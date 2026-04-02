@@ -1,224 +1,162 @@
 # Next Steps
 
-Current state as of 2026-03-21. 290-sample Discovery HPC run.
-Segments 2–3 complete. Segment 4 (diversity/FST) mostly complete. Moments 2D SFS running.
+Current state as of 2026-04-02. Segment 1 running on Discovery HPC.
 
 ---
 
-## Current pipeline status
+## Pipeline status
 
 | Segment | Status | Notes |
 |---------|--------|-------|
-| Seg 2: SNP discovery + relatedness | ✅ Complete | 2,034,805 SNPs; 253 unrelated samples |
-| Seg 3: PCA + admixture | ✅ Complete | PCAngsd + NGSAdmix K=1–10, 20 reps |
-| Seg 4: Diversity + FST | 🔄 Mostly complete | 3/6 FST comparisons done; FL pairs pending |
-| Seg 6: Demography (prototype) | 🔄 2D SFS running | 5 jobs running; watcher auto-submitting moments |
+| Seg 1: BAM ingestion + QC | 🔄 Running | 92 Oann+Ofav new FASTQs; Ofranksi pending |
+| Seg 2a: SNP discovery + relatedness | ⬜ Pending | |
+| Seg 2b: Subset BEAGLE | ⬜ Pending | |
+| Seg 3: PCA + admixture | ⬜ Pending | |
+| Seg 4: Diversity + FST | ⬜ Pending | Three-species pairwise FST |
+| Seg 6: Demography (moments) | ⬜ Pending | All 3 inter-species pairs |
+| Seg 7: SMC++ | ⬜ Pending | Ne(t) for all 3 species |
 
 ---
 
 ## Immediate next steps
 
-### 1. Moments 2D SFS — check tonight / tomorrow morning
+### 1. Monitor Segment 1
 
 ```bash
 ssh s.vollmer@login.discovery.neu.edu
-# Check 2D SFS files
-ls -lh /work/vollmer/acropora_genomics/results/demography/sfs/*.2dsfs
-# Check watcher log
-tail -20 /work/vollmer/acropora_genomics/logs/moments_watcher.log
-# Check queue — non-FL jobs at 24h limit, FL jobs with -maxIter 100
 squeue -u s.vollmer
+tail -f /work/vollmer/orbicella_genomics/logs/segment1_launch.log
 ```
 
-Non-FL jobs (`acer_pa_vs_bon`, `apal_vs_acer_bon`) hit 24h wall at ~19:30 on 2026-03-21.
-If they timed out with 0-byte output, relaunch:
+Expected runtime: fastp ~30–60 min, bwa_map ~2–4h per sample (running in parallel).
+Segment 1 is done when Snakemake exits successfully and writes `results/qc/samples_pass.txt`.
+
+### 2. Gate 1 — QC review
+
 ```bash
-cd /work/vollmer/acropora_genomics
-bash run_2dsfs.sh   # submits acer_pa_vs_bon and apal_vs_acer_bon
+python /projects/vollmer/RRorbicella_angsd/workflow/scripts/qc_approve.py
+# → writes results/qc/samples_approved.txt
 ```
 
-FL jobs (`acer_fl_vs_acer_pa`, `acer_fl_vs_acer_bon`, `apal_fl_vs_apal_bon`) have `-maxIter 100`
-and should finish faster — check output size.
+Flag samples with mean depth < 5× or mapping rate < 50%. *Orbicella* mapping to the
+*O. franksi* reference should be high for all three species (they are closely related and
+share synteny). Flag any inter-species outliers — may reflect divergent structural variants.
 
-### 2. When moments 2D SFS lands
+### 3. Add Ofranksi to the run
 
-The watcher auto-submits moments jobs. Verify fits ran:
+The 22 *O. franksi* samples (`local_bam` type) are not in the current run. After Gate 1,
+either:
+- Append Ofranksi rows to `samples_new.csv` with `input_type: local_bam` and
+  `bam_path` pointing to the existing BAMs, then re-run Segment 1 for those samples only
+- Or run a separate Segment 1 pass for Ofranksi using the `local_bam` ingest path
+
+Ofranksi BAMs: `/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofrank_*.bwa.dedup.clip.bam`
+
+### 4. Segment 2a — SNP discovery
+
 ```bash
-ls -lh /work/vollmer/acropora_genomics/results/demography/moments/
-tail -20 /work/vollmer/acropora_genomics/logs/moments_watcher.log
+bash run.sh 2a
 ```
 
-If watcher missed a job (restart), submit manually:
+Stops at clone gate. After completion:
 ```bash
-# Example for acer_pa_vs_bon (39 PA, 24 BON samples, project to 40/38 haploids)
-/home/s.vollmer/.conda/envs/snakemake2/bin/python \
-  /work/vollmer/acropora_genomics/scripts/run_moments_2pop.py \
-  --sfs /work/vollmer/acropora_genomics/results/demography/sfs/acer_pa_vs_bon.2dsfs \
-  --sfs-format realsfs --n-ind 39 24 \
-  --pop1 acer_pa --pop2 acer_bon \
-  --outdir /work/vollmer/acropora_genomics/results/demography/moments/acer_pa_vs_bon
+python /projects/vollmer/RRorbicella_angsd/workflow/scripts/clone_approve.py
+bash run.sh 2b
 ```
 
-### 3. Remaining FST (Segment 4)
+### 5. Segment 3 — PCA + admixture
 
-Three FST comparisons still pending (lineageB_FL vs FL/PA/BON pairs for Acer):
 ```bash
-# Check seg4 log
-tail -50 /work/vollmer/acropora_genomics/logs/run_seg4.log
-# Restart seg4 if needed
+bash run.sh 3
+```
+
+Then lineage gate:
+```bash
+python /projects/vollmer/RRorbicella_angsd/workflow/scripts/lineage_assign.py
+```
+
+**Key question:** Does K=3 cleanly separate the three *Orbicella* species, or is there
+admixture between species pairs? The species complex is known to hybridize (*O. annularis*
+× *O. faveolata* hybrids documented). Assign lineage labels post-PCA.
+
+### 6. Segment 4 — Diversity + three-species FST
+
+```bash
 bash run.sh 4
 ```
 
-The inter-species FL comparison (lineageB_FL vs lineageA_FL) has been **skipped** — scientifically
-redundant given 0 admixed individuals; repeatedly times out at 24h.
+FST computed for all three pairs (configured in `config.yaml`):
+- *O. annularis* vs *O. faveolata*
+- *O. annularis* vs *O. franksi*
+- *O. faveolata* vs *O. franksi*
 
-### 4. Update figures and RESULTS.md when Seg4 + moments complete
-
-Once FST and moments results are in hand:
-- Pull FST heatmap and diversity plots from HPC
-- Update RESULTS.md diversity and FST sections (currently showing "pending")
-- Update moments section when fits complete
-- Commit and push
+Also produces per-species θ_π, θ_W, and Tajima's D.
 
 ---
 
-## Pending analysis decisions
+## Downstream analyses (post-Seg 4)
 
-### Admixture interpretation for paper
-- **Primary figure**: NGSAdmix K=2 (best by Evanno with K=1 anchor; delta-K = 116M)
-- **Secondary figure**: NGSAdmix K=3 (geography within *A. cervicornis*)
-- PCAngsd and NGSAdmix fully agree at K=2 (0 admixed in both)
-- PCAngsd shows more spread in violin plots — expected (continuous PCA model vs discrete cluster model)
+### Demographic inference (Segment 6 — moments)
 
-### Inter-lineage FL FST
-Skipped from pipeline. The BON species FST (weighted = 0.456) already establishes the species-level
-divergence. The FL equivalent is biologically uninformative beyond that.
+2-population IM / AM / SC models for all three species pairs. Same approach as
+Acropora pipeline: run SI/IM/IM_a/AM/SC as separate SLURM jobs per comparison,
+compare AIC, report asymmetric migration rates and divergence times.
 
-### Moments demographic inference — prototype → pipeline
-Once prototype fits validate on the 5 pairwise comparisons:
-1. Add `moments_2pop` rule to `Snakefile.demography`
-2. Add Segment 6 to `scripts/run_segment.sh`
-3. Run full 290-sample demography on Discovery or AWS
+Key parameters:
+- μ for *Orbicella*: TBD (use *A. millepora* 1.8×10⁻⁸ as first pass, or find an
+  *Orbicella*-specific estimate from the literature)
+- Generation time: ~10 yr (massive corals; slower than branching *Acropora*)
 
-Comparisons planned, with scientific role:
+### Population size history (Segment 7 — SMC++)
 
-| Comparison | Type | Restarts | Key question |
-|------------|------|----------|-------------|
-| `apal_vs_acer_bon` | **Inter-species** | 50 | Is gene flow between species rare? SI vs IM AIC |
-| `acer_pa_vs_bon` | Intra-species | 20 | Acer PA↔BON geographic gene flow |
-| `acer_fl_vs_acer_pa` | Intra-species | 20 | Acer FL↔PA gene flow + split time |
-| `acer_fl_vs_acer_bon` | Intra-species | 20 | Acer FL↔BON gene flow + split time |
-| `apal_fl_vs_apal_bon` | Intra-species | 20 | Apal FL↔BON gene flow + split time |
+Ne(t) curves for all three species using Florida high-purity (Q ≥ 0.95) samples.
+Expected signals:
+- LGM bottleneck ~18–20 kya (shared across species)
+- Post-LGM recovery may differ: *O. faveolata* experienced catastrophic decline since
+  1980s (white band, thermal bleaching); modern Ne may be severely depressed
+- *O. annularis* colonies form large clonal patches — watch for reduced N_e from clonality
+  reducing the effective sample count
 
-**Inter-species gene flow (apal_vs_acer_bon)** is the primary test for the paper narrative.
-K=2 admixture shows 0 admixed individuals → expectation is SI model best or very low m in IM.
-Migration lower bound set to 1e-5 (not 0.01) so the optimizer can find near-zero solutions.
-If SI wins: "isolation is strict — introgression rare or absent."
-If IM wins with low m: "rare gene flow quantified — consistent with near-complete reproductive isolation."
-BON used (not FL) because BON has 100% genet diversity, no clonal contamination, smallest N → cleanest 2D SFS.
+### FST outlier annotation
 
----
+After Seg 4 FST is complete, run sliding-window outlier analysis for each species pair
+(top/bottom 2.5% 50-kb windows) and annotate against the *O. franksi* BRAKER GTF.
+Candidate reproductive isolation loci and introgression tracts.
 
-## Longer-term analysis work
+### Phenotype association (future)
 
-### Chr 14 outlier investigation
-NC_133895.1 has highest Tajima's D in both FL and PA populations in the 96-sample run
-(FL D=+1.10, PA D=+0.74) and elevated per-site π. Check gene content and repeat structure —
-candidate sex chromosome or major introgression hotspot. Investigate with 290-sample diversity
-results once Seg4 FST is complete.
-
-### 4-pop moments model
-After 2-pop prototype validates, fit 4-pop model:
-`run_moments_4pop.py` (not yet written) for lineageA_FL + lineageB_FL + Acer_PA + Acer_BON.
-
-### HTML report (Snakefile.report)
-`generate_report.py` updated to handle multiple FST comparisons and lineage assignment.
-Needs full Seg4 FST results to render completely. Run after FST complete:
-```bash
-bash run.sh 5
-```
-
-### Liftover to native A. cervicornis assembly
-All SNP coordinates are in *A. palmata* reference space. Liftover to a native *A. cervicornis*
-assembly pending — not yet prioritized.
+Reef Renewal heat tolerance scores are available for restoration stock samples.
+WGAS (genotype–phenotype association via ANGSD score test) will be enabled once
+`heat_tolerance_score` column is added to samples.csv.
 
 ---
 
-## How to check status (quick reference)
+## Quick reference — HPC
 
 ```bash
-# Queue
+# Check queue
 squeue -u s.vollmer
 
-# Seg4 FST progress
-tail -30 /work/vollmer/acropora_genomics/logs/run_seg4.log
+# Segment 1 log
+tail -f /work/vollmer/orbicella_genomics/logs/segment1_launch.log
 
-# Moments watcher
-tail -20 /work/vollmer/acropora_genomics/logs/moments_watcher.log
+# BAM outputs (when Seg 1 done)
+ls /work/vollmer/orbicella_genomics/results/bams/*.filtered.* | wc -l
 
-# 2D SFS file sizes
-ls -lh /work/vollmer/acropora_genomics/results/demography/sfs/*.2dsfs
-
-# NGSAdmix (complete — K=1-10 .Q files all present)
-ls /work/vollmer/acropora_genomics/results/admixture/ngsadmix_K*.Q
-
-# Restart seg4 if needed
-cd /work/vollmer/acropora_genomics && bash run.sh 4
+# Restart a segment
+cd /work/vollmer/orbicella_genomics
+bash run.sh 1   # or 2a, 2b, 3, 4
 ```
 
 ---
 
-## Pipeline files reference
+## Key file locations
 
-| File | Purpose |
-|------|---------|
-| `workflow/common.smk` | Shared config/samples/helpers |
-| `workflow/Snakefile.align` | Segment 1: download, trim, map, QC |
-| `workflow/Snakefile.snps` | Segment 2: pass1, filter gate, pass2, relatedness |
-| `workflow/Snakefile.structure` | Segment 3: LD, PCA, NGSAdmix K=1–10 |
-| `workflow/Snakefile.diversity` | Segment 4: SAF, SFS, diversity, lineage FST |
-| `workflow/Snakefile.report` | Segment 5: annotation, HTML report |
-| `workflow/Snakefile.demography` | Segment 6: Gate 4+5, SAF, SFS, dadi/moments |
-| `scripts/run_segment.sh` | Launcher: S3 sync + snakemake + auto-stop |
-| `workflow/scripts/filter_select.py` | SNP Filter Gate: select MAF + minInd |
-| `workflow/scripts/clone_approve.py` | Clone Gate: approve exclusions |
-| `workflow/scripts/lineage_assign.py` | Gate 3: select K, assign lineages |
-| `workflow/scripts/run_moments_2pop.py` | Moments 2-pop model fitting (prototype) |
-| `workflow/scripts/plot_ngsadmix.py` | NGSAdmix delta-K + bar plots |
-| `workflow/scripts/plot_admix_compare.py` | PCAngsd vs NGSAdmix comparison panels |
-| `workflow/scripts/plot_admix_violin.py` | Admixture violin plots by species×region |
-
-HPC scripts (not yet in pipeline, `/work/vollmer/acropora_genomics/scripts/`):
-- `run_2dsfs.sh` — realSFS 2D SFS for non-FL pairs (24h, no maxIter cap)
-- `run_2dsfs_fl.sh` — realSFS 2D SFS for FL pairs (-maxIter 100)
-- `watch_and_submit_moments.sh` — auto-submits moments fits when 2D SFS files land
-
----
-
-## Planned: SMC++ population size history
-
-**Goal:** Estimate Ne(t) curves for lineageA (A. palmata) and lineageB (A. cervicornis)
-to test LGM expansion hypothesis and characterize demographic history of both species.
-
-**Motivation:** Tajima's D is uniformly negative across all chromosomes in A. palmata
-(windowed mean = -0.77, median = -0.95), suggesting a genome-wide demographic signal
-rather than selective sweeps. SMC++ will resolve whether this reflects a post-LGM
-population expansion (~12-18 kya) and how the two species' size histories compare.
-
-**What needs to be built:**
-1. Add call_vcf rule to Snakefile.diversity — ANGSD doVcf on per-lineage BAMs,
-   restricted to nonrepeat_sites.txt, with existing depth thresholds
-2. Add smc_prep rule — smc++ vcf2smc per population, subsampling pairs
-3. Add smc_fit rule — smc++ fit, ~30-60 min per population
-4. Add smc_plot rule — smc++ plot, outputs Ne(t) PNG
-
-**Calibration assumptions (to document):**
-- Mutation rate: ~3.4e-8 per site per generation (A. millepora estimate)
-- Generation time: 10-25 years (sexual reproduction; clonal growth not relevant for coalescent)
-- Results scale linearly with mutation rate — treat as sensitivity parameter
-
-**Populations to run:** lineageA_FL, lineageA_BON, lineageB_FL, lineageB_PA, lineageB_BON
-
-**Expected result if LGM hypothesis correct:** Ne bottleneck ~18-20 kya followed by
-expansion, most pronounced in A. palmata (shallow reef crest habitat most affected
-by sea level drop).
+| Item | Path |
+|------|------|
+| Pipeline code | `/projects/vollmer/RRorbicella_angsd/` |
+| Working directory | `/work/vollmer/orbicella_genomics/` |
+| Reference genome | `/projects/vollmer/RR_heat-tolerance/Orbicella/reference/GCA_964199315.1_jaOrbFran1.1_genomic.fna` |
+| Old Orbicella BAMs | `/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/` |
+| New FL FASTQs | `/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/` |
+| Snakemake env | `/home/s.vollmer/.conda/envs/snakemake2/bin/snakemake` |
