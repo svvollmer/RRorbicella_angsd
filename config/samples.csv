@@ -1,141 +1,141 @@
-sample_id,input_type,bam_path,fastq_r1,fastq_r2,species,population,region,reef_site,lat,lon
-Oann_101,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_101_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_101_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_102,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_102_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_102_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_103,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_103.bwa.dedup.clip.bam,,,Oannularis,FL_RR,"NFWF, Middle Keys",Delta Shoal,24.63245,-81.087795
-Oann_105,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_105.bwa.dedup.clip.bam,,,Oannularis,FL_RR,"NFWF, Key West",Charlies Patch Reef,24.569136,-81.652676
-Oann_106,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_106.bwa.dedup.clip.bam,,,Oannularis,FL_RR,"NFWF, Lower Keys",Mid Channel Patch 1,24.501167,-81.746336
-Oann_107,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_107.bwa.dedup.clip.bam,,,Oannularis,FL_RR,"NFWF, Lower Keys",Mid Channel Patch 1,24.500853,-81.747037
-Oann_108,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_108.bwa.dedup.clip.bam,,,Oannularis,FL_RR,"NFWF, Lower Keys",Nearshore Boca Chica,24.560485,-81.664323
-Oann_109,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_109.bwa.dedup.clip.bam,,,Oannularis,FL_RR,"NFWF, Lower Keys",Nearshore Boca Chica,24.56425,-81.657394
-Oann_110,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_110.bwa.dedup.clip.bam,,,Oannularis,FL_RR,"NFWF, Lower Keys",Nearshore Boca Chica,24.556209,-81.673834
-Oann_111,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_111.bwa.dedup.clip.bam,,,Oannularis,FL_RR,"NFWF, Middle Keys",Lower Matecumbe Nearshore,24.837086,-80.729397
-Oann_115,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_115.bwa.dedup.clip.bam,,,Oannularis,FL_RR,"NFWF, Upper Keys",North Horseshoe,25.149315,-80.291995
-Oann_116,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_116.bwa.dedup.clip.bam,,,Oannularis,FL_RR,"NFWF, Upper Keys",Horseshoe,25.139001,-80.295298
-Oann_17,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_17.bwa.dedup.clip.bam,,,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.989766,-80.4629666667
-Oann_21,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_21.bwa.dedup.clip.bam,,,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.99305,-80.4607833333
-Oann_23,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_23.bwa.dedup.clip.bam,,,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.9879,-80.4636333333
-Oann_33,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_33.bwa.dedup.clip.bam,,,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.992266,-80.4637666667
-Oann_4,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_4.bwa.dedup.clip.bam,,,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.988716,-80.46755
-Oann_50,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_50_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_50_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_51,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_51_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_51_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_52,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_52_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_52_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_53,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_53_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_53_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_54,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_54_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_54_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_55,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_55_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_55_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_56,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_56_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_56_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_57,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_57.bwa.dedup.clip.bam,,,Oannularis,FL_RR,Upper Keys,Triangles,25.0168667,-80.4258167
-Oann_58,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_58_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_58_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_59,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_59_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_59_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_60,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_60_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_60_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_61,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_61_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_61_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_62,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_62_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_62_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_63,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_63_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_63_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_64,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_64_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_64_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_65,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_65_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_65_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_66,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_66_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_66_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_67,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_67_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_67_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_68,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_68_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_68_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_69,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_69_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_69_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_70,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_70_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_70_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_71,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_71_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_71_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_72,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_72_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_72_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_73,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_73_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_73_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_75,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_75_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_75_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_76,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_76_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_76_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_77,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_77_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_77_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_78,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_78_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_78_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_79,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_79_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_79_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_80,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_80_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_80_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_81,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_81_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_81_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_82,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_82_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_82_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_83,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_83_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_83_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_84,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_84_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_84_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_85,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_85_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_85_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_86,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_86_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_86_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_87,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_87_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_87_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_88,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_88_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_88_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_89,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_89_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_89_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_91,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_91_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_91_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_92,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_92_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_92_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_95,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_95_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_95_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_96,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_96_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_96_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_97,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_97_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_97_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Oann_98,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_98.bwa.dedup.clip.bam,,,Oannularis,FL_RR,Middle Keys,East Turtle Shoal,24.7189333,-80.9319167
-Oann_99,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_99_CKDL250017111-1A_22V3V2LT4_L2_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Oann_99_CKDL250017111-1A_22V3V2LT4_L2_2.fq.gz,Oannularis,FL_RR,FL,RR,,
-Ofav_100,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_100.bwa.dedup.clip.bam,,,Ofaveolata,FL_RR,Lower Keys,Key West patch reef,24.5008333,-81.7415667
-Ofav_102,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_102_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_102_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_103,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_103_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_103_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_104,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_104_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_104_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_105,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_105_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_105_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_106,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_106_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_106_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_107,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_107_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_107_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_110,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_110_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_110_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_50,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_50.bwa.dedup.clip.bam,,,Ofaveolata,FL_RR,Upper Keys,Plantation Key Patch 1,24.9561667,-80.4927167
-Ofav_52,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_52_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_52_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_53,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_53_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_53_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_54,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_54_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_54_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_55,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_55_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_55_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_56,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_56_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_56_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_57,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_57_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_57_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_58,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_58_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_58_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_59,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_59_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_59_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_60,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_60_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_60_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_61,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_61_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_61_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_62,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_62_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_62_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_63,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_63_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_63_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_64,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_64.bwa.dedup.clip.bam,,,Ofaveolata,FL_RR,Upper Keys,North Horseshoe,25.1468333,-80.2927
-Ofav_65,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_65_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_65_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_66,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_66_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_66_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_67,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_67_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_67_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_68,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_68_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_68_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_69,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_69_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_69_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_70,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_70_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_70_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_71,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_71_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_71_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_72,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_72_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_72_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_73,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_73_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_73_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_74,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_74_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_74_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_75,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_75_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_75_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_76,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_76_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_76_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_77,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_77_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_77_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_78,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_78_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_78_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_79,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_79_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_79_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_80,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_80_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_80_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_81,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_81_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_81_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_82,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_82_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_82_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_83,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_83_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_83_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_84,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_84_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_84_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_85,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_85_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_85_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_86,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_86_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_86_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_87,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_87_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_87_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_88,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_88_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_88_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_89,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_89.bwa.dedup.clip.bam,,,Ofaveolata,FL_RR,Lower Keys,Newfound harbor patch reef,24.6186833,-81.3806833
-Ofav_90,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_90.bwa.dedup.clip.bam,,,Ofaveolata,FL_RR,Lower Keys,Ballast Key Patch reef,24.4639167,-81.9831167
-Ofav_91,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_91.bwa.dedup.clip.bam,,,Ofaveolata,FL_RR,Lower Keys,Ballast Key Patch reef,24.4642833,-81.9834667
-Ofav_92,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_92_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_92_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_93,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_93.bwa.dedup.clip.bam,,,Ofaveolata,FL_RR,Upper Keys,Plantation Key ,24.9574167,-80.4922167
-Ofav_94,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_94.bwa.dedup.clip.bam,,,Ofaveolata,FL_RR,Upper Keys,Tavernier Patch Reef,25.0133333,-80.4255333
-Ofav_96,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_96_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_96_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_97,local,,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_97_CKDL250017112-1A_22V3V2LT4_L3_1.fq.gz,/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/01.RawData/Ofav_97_CKDL250017112-1A_22V3V2LT4_L3_2.fq.gz,Ofaveolata,FL_RR,FL,RR,,
-Ofav_99,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_99.bwa.dedup.clip.bam,,,Ofaveolata,FL_RR,Lower Keys,Key West patch reef,24.50075,-81.7417
-Ofra_1,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_1.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Lower Keys,Ballast Key patch reef,24.48245,-81.9550333
-Ofra_10,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_10.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Middle Keys,East Turtle Shoal,24.7111167,-80.9467167
-Ofra_11,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_11.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Middle Keys,East Turtle Shoal,24.7007167,-80.9651
-Ofra_12,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_12.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Middle Keys,East Turtle Shoal,24.7007167,-80.96585
-Ofra_13,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_13.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Upper Keys,AAA,25.16785,-80.2678833
-Ofra_14,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_14.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Middle Keys,Caloosa Rocks,24.83715,-80.7287833
-Ofra_16,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_16.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Middle Keys,Lower Matecumbe,24.8129167,-80.6693333
-Ofra_17,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_17.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Middle Keys,Indian Key Patch,24.8589333,-80.6583667
-Ofra_18,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_18.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Upper Keys,Triangles 1,25.0156,-80.4256667
-Ofra_19,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_19.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Upper Keys,Tavernier Patch reef,24.9974333,-80.4596167
-Ofra_2,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_2.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Upper Keys,North of Horseshoe,25.1471167,-80.2925167
-Ofra_20,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_20.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Upper Keys,Tavernier Patch reef,24.9973833,-80.4595667
-Ofra_21,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_21.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Lower Keys,Key West patch reef,24.50135,-81.7458833
-Ofra_26,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_26.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Upper Keys,East Turtle Shoal,24.7247167,-80.91865
-Ofra_29,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_29.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Key West,"Coast Guard Station, Key West",24.564635,-81.801061
-Ofra_3,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_3.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Upper Keys,Triangles 1,25.01845,-80.43915
-Ofra_4,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_4.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Upper Keys,Watsons Reef,25.1853833,-80.24275
-Ofra_5,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_5.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Upper Keys,Triangles 1,25.0208,-80.4248833
-Ofra_6,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_6.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Middle Keys,Lower Matecumbe,24.8276333,-80.6476
-Ofra_7,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_7.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Middle Keys,Lower Matecumbe,24.8276333,-80.6471
-Ofra_8,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_8.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Middle Keys,Lower Matecumbe,24.8086667,-80.67985
-Ofra_9,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_9.bwa.dedup.clip.bam,,,Ofranksi,FL_RR,Middle Keys,East Turtle Shoal,24.7109333,-80.9468833
+sample_id,input_type,bam_path,species,population,region,reef_site,lat,lon
+Oann_101,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_101.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_102,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_102.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_103,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_103.bwa.dedup.clip.bam,Oannularis,FL_RR,"NFWF, Middle Keys",Delta Shoal,24.63245,-81.087795
+Oann_105,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_105.bwa.dedup.clip.bam,Oannularis,FL_RR,"NFWF, Key West",Charlies Patch Reef,24.569136,-81.652676
+Oann_106,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_106.bwa.dedup.clip.bam,Oannularis,FL_RR,"NFWF, Lower Keys",Mid Channel Patch 1,24.501167,-81.746336
+Oann_107,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_107.bwa.dedup.clip.bam,Oannularis,FL_RR,"NFWF, Lower Keys",Mid Channel Patch 1,24.500853,-81.747037
+Oann_108,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_108.bwa.dedup.clip.bam,Oannularis,FL_RR,"NFWF, Lower Keys",Nearshore Boca Chica,24.560485,-81.664323
+Oann_109,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_109.bwa.dedup.clip.bam,Oannularis,FL_RR,"NFWF, Lower Keys",Nearshore Boca Chica,24.56425,-81.657394
+Oann_110,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_110.bwa.dedup.clip.bam,Oannularis,FL_RR,"NFWF, Lower Keys",Nearshore Boca Chica,24.556209,-81.673834
+Oann_111,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_111.bwa.dedup.clip.bam,Oannularis,FL_RR,"NFWF, Middle Keys",Lower Matecumbe Nearshore,24.837086,-80.729397
+Oann_115,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_115.bwa.dedup.clip.bam,Oannularis,FL_RR,"NFWF, Upper Keys",North Horseshoe,25.149315,-80.291995
+Oann_116,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_116.bwa.dedup.clip.bam,Oannularis,FL_RR,"NFWF, Upper Keys",Horseshoe,25.139001,-80.295298
+Oann_17,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_17.bwa.dedup.clip.bam,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.989766,-80.4629666667
+Oann_21,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_21.bwa.dedup.clip.bam,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.99305,-80.4607833333
+Oann_23,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_23.bwa.dedup.clip.bam,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.9879,-80.4636333333
+Oann_33,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_33.bwa.dedup.clip.bam,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.992266,-80.4637666667
+Oann_4,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_4.bwa.dedup.clip.bam,Oannularis,FL_RR,Upper Keys,Patch reefs off Key Largo,24.988716,-80.46755
+Oann_50,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_50.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_51,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_51.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_52,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_52.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_53,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_53.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_54,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_54.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_55,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_55.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_56,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_56.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_57,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_57.bwa.dedup.clip.bam,Oannularis,FL_RR,Upper Keys,Triangles,25.0168667,-80.4258167
+Oann_58,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_58.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_59,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_59.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_60,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_60.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_61,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_61.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_62,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_62.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_63,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_63.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_64,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_64.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_65,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_65.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_66,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_66.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_67,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_67.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_68,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_68.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_69,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_69.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_70,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_70.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_71,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_71.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_72,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_72.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_73,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_73.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_75,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_75.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_76,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_76.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_77,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_77.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_78,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_78.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_79,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_79.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_80,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_80.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_81,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_81.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_82,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_82.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_83,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_83.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_84,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_84.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_85,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_85.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_86,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_86.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_87,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_87.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_88,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_88.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_89,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_89.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_91,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_91.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_92,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_92.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_95,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_95.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_96,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_96.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_97,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_97.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Oann_98,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_98.bwa.dedup.clip.bam,Oannularis,FL_RR,Middle Keys,East Turtle Shoal,24.7189333,-80.9319167
+Oann_99,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Oann_99.bwa.dedup.clip.bam,Oannularis,FL_RR,FL,RR,,
+Ofav_100,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_100.bwa.dedup.clip.bam,Ofaveolata,FL_RR,Lower Keys,Key West patch reef,24.5008333,-81.7415667
+Ofav_102,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_102.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_103,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_103.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_104,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_104.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_105,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_105.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_106,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_106.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_107,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_107.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_110,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_110.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_50,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_50.bwa.dedup.clip.bam,Ofaveolata,FL_RR,Upper Keys,Plantation Key Patch 1,24.9561667,-80.4927167
+Ofav_52,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_52.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_53,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_53.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_54,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_54.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_55,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_55.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_56,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_56.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_57,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_57.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_58,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_58.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_59,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_59.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_60,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_60.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_61,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_61.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_62,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_62.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_63,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_63.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_64,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_64.bwa.dedup.clip.bam,Ofaveolata,FL_RR,Upper Keys,North Horseshoe,25.1468333,-80.2927
+Ofav_65,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_65.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_66,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_66.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_67,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_67.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_68,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_68.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_69,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_69.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_70,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_70.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_71,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_71.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_72,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_72.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_73,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_73.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_74,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_74.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_75,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_75.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_76,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_76.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_77,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_77.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_78,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_78.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_79,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_79.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_80,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_80.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_81,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_81.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_82,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_82.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_83,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_83.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_84,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_84.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_85,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_85.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_86,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_86.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_87,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_87.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_88,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_88.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_89,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_89.bwa.dedup.clip.bam,Ofaveolata,FL_RR,Lower Keys,Newfound harbor patch reef,24.6186833,-81.3806833
+Ofav_90,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_90.bwa.dedup.clip.bam,Ofaveolata,FL_RR,Lower Keys,Ballast Key Patch reef,24.4639167,-81.9831167
+Ofav_91,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_91.bwa.dedup.clip.bam,Ofaveolata,FL_RR,Lower Keys,Ballast Key Patch reef,24.4642833,-81.9834667
+Ofav_92,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_92.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_93,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_93.bwa.dedup.clip.bam,Ofaveolata,FL_RR,Upper Keys,Plantation Key ,24.9574167,-80.4922167
+Ofav_94,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_94.bwa.dedup.clip.bam,Ofaveolata,FL_RR,Upper Keys,Tavernier Patch Reef,25.0133333,-80.4255333
+Ofav_96,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_96.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_97,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_97.bwa.dedup.clip.bam,Ofaveolata,FL_RR,FL,RR,,
+Ofav_99,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofav_99.bwa.dedup.clip.bam,Ofaveolata,FL_RR,Lower Keys,Key West patch reef,24.50075,-81.7417
+Ofra_1,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_1.bwa.dedup.clip.bam,Ofranksi,FL_RR,Lower Keys,Ballast Key patch reef,24.48245,-81.9550333
+Ofra_10,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_10.bwa.dedup.clip.bam,Ofranksi,FL_RR,Middle Keys,East Turtle Shoal,24.7111167,-80.9467167
+Ofra_11,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_11.bwa.dedup.clip.bam,Ofranksi,FL_RR,Middle Keys,East Turtle Shoal,24.7007167,-80.9651
+Ofra_12,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_12.bwa.dedup.clip.bam,Ofranksi,FL_RR,Middle Keys,East Turtle Shoal,24.7007167,-80.96585
+Ofra_13,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_13.bwa.dedup.clip.bam,Ofranksi,FL_RR,Upper Keys,AAA,25.16785,-80.2678833
+Ofra_14,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_14.bwa.dedup.clip.bam,Ofranksi,FL_RR,Middle Keys,Caloosa Rocks,24.83715,-80.7287833
+Ofra_16,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_16.bwa.dedup.clip.bam,Ofranksi,FL_RR,Middle Keys,Lower Matecumbe,24.8129167,-80.6693333
+Ofra_17,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_17.bwa.dedup.clip.bam,Ofranksi,FL_RR,Middle Keys,Indian Key Patch,24.8589333,-80.6583667
+Ofra_18,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_18.bwa.dedup.clip.bam,Ofranksi,FL_RR,Upper Keys,Triangles 1,25.0156,-80.4256667
+Ofra_19,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_19.bwa.dedup.clip.bam,Ofranksi,FL_RR,Upper Keys,Tavernier Patch reef,24.9974333,-80.4596167
+Ofra_2,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_2.bwa.dedup.clip.bam,Ofranksi,FL_RR,Upper Keys,North of Horseshoe,25.1471167,-80.2925167
+Ofra_20,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_20.bwa.dedup.clip.bam,Ofranksi,FL_RR,Upper Keys,Tavernier Patch reef,24.9973833,-80.4595667
+Ofra_21,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_21.bwa.dedup.clip.bam,Ofranksi,FL_RR,Lower Keys,Key West patch reef,24.50135,-81.7458833
+Ofra_26,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_26.bwa.dedup.clip.bam,Ofranksi,FL_RR,Upper Keys,East Turtle Shoal,24.7247167,-80.91865
+Ofra_29,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_29.bwa.dedup.clip.bam,Ofranksi,FL_RR,Key West,"Coast Guard Station, Key West",24.564635,-81.801061
+Ofra_3,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_3.bwa.dedup.clip.bam,Ofranksi,FL_RR,Upper Keys,Triangles 1,25.01845,-80.43915
+Ofra_4,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_4.bwa.dedup.clip.bam,Ofranksi,FL_RR,Upper Keys,Watsons Reef,25.1853833,-80.24275
+Ofra_5,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_5.bwa.dedup.clip.bam,Ofranksi,FL_RR,Upper Keys,Triangles 1,25.0208,-80.4248833
+Ofra_6,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_6.bwa.dedup.clip.bam,Ofranksi,FL_RR,Middle Keys,Lower Matecumbe,24.8276333,-80.6476
+Ofra_7,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_7.bwa.dedup.clip.bam,Ofranksi,FL_RR,Middle Keys,Lower Matecumbe,24.8276333,-80.6471
+Ofra_8,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_8.bwa.dedup.clip.bam,Ofranksi,FL_RR,Middle Keys,Lower Matecumbe,24.8086667,-80.67985
+Ofra_9,local_bam,/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofra_9.bwa.dedup.clip.bam,Ofranksi,FL_RR,Middle Keys,East Turtle Shoal,24.7109333,-80.9468833
