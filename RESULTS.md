@@ -12,9 +12,9 @@ from the Reef Renewal Florida restoration program, aligned to the *O. franksi* r
 
 | Species | N (target) | Input | Status |
 |---------|-----------|-------|--------|
-| *O. annularis* | 63 | 46 new FASTQ + 17 old BAM | Seg 1 running (46 new) |
-| *O. faveolata* | 55 | 46 new FASTQ + 9 old BAM | Seg 1 running (46 new) |
-| *O. franksi* | 22 | old BAM only | Pending ingest |
+| *O. annularis* | 63 | 46 FASTQ-available + 17 BAM-only | Seg 1 running (46 FASTQ) |
+| *O. faveolata* | 55 | 46 FASTQ-available + 9 BAM-only | Seg 1 running (46 FASTQ) |
+| *O. franksi* | 22 | BAM-only | Pending ingest |
 
 **Reference:** *O. franksi* jaOrbFran1.1 (14 chromosomes; all scaffolds ≥ 10 Mb retained)
 

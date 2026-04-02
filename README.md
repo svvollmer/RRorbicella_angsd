@@ -48,12 +48,12 @@ Within-species geographic comparisons will be added if multi-population sampling
 
 All 140 samples are pre-existing data — no SRA downloads needed.
 
-| Input type | N | Description |
-|------------|---|-------------|
-| `local` | 92 | New FL sequencing (2025); FASTQs at `/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/` |
-| `local_bam` | 48 | Pre-existing BAMs from earlier sequencing (`/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/`) |
+| Input type | N | Species | Description |
+|------------|---|---------|-------------|
+| `local` | 92 | Oann (46), Ofav (46) | Raw FASTQs available; re-aligned from scratch through pipeline for consistency. FASTQs at `/work/vollmer/sequencing_archive/250625_ReefRenewal-FL_Orbicella_WGS/` |
+| `local_bam` | 48 | Oann (17), Ofav (9), Ofrank (22) | Raw FASTQs not available; using pre-existing BAMs from the heat tolerance project pipeline (`/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/`) |
 
-The 22 *O. franksi* samples are currently all `local_bam` (old sequencing only; no 2025 re-sequencing data).
+Note: the pre-existing BAMs were aligned from the same raw reads using a different pipeline (Picard MarkDuplicates, custom clipping). Re-alignment from FASTQ is preferred where possible for consistency — same samtools markdup, same MAPQ/chromosome filters, same read group tags.
 
 ---
 

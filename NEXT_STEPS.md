@@ -42,15 +42,19 @@ Flag samples with mean depth < 5× or mapping rate < 50%. *Orbicella* mapping to
 *O. franksi* reference should be high for all three species (they are closely related and
 share synteny). Flag any inter-species outliers — may reflect divergent structural variants.
 
-### 3. Add Ofranksi to the run
+### 3. Add BAM-only samples to the run
 
-The 22 *O. franksi* samples (`local_bam` type) are not in the current run. After Gate 1,
-either:
-- Append Ofranksi rows to `samples_new.csv` with `input_type: local_bam` and
-  `bam_path` pointing to the existing BAMs, then re-run Segment 1 for those samples only
-- Or run a separate Segment 1 pass for Ofranksi using the `local_bam` ingest path
+48 samples have no raw FASTQs available (17 Oann + 9 Ofav + 22 Ofranksi) and must be
+ingested via `local_bam`. These are not in the current HPC run (`samples_new.csv`).
 
-Ofranksi BAMs: `/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/Ofrank_*.bwa.dedup.clip.bam`
+After Gate 1, either update `samples_new.csv` to add these rows (switching HPC config to
+the full `samples.csv`), or run a follow-up Segment 1 pass for these samples only.
+
+BAM location: `/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa/{sample}.bwa.dedup.clip.bam`
+
+Note: the `local_bam` ingest (`use_local_bam` rule) symlinks the BAM as-is. These BAMs
+were aligned with Picard MarkDuplicates and custom clipping — QC metrics (dup rate,
+mapping rate) will show as 0/1.0 since those steps already happened upstream.
 
 ### 4. Segment 2a — SNP discovery
 
