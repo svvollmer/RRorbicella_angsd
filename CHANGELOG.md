@@ -300,3 +300,41 @@ admixture_replicates: 20   # was 10
 - **`run_2dsfs_fl.sh`** — external SLURM: FL pairwise 2D SFS with `-maxIter 100` to cap EM
 - **`watch_and_submit_moments.sh`** — polls every 30 min, auto-submits moments fitting when
   each 2D SFS becomes non-zero; running as nohup, logs to `logs/moments_watcher.log`
+
+---
+
+## Orbicella seg2a — clone gate (2026-04-03)
+
+**Working dir**: `/work/vollmer/orbicella_genomics/`
+**Pipeline**: `/projects/vollmer/RRorbicella_angsd/`
+**Samples entering gate**: 140 (63 *O. annularis*, 57 *O. faveolata*, 21 *O. franksi*)
+
+### SNP filters applied
+- min_maf: 0.05
+- min_ind: 112 (80% of 140)
+- Pass 1 SNPs: 28,063,923
+- Pass 2 SNPs (after filter): ~7.2M
+
+### Clone pairs detected (6 pairs, 6 excluded, 134 retained)
+
+| Pair | KING | Excluded | Reason |
+|------|------|----------|--------|
+| Oann_72 / Oann_73 | 0.4949 | Oann_72 | lower depth (22.9x vs 39.9x) |
+| Oann_75 / Oann_77 | 0.4959 | Oann_77 | lower depth (28.9x vs 39.1x) |
+| Oann_84 / Oann_85 | 0.4949 | Oann_85 | lower depth (40.2x vs 47.1x) |
+| Oann_95 / Oann_96 | 0.4955 | Oann_95 | lower depth (29.8x vs 31.0x) |
+| Ofav_106 / Ofra_26 | 0.4929 | **Ofra_26** | **MISLABEL** — see below |
+| Ofav_92 / Ofav_93 | 0.4853 | Ofav_92 | lower depth (29.6x vs 32.8x) |
+
+### Sample mislabel: Ofra_26
+
+Ofra_26 (labeled *O. franksi*, FL_RR, Upper Keys / East Turtle Shoal) is a confirmed *O. faveolata* mislabel.
+
+Evidence from KING relatedness matrix:
+- Mean KING vs *O. faveolata* (n=57): −0.038 (within-species background)
+- Mean KING vs *O. franksi* (n=20, excl. self): −0.521 (between-species background)
+- KING vs Ofav_106: +0.493 (clone/identical)
+
+Ofra_26 clusters unambiguously with *O. faveolata*, not *O. franksi*. It is the same individual as Ofav_106 (a true *O. faveolata* from FL_RR). Decision: exclude Ofra_26 (mislabel), retain Ofav_106 (confirmed Ofav).
+
+**Action**: Flag in sample metadata. Notify data provider if possible.
