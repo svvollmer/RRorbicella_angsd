@@ -26,7 +26,7 @@ EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        1|2a|2b|2c|3|4) SEGMENT="$1" ;;
+        1|2a|2b|2c|3|4|6|7) SEGMENT="$1" ;;
         --dry-run|-n) DRY_RUN="--dry-run" ;;
         *) EXTRA_ARGS+=("$1") ;;
     esac
@@ -34,13 +34,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$SEGMENT" ]]; then
-    echo "Usage: bash run.sh <1|2a|2b|3|4> [--dry-run]"
-    echo "   1 = BAM ingestion (local_bam symlink + merge_bam merge) + QC gate"
+    echo "Usage: bash run.sh <1|2a|2b|2c|3|4|6|7> [--dry-run]"
+    echo "   1 = BAM ingestion (local_bam symlink) + QC gate"
     echo "  2a = SNP discovery + GL + relatedness (stops at clone gate)"
     echo "  2b = subset BEAGLE after clone_approve.py"
     echo "  2c = grouped ngsRelate (per species)"
     echo "   3 = LD + PCA + admixture"
-    echo "   4 = SAF + SFS + FST"
+    echo "   4 = SAF + SFS + FST (all 3 species pairs)"
+    echo "   6 = moments demographic inference (all 3 species pairs)"
+    echo "   7 = SMC++ Ne(t) (all 3 species)"
     exit 1
 fi
 
@@ -79,6 +81,16 @@ case "$SEGMENT" in
         SNAKEFILE="$PIPELINE/workflow/Snakefile.diversity"
         TARGETS=""
         SEG_NAME="diversity"
+        ;;
+    6)
+        SNAKEFILE="$PIPELINE/workflow/Snakefile.demography"
+        TARGETS=""
+        SEG_NAME="demography"
+        ;;
+    7)
+        SNAKEFILE="$PIPELINE/workflow/Snakefile.smcpp"
+        TARGETS="all_smcpp"
+        SEG_NAME="smcpp"
         ;;
 esac
 
@@ -140,6 +152,7 @@ if [[ "$EXIT_CODE" -eq 0 ]]; then
             ;;
         4)
             echo "  Run demography: bash run.sh 6"
+            echo "  Run SMC++:      bash run.sh 7"
             ;;
     esac
 else
