@@ -53,7 +53,9 @@ Pairwise all-vs-all ngsRelate. Clone threshold: KING ≥ 0.45. No close relative
 | Ofav_106 / Ofra_26 | 0.4929 | **Ofra_26** | **MISLABEL** — confirmed *O. faveolata* |
 | Ofav_92 / Ofav_93 | 0.4853 | Ofav_92 | lower depth (29.6x vs 32.8x) |
 
-**134 unrelated samples retained** (57 *O. annularis*, 56 *O. faveolata*, 21 *O. franksi*).
+**134 unrelated samples retained** (57 *O. annularis*, 56 *O. faveolata*, 21 *O. franksi*) after clone/relatedness filtering.
+
+**133 samples retained for Segment 4+** after lineage assignment gate (Ofra_6 excluded as hybrid; see below).
 
 ### Ofra_26 mislabel
 
@@ -62,6 +64,51 @@ Evidence from KING matrix: mean KING vs Ofav=−0.038 (within-species), vs Ofra=
 KING vs Ofav_106=+0.493 (clone — same individual). Decision: exclude Ofra_26, retain Ofav_106.
 
 Full audit: `docs/outputs/relatedness/clone_exclusions.txt`
+
+---
+
+## Lineage Assignment
+
+**Status:** Complete (2026-04-04). Based on ngsAdmix K=3 best-run Q matrix.
+
+Lineage assignments use genetic ancestry, not field labels. Samples are assigned to the species
+contributing the majority of their K=3 ancestry. Ofra_6 (putative hybrid, 8.4% faveolata) is
+excluded from all Segment 4+ analyses.
+
+**Lineage assignment file:** `results/admixture/lineage_assignments.txt`
+
+### Genetic group sizes (Segment 4+)
+
+| Genetic lineage | N | Notes |
+|----------------|---|-------|
+| *O. annularis* | 59 | |
+| *O. faveolata* | 50 | |
+| *O. franksi* | 24 | Ofra_6 excluded |
+| **Total** | **133** | |
+
+### Field label mislabels detected
+
+K=3 assignment identified **10 samples with 100% ancestry for a species other than their field label** —
+confirmed mislabels, not admixed individuals:
+
+| Sample | Field label | Genetic assignment | Q (assigned) |
+|--------|-------------|-------------------|-------------|
+| Oann_106 | *O. annularis* | *O. faveolata* | 1.000 |
+| Ofav_75 | *O. faveolata* | *O. franksi* | 1.000 |
+| Ofav_76 | *O. faveolata* | *O. franksi* | 1.000 |
+| Ofav_83 | *O. faveolata* | *O. franksi* | 1.000 |
+| Ofav_84 | *O. faveolata* | *O. franksi* | 1.000 |
+| Ofav_94 | *O. faveolata* | *O. annularis* | 1.000 |
+| Ofav_104 | *O. faveolata* | *O. franksi* | 1.000 |
+| Ofav_105 | *O. faveolata* | *O. franksi* | 1.000 |
+| Ofra_1 | *O. franksi* | *O. faveolata* | 1.000 |
+| Ofra_4 | *O. franksi* | *O. faveolata* | 1.000 |
+
+Mislabel rate: 10/134 = 7.5%. Combined with Ofra_26 (confirmed mislabel from clone analysis),
+total field label error rate is 11/140 = **7.9%**. This is consistent with the difficulty of
+morphological identification in massive *Orbicella* species, which share similar growth forms,
+particularly *O. faveolata* and *O. franksi*. All downstream analyses use genetic lineage
+assignments, not field labels.
 
 ---
 
@@ -179,6 +226,17 @@ sister species; Fukami et al. 2004).
 > FST estimates from Segment 4 will be similarly affected and should be interpreted as
 > *relative* divergence within the *O. franksi* reference context.
 
+**Spawning biology strongly supports the *O. faveolata* + *O. franksi* sister relationship.**
+Although *O. annularis* and *O. franksi* show high cross-fertilization compatibility in
+laboratory experiments (Levitan et al. 2004), they spawn several hours apart on the same
+nights in Florida — creating strong temporal reproductive isolation. *O. faveolata* and
+*O. franksi* spawn closer together in time, enabling actual interspecific fertilization in
+the wild and explaining both their sister-species phylogenetic placement and the admixture
+visible at K=3. The UPGMA topology (Oann+Ofra closest) is therefore an artefact of
+reference-anchored SNP ascertainment, not a signal of recent gene flow. The phylogenetically
+correct tree (Ofav+Ofra sisters, Oann outgroup) is supported by molecular phylogenetics
+(Fukami et al. 2004), spawning phenology, and the K=3 admixture pattern.
+
 ---
 
 ## Putative Hybrids
@@ -203,13 +261,13 @@ Vollmer & Palumbi 2002 *Acropora* analogy). Ofra_6 warrants morphological re-exa
 
 *Pending Segment 4.*
 
-**Planned comparisons:**
+**Planned comparisons** (using genetic lineage assignments, n=133):
 
-| Comparison | Expected FST | Notes |
-|------------|-------------|-------|
-| *O. annularis* vs *O. faveolata* | moderate–high | most divergent in PCA |
-| *O. annularis* vs *O. franksi* | high | reference bias may lower estimate artificially |
-| *O. faveolata* vs *O. franksi* | moderate | sister species; hybridization expected |
+| Comparison | N | Expected FST | Notes |
+|------------|---|-------------|-------|
+| *O. annularis* (59) vs *O. faveolata* (50) | 109 | moderate–high | most divergent in PCA; spawning temporally separated |
+| *O. annularis* (59) vs *O. franksi* (24) | 83 | high | reference bias will artificially lower estimate |
+| *O. faveolata* (50) vs *O. franksi* (24) | 74 | moderate | sister species; hybridization expected; spawning overlap |
 
 ---
 
