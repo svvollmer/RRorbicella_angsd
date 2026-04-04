@@ -3,17 +3,18 @@
 Snakefile.align — Segment 1: Alignment, QC, Gate 1
 ================================================================================
 
-Input:  SRA accessions (or local/S3 FASTQs — see samples.csv input_type column)
-Output: results/bams/*.filtered.cram + results/qc/samples_pass.txt
+Input:  Pre-existing BAMs (local_bam / merge_bam) or FASTQs (local / sra)
+        See samples.csv input_type column.
+Output: results/bams/*.filtered.{bam,cram} + results/qc/samples_pass.txt
 
 Gate 1 (QC): After this segment completes, review QC and approve samples:
     python workflow/scripts/qc_approve.py
     → writes results/qc/samples_approved.txt
 
 Then start Segment 2:
-    snakemake --snakefile workflow/Snakefile.snps --profile profiles/aws
+    bash run.sh 2a
 
-Instance: spot fleet c6i.2xlarge (AWS) or SLURM allocation (HPC)
+Instance: SLURM allocation (Northeastern Discovery HPC)
 ================================================================================
 """
 
@@ -293,11 +294,10 @@ rule flagstat:
     container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         bam=f"results/bams/{{sample}}.filtered.{BAM_EXT}",
-        ref=config["reference"],
     output:
         "results/qc/{sample}.flagstat.txt",
     shell:
-        "samtools flagstat --reference {input.ref} {input.bam} > {output}"
+        "samtools flagstat {input.bam} > {output}"
 
 # ============================================================================
 # 5. REGION FILTERING + CRAM CONVERSION
@@ -327,7 +327,7 @@ rule make_nonrepeat_bed:
         runtime=30,
     shell:
         """
-        python3 workflow/scripts/create_nonrepeat_bed.py \
+        /home/s.vollmer/.conda/envs/snakemake2/bin/python3 workflow/scripts/create_nonrepeat_bed.py \
             {input.ref} {input.chroms} {output.bed} \
             --min-length 100 --merge-gap 50
         """
