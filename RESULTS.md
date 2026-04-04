@@ -4,8 +4,8 @@ Three-species *Orbicella* population genomics — *O. annularis*, *O. faveolata*
 from the Reef Renewal Florida restoration program, aligned to the *O. franksi* reference genome
 (jaOrbFran1.1 / GCA_964199315.1).
 
-> **Status (2026-04-04):** Segments 1–3 complete. 134 unrelated samples. PCA + admixture done.
-> Lineage assignment gate pending → Segment 4 (diversity/FST) next.
+> **Status (2026-04-04):** Segments 1–3 complete. 134 unrelated samples. PCA, admixture, and
+> genetic distance analysis done. Lineage assignment gate pending → Segment 4 (diversity/FST) next.
 
 ---
 
@@ -19,6 +19,11 @@ from the Reef Renewal Florida restoration program, aligned to the *O. franksi* r
 | **Total** | **140** | |
 
 **Reference:** *O. franksi* jaOrbFran1.1 (15 chromosomes)
+
+> ⚠️ **Reference genome bias note:** All analyses use the *O. franksi* reference. SNP ascertainment
+> is anchored to *O. franksi* sequence space, which may inflate apparent similarity between
+> *O. franksi* and *O. annularis* relative to true phylogenetic distances. Interpret pairwise
+> genetic distance estimates accordingly.
 
 ---
 
@@ -64,75 +69,127 @@ Full audit: `docs/outputs/relatedness/clone_exclusions.txt`
 
 **Status:** Complete — Segment 3 (134 unrelated samples, 2026-04-04).
 
-Figures: `docs/figures/`
+All figures: `docs/figures/`
+
+---
 
 ### LD Decay
 
-![LD decay](figures/ld_decay.png)
+![LD decay](docs/figures/ld_decay.png)
 
-LD decays from r²≈0.25 at <1 kb to r²≈0.10 by ~8–10 kb, reaching r²≈0.05 by 35 kb and
+LD decays from r²≈0.25 at <1 kb to r²≈0.10 by **~8–10 kb**, reaching r²≈0.05 by 35 kb and
 plateauing near background (~0.05) beyond 50 kb. This is notably **faster than *Acropora***
-(which crosses r²=0.1 at ~50–100 kb), consistent with larger historical effective population
-sizes in massive corals (*Orbicella* Ne likely 2–5× higher than *Acropora* based on diversity).
-The LD pruning window was set accordingly to capture independent SNPs across the genome.
+(r²=0.1 at ~50–100 kb), consistent with larger historical effective population sizes in massive
+corals (*Orbicella* Ne likely 2–5× higher than *Acropora*). The faster LD decay means more
+independent SNPs per genome length — good for power in diversity and FST analyses.
 
-### PCA (PCAngsd)
+---
 
-![PCA by species](figures/pca_species.png)
+### PCA
+
+![PCA with confidence ellipses](docs/figures/pca_ellipses.png)
+
+- **PC1 (22.8%)** separates *O. annularis* (negative) from *O. faveolata* + *O. franksi*
+  (positive) — reflecting deep inter-clade divergence.
+- **PC2 (4.9%)** separates *O. franksi* from *O. faveolata*, resolving all three species.
+- **PC3 (1.8%)** captures within-*O. annularis* structure.
+- 95% ellipses confirm clean species clustering; the *faveolata*/*franksi* ellipses broadly
+  overlap on PC1 (sister species), but are resolved on PC2.
+- A handful of individuals plot between species clusters — putative admixed individuals
+  (see hybrid analysis below).
 
 Covariance matrix: `docs/outputs/pca/pcangsd.cov`
 
-- **PC1 (22.8%)** separates *O. annularis* (negative scores) from *O. faveolata* + *O. franksi*
-  (positive scores). The large variance explained reflects deep species-level divergence.
-- **PC2 (4.9%)** separates *O. franksi* (high positive) from *O. faveolata* (near zero), with
-  *O. annularis* spread along PC2 — suggesting within-species geographic or admixture structure.
-- **PC3 (1.8%)** separates within *O. annularis*.
-- Notably, *O. faveolata* and *O. franksi* are closer to each other on PC1 than either is to
-  *O. annularis* — consistent with phylogenetics (*O. faveolata* and *O. franksi* are sister species).
-- Several *O. faveolata* and *O. franksi* individuals plot closer to the opposing species cluster,
-  suggesting admixture or past introgression — consistent with documented natural hybridization.
+---
 
-### Admixture
+### Admixture — K=2 vs K=3
 
-![ngsAdmix delta-K](figures/admixture_deltaK.png)
+![K=2 vs K=3 comparison](docs/figures/admixture_K2_K3_comparison.png)
 
-#### Model selection (ngsAdmix, K=1–10, 20 reps)
+![Log-likelihood annotation](docs/figures/admixture_loglik_annotated.png)
+
+#### Why ΔK picks K=2 (but K=3 is biologically correct)
 
 | K | Mean log-likelihood | ΔK |
 |---|--------------------|----|
 | 1 | −4,286,604 | — |
-| **2** | **−3,553,251** | **26,440,299 ← best** |
+| **2** | **−3,553,251** | **26,440,299 ← Evanno best** |
 | 3 | −3,415,338 | 132,893 |
-| 4 | −3,371,496 | — |
-| 5–10 | gradual improvement | low, noisy |
+| 4–10 | gradual improvement | low, noisy |
 
-**Best K=2** by Evanno ΔK — overwhelmingly dominant (ΔK at K=2 is ~200× larger than K=3).
-This is expected: the deepest signal is *O. annularis* vs the *faveolata*/*franksi* clade.
+The Evanno ΔK method is dominated by the **K=1→2 log-likelihood gain (~733,000 units)**, which
+reflects the deep *O. annularis* vs *faveolata*/*franksi* clade split. The K=2→3 gain is ~138,000
+units — real and biologically meaningful (resolution of *O. franksi* from *O. faveolata*), but
+~5× smaller, so ΔK is overwhelmed. This is a well-documented artefact of the Evanno method when
+one split is much deeper than the others.
+
+**Biological interpretation: K=3 is the correct answer.** Three distinct genetic clusters
+corresponding to the three species are clearly supported by both the log-likelihood elbow at K=3
+and the PCA (three separate clusters on PC1+PC2).
 
 #### K=2, 3, 4 bar plots
 
-![ngsAdmix K2-4](figures/admixture_ngsadmix_K234.png)
-![PCAngsd K2-4](figures/admixture_pcangsd_K234.png)
+![ngsAdmix K2-4](docs/figures/admixture_ngsadmix_K234.png)
+![PCAngsd K2-4](docs/figures/admixture_pcangsd_K234.png)
 
-**K=2:** *O. annularis* forms one cluster (blue); *O. faveolata* + *O. franksi* share the other
-(orange). A few *O. annularis* individuals show minor orange ancestry, and vice versa —
-consistent with documented *O. annularis × O. faveolata* hybridization.
+**K=2:** *O. annularis* (blue) vs *O. faveolata* + *O. franksi* (orange). Minor admixture
+visible at the *annularis*/*faveolata* boundary and within *franksi* — consistent with
+documented interspecific hybridization in Florida reefs.
 
-**K=3:** The three species cleanly separate into distinct clusters, with *O. franksi* resolved
-as a third component (green). Several individuals in *O. faveolata* and *O. franksi* show
-substantial admixture proportions from the other species — likely hybrids or recent backcrosses.
-*O. annularis* remains largely pure at K=3.
+**K=3:** All three species cleanly resolved. *O. annularis* is almost entirely pure (blue).
+*O. faveolata* (orange) and *O. franksi* (green) show minor inter-species admixture in a few
+individuals. **Ofra_6** is flagged as the only putative hybrid (8.4% *faveolata* ancestry;
+all other samples >95% pure at K=3).
 
-**K=4:** Sub-structure emerges within *O. franksi* (splitting into two components: green + pink),
-and admixed individuals in *O. faveolata* are more finely resolved. Whether this reflects true
-intraspecific population structure within *O. franksi* or overfitting should be assessed after
-the lineage assignment gate.
+**K=4:** Sub-structure within *O. franksi* (two components). Whether this reflects true
+within-species geographic structure or model overfitting requires assessment after Segment 4
+FST and the lineage assignment gate.
 
-**Interpretation:** The predominant signal is species identity. Admixture between *O. faveolata*
-and *O. franksi* is real and visible at K=3 — these two sister species are known to hybridize
-in Florida reefs. The Reef Renewal collection samples appear to include some admixed individuals,
-which has implications for restoration genetics (admixed colonies may perform differently under
-stress). Full hybrid quantification pending the lineage assignment gate.
+---
+
+### Between-species Genetic Distances
+
+![Genetic distance tree](docs/figures/genetic_distance_tree.png)
+
+#### Mean pairwise KING between species
+
+| | *O. annularis* | *O. faveolata* | *O. franksi* |
+|--|--|--|--|
+| *O. annularis* | −0.007 (within) | −0.550 | −0.194 |
+| *O. faveolata* | −0.550 | −0.106 (within) | −0.449 |
+| *O. franksi* | −0.194 | −0.449 | −0.125 (within) |
+
+#### Covariance-based genetic distances
+
+| Comparison | Distance |
+|-----------|---------|
+| *O. annularis* vs *O. faveolata* | 0.450 (most divergent) |
+| *O. faveolata* vs *O. franksi* | 0.337 |
+| *O. annularis* vs *O. franksi* | 0.172 (apparently closest) |
+
+The UPGMA tree groups *O. annularis* + *O. franksi* as most similar, with *O. faveolata*
+as outgroup — **opposite to the expected phylogeny** (*O. faveolata* and *O. franksi* are
+sister species; Fukami et al. 2004).
+
+> ⚠️ **Reference genome bias:** This unexpected topology is almost certainly an artefact of
+> aligning to the *O. franksi* reference. SNPs are called in *O. franksi* sequence space,
+> which enriches for variants where *O. franksi* and *O. annularis* share reference alleles,
+> artificially inflating their apparent similarity. The KING estimator is partially but not
+> fully robust to this. **These distance estimates should not be used for phylogenetic inference.**
+> FST estimates from Segment 4 will be similarly affected and should be interpreted as
+> *relative* divergence within the *O. franksi* reference context.
+
+---
+
+## Putative Hybrids
+
+| Sample | Labeled species | Faveolata ancestry (K=3) | Franksi ancestry (K=3) | Status |
+|--------|----------------|------------------------|----------------------|--------|
+| Ofra_6 | *O. franksi* | 8.4% | 91.6% | Putative *franksi* × *faveolata* hybrid |
+
+All other 133 samples are >95% pure at K=3. Admixture between *O. faveolata* and *O. franksi*
+is consistent with documented hybridization in Florida (Aguilar-Perera & Hernández-Landa 2018;
+Vollmer & Palumbi 2002 *Acropora* analogy). Ofra_6 warrants morphological re-examination.
 
 ---
 
@@ -150,8 +207,8 @@ stress). Full hybrid quantification pending the lineage assignment gate.
 
 | Comparison | Expected FST | Notes |
 |------------|-------------|-------|
-| *O. annularis* vs *O. faveolata* | moderate–high | documented hybridization may lower FST |
-| *O. annularis* vs *O. franksi* | high | more divergent morphology |
+| *O. annularis* vs *O. faveolata* | moderate–high | most divergent in PCA |
+| *O. annularis* vs *O. franksi* | high | reference bias may lower estimate artificially |
 | *O. faveolata* vs *O. franksi* | moderate | sister species; hybridization expected |
 
 ---
@@ -183,7 +240,11 @@ bash run.sh 3    # LD, PCA, admixture
 bash run.sh 4    # SAF, SFS, diversity, FST
 ```
 
-Plots: `python workflow/scripts/plot_orbicella.py`
+Structure plots:
+```bash
+python workflow/scripts/plot_orbicella.py           # basic PCA, admixture, LD decay
+python workflow/scripts/plot_orbicella_structure.py # K2/K3 exploration, distance tree
+```
 
 Pipeline code: `/projects/vollmer/RRorbicella_angsd/`
 Reference: jaOrbFran1.1 (`/projects/vollmer/RR_heat-tolerance/Orbicella/reference/`)
