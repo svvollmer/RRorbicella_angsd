@@ -81,11 +81,14 @@ def get_demog_bamlist(group):
         grp_def = pop_groups[group]
         sp   = grp_def.get("species")
         pops = grp_def.get("populations", [])
+        lin  = grp_def.get("lineage")
         mask = samples["sample_id"].isin(unrelated)
         if sp:
             mask &= samples["species"] == sp
         if pops:
             mask &= samples["population"].isin(pops)
+        if lin and HAS_LINEAGE:
+            mask &= samples["lineage"] == lin
         return samples.loc[mask, "sample_id"].tolist()
 
     # Parse suffixes

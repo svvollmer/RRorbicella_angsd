@@ -23,6 +23,11 @@ Ofra_26 excluded as clone of Ofav_106 (KING=0.493).
 
 **Reference:** *O. franksi* jaOrbFran1.1 / GCA_964199315.1 (15 chromosomes OZ116698.1–OZ116712.1; all scaffolds ≥ 10 Mb retained)
 
+> ⚠️ **Reference genome bias note:** All analyses use the *O. franksi* reference. SNP ascertainment
+> is anchored to *O. franksi* sequence space, which may inflate apparent similarity between
+> *O. franksi* and *O. annularis* relative to true phylogenetic distances. Interpret pairwise
+> genetic distance estimates accordingly.
+
 ---
 
 ## Sequencing QC
@@ -38,26 +43,132 @@ mapping rate (−1.4% vs *O. franksi*), consistent with it being the most phylog
 distant species from the reference. This difference in mapping efficiency contributes to
 fewer callable variant sites in *O. annularis* comparisons (see Demographic Inference).
 
+SNPs retained (pass 2, MAF > 0.05, ≥ 80% individuals): ~7,233,371 from 28,063,923 scanned.
+SNP filter params: `docs/outputs/filter_params.yaml`
+
 ---
 
 ## Relatedness and Clonality
 
-133 unrelated samples retained after clone/relatedness filtering. Key findings:
-- Ofra_26 is a clone of Ofav_106 (KING=0.493); excluded
-- Ofra_6 is a putative *franksi* × *faveolata* hybrid (8.4% *faveolata* at K=3); excluded
+Pairwise all-vs-all ngsRelate. Clone threshold: KING ≥ 0.45.
+
+| Clone pair | KING | Excluded | Reason |
+|-----------|------|----------|--------|
+| Oann_72 / Oann_73 | 0.4949 | Oann_72 | lower depth (22.9x vs 39.9x) |
+| Oann_75 / Oann_77 | 0.4959 | Oann_77 | lower depth (28.9x vs 39.1x) |
+| Oann_84 / Oann_85 | 0.4949 | Oann_85 | lower depth (40.2x vs 47.1x) |
+| Oann_95 / Oann_96 | 0.4955 | Oann_95 | lower depth (29.8x vs 31.0x) |
+| Ofav_106 / Ofra_26 | 0.4929 | **Ofra_26** | **MISLABEL** — confirmed *O. faveolata* |
+| Ofav_92 / Ofav_93 | 0.4853 | Ofav_92 | lower depth (29.6x vs 32.8x) |
+
+**134 unrelated samples retained** after clone/relatedness filtering.
+**133 samples retained for Segment 4+** after lineage assignment gate (Ofra_6 excluded as hybrid).
+
+### Ofra_26 mislabel
+
+Ofra_26 (labeled *O. franksi*, FL_RR Upper Keys / East Turtle Shoal) is a confirmed *O. faveolata* mislabel.
+KING vs Ofav_106 = +0.493 (clone — same individual). Decision: exclude Ofra_26, retain Ofav_106.
+
+---
+
+## Lineage Assignment
+
+Based on ngsAdmix K=3 best-run Q matrix. Samples assigned to species contributing majority K=3 ancestry.
+Ofra_6 (putative hybrid, 8.4% faveolata) excluded from all Segment 4+ analyses.
+
+**Lineage assignment file:** `results/admixture/lineage_assignments.txt`
+
+| Genetic lineage | N | Notes |
+|----------------|---|-------|
+| *O. annularis* | 59 | |
+| *O. faveolata* | 50 | |
+| *O. franksi* | 24 | Ofra_6 excluded |
+| **Total** | **133** | |
+
+### Field label mislabels detected
+
+K=3 assignment identified **10 samples** with 100% ancestry for a different species than their field label:
+
+| Sample | Field label | Genetic assignment | Q (assigned) |
+|--------|-------------|-------------------|-------------|
+| Oann_106 | *O. annularis* | *O. faveolata* | 1.000 |
+| Ofav_75 | *O. faveolata* | *O. franksi* | 1.000 |
+| Ofav_76 | *O. faveolata* | *O. franksi* | 1.000 |
+| Ofav_83 | *O. faveolata* | *O. franksi* | 1.000 |
+| Ofav_84 | *O. faveolata* | *O. franksi* | 1.000 |
+| Ofav_94 | *O. faveolata* | *O. annularis* | 1.000 |
+| Ofav_104 | *O. faveolata* | *O. franksi* | 1.000 |
+| Ofav_105 | *O. faveolata* | *O. franksi* | 1.000 |
+| Ofra_1 | *O. franksi* | *O. faveolata* | 1.000 |
+| Ofra_4 | *O. franksi* | *O. faveolata* | 1.000 |
+
+Mislabel rate: 10/134 = 7.5% (11/140 = 7.9% including Ofra_26). All downstream analyses use
+genetic lineage assignments, not field labels.
 
 ---
 
 ## Population Structure
 
-K=3 cleanly separates all three species. ΔK supports K=3 as the optimal clustering.
-PCAngsd and NGSAdmix results are concordant. Lineage assignments at Q > 0.80 threshold used
-for all downstream analyses (demography, FST).
+### LD Decay
 
-**Note:** The genetic distance / UPGMA tree places *O. annularis* closer to *O. franksi*,
-which is a reference genome bias artefact (alignment to *O. franksi* reference inflates
-apparent similarity). Fukami et al. (2004) phylogeny (*O. faveolata* + *O. franksi* as
-sisters) is supported by the demographic inference (see below).
+![LD decay](docs/figures/ld_decay.png)
+
+LD decays from r²≈0.25 at <1 kb to r²≈0.10 by **~8–10 kb**, reaching r²≈0.05 by 35 kb and
+plateauing near background (~0.05) beyond 50 kb. Notably faster than *Acropora* (r²=0.1 at
+~50–100 kb), consistent with larger historical effective population sizes in massive corals
+(*Orbicella* Ne likely 2–5× higher than *Acropora*).
+
+---
+
+### PCA
+
+![PCA with confidence ellipses](docs/figures/pca_ellipses.png)
+
+- **PC1 (22.8%)** separates *O. annularis* from *O. faveolata* + *O. franksi*
+- **PC2 (4.9%)** separates *O. franksi* from *O. faveolata*, resolving all three species
+- **PC3 (1.8%)** captures within-*O. annularis* structure
+- 95% ellipses confirm clean species clustering; *faveolata*/*franksi* ellipses overlap on PC1 (sister species)
+
+---
+
+### Admixture — K=2 vs K=3
+
+![K=2 vs K=3 comparison](docs/figures/admixture_K2_K3_comparison.png)
+
+![Log-likelihood annotation](docs/figures/admixture_loglik_annotated.png)
+
+ΔK picks K=2 (Evanno method dominated by the deep Oann vs faveolata/franksi split), but
+**K=3 is biologically correct** — three distinct genetic clusters clearly resolved by both
+log-likelihood elbow and PCA. The K=2→3 gain (~138,000 log-lik units) is real and biologically
+meaningful; it is ~5× smaller than K=1→2, causing ΔK to be overwhelmed — a well-documented
+Evanno artefact when one split is much deeper than others.
+
+![ngsAdmix K2-4](docs/figures/admixture_ngsadmix_K234.png)
+![PCAngsd K2-4](docs/figures/admixture_pcangsd_K234.png)
+
+**K=3:** All three species cleanly resolved. **Ofra_6** is the only putative hybrid (8.4%
+*faveolata* ancestry; all other samples >95% pure at K=3).
+
+---
+
+### Between-species Genetic Distances
+
+![Genetic distance tree](docs/figures/genetic_distance_tree.png)
+
+UPGMA tree groups *O. annularis* + *O. franksi* as most similar — **reference genome bias
+artefact** (SNPs called in *O. franksi* space inflate apparent Oann/Ofra similarity). The
+known phylogeny (*O. faveolata* + *O. franksi* as sisters; Fukami et al. 2004) is recovered
+by moments demographic inference (see below). Spawning biology also supports this: *O. faveolata*
+and *O. franksi* spawn closer in time, enabling actual interspecific hybridization; *O. annularis*
+and *O. franksi* spawn hours apart despite laboratory cross-compatibility.
+
+---
+
+## Putative Hybrids
+
+| Sample | Labeled species | Faveolata ancestry (K=3) | Status |
+|--------|----------------|------------------------|--------|
+| Ofra_6 | *O. franksi* | 8.4% | Putative *franksi* × *faveolata* hybrid; excluded from Seg 4+ |
 
 ---
 
@@ -71,8 +182,8 @@ sisters) is supported by the demographic inference (see below).
 
 All three species have similar diversity (π ≈ 0.012–0.013). All Tajima's D values are
 negative, consistent with recent population expansion or purifying selection. *O. faveolata*
-has the least negative D (closest to 0), suggesting a more stable recent history relative
-to the other two species.
+has the least negative D (closest to 0), suggesting a more stable recent demographic history
+relative to the other two species.
 
 ---
 
@@ -110,7 +221,7 @@ Samples use genetically corrected lineage assignments (not field labels).
 
 The Ofra comparisons both strongly support **Secondary Contact (SC)**: populations
 diverged in allopatry, then resumed gene flow. The AM model for *O. annularis* vs
-*O. franksi* converged with T2 ≈ 0 (i.e., ancient migration collapsed to zero),
+*O. franksi* converged with T2 ≈ 0 (ancient migration collapsed to zero),
 independently confirming SC over AM.
 
 In contrast, *O. annularis* vs *O. faveolata* supports **IM_a (isolation with
@@ -151,10 +262,7 @@ generation time for *Orbicella* is uncertain (~5–10 yr).
 **The *O. annularis* vs *O. faveolata* result (IM_a) is qualitatively different:**
 rather than a period of allopatry followed by secondary contact, these two species
 have maintained continuous, asymmetric gene flow since their divergence (~1.90 Mya g=10yr).
-Oann→Ofav migration is ~3× stronger than Ofav→Oann (scaled m: 1.38 vs 0.47). This
-pattern may reflect that *O. annularis* and *O. faveolata* have overlapping ranges and
-spawning windows sufficient to maintain gene flow, even as they remain genetically
-distinct species (FST pending).
+Oann→Ofav migration is ~3× stronger than Ofav→Oann (scaled m: 1.38 vs 0.47).
 
 **The SC results for Ofra comparisons recover the known phylogeny** (*O. faveolata* +
 *O. franksi* as sisters) even though the raw genetic distance tree is obscured by
@@ -195,6 +303,8 @@ bash run.sh 2a   # SNP discovery + relatedness (stops at clone gate)
 bash run.sh 2b   # subset BEAGLE to unrelated samples
 bash run.sh 3    # PCA + admixture
 bash run.sh 4    # SAF + SFS + diversity + FST
+bash run.sh 6    # moments demography (all 3 pairs)
+bash run.sh 7    # SMC++ Ne(t)
 ```
 
 Pipeline code: `/projects/vollmer/RRorbicella_angsd/`

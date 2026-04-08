@@ -92,6 +92,9 @@ rule ngsld_estimate_chrom:
                     fout.write(f"{p[0]}\t{p[1]}\n")
 
         if n_sites > 0:
+            import os as _os
+            _env = _os.environ.copy()
+            _env["LD_LIBRARY_PATH"] = "/home/s.vollmer/.conda/envs/snakemake2/lib:" + _env.get("LD_LIBRARY_PATH", "")
             with open(output.ld_chrom, 'w') as fout:
                 subprocess.run(
                     [ngsld_bin,
@@ -102,7 +105,7 @@ rule ngsld_estimate_chrom:
                      "--max_kb_dist", str(params.max_dist_kb),
                      "--pos", pos_tmp,
                      "--n_threads", str(threads)],
-                    stdout=fout, check=True,
+                    stdout=fout, check=True, env=_env,
                 )
         else:
             open(output.ld_chrom, 'w').close()

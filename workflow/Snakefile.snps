@@ -36,7 +36,7 @@ include: "common.smk"
 NGSRELATE_GROUPS = {}
 if "species" in samples.columns and "region" in samples.columns:
     for _, _row in samples.iterrows():
-        _g = f"{_row['species']}_{_row['region']}"
+        _g = (f"{_row['species']}_{_row['region']}").replace(",", "").replace(" ", "_")
         NGSRELATE_GROUPS.setdefault(_g, []).append(_row["sample_id"])
 
 def _bamlist_samples(bamlist_path):

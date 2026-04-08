@@ -1,8 +1,0 @@
-{
-  "_notes": "N_anc values informed by SMC++ Ne(t) estimates (mu=1.8e-8, gen=5yr). Intraspecific acer comparisons use acer FL present Ne (~12,300). Interspecific comparisons use geometric mean of apal and acer FL present Ne: sqrt(28700 * 12300) ~ 18800. These are approximate; treat physical units as order-of-magnitude.",
-  "acer_fl_vs_bon":  12300,
-  "acer_fl_vs_pa":   12300,
-  "acer_pa_vs_bon":  12300,
-  "apal_vs_acer_bon": 18800,
-  "apal_vs_acer_fl":  18800
-}
