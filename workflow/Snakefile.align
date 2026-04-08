@@ -294,11 +294,10 @@ rule flagstat:
     container: "docker://quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:219b6c272b25e7e642ae3ff0bf0c5c81a5135ab4-0"
     input:
         bam=f"results/bams/{{sample}}.filtered.{BAM_EXT}",
-        ref=config["reference"],
     output:
         "results/qc/{sample}.flagstat.txt",
     shell:
-        "samtools flagstat --reference {input.ref} {input.bam} > {output}"
+        "samtools flagstat {input.bam} > {output}"
 
 # ============================================================================
 # 5. REGION FILTERING + CRAM CONVERSION
@@ -328,7 +327,7 @@ rule make_nonrepeat_bed:
         runtime=30,
     shell:
         """
-        python3 workflow/scripts/create_nonrepeat_bed.py \
+        /home/s.vollmer/.conda/envs/snakemake2/bin/python3 workflow/scripts/create_nonrepeat_bed.py \
             {input.ref} {input.chroms} {output.bed} \
             --min-length 100 --merge-gap 50
         """
