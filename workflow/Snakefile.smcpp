@@ -306,9 +306,13 @@ rule smc_fit:
         """
         mkdir -p {params.outdir}
         module load singularity/3.10.3
-        singularity exec {BIND} {SMCPP_SIF} smc++ estimate \
+        singularity exec {BIND} {SMCPP_SIF} python3 /work/vollmer/orbicella_genomics/results/smcpp/smc_wrapper.py estimate \
             --cores {threads} \
             --spline cubic \
+            --knots 10 \
+            --regularization-penalty 6.0 \
+            --ftol 1e-2 \
+            --Nmin 1000 \
             -o {params.outdir} \
             {params.mu} \
             {input.smcs}

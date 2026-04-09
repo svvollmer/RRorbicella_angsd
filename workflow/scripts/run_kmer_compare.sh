@@ -31,6 +31,7 @@
 set -euo pipefail
 
 module load jellyfish/2.2.10
+module load samtools/1.19.2
 
 BAMDIR=/projects/vollmer/RR_heat-tolerance/Orbicella/2_mapping.bwa
 OUTDIR=/work/vollmer/orbicella_genomics/results/kmer
