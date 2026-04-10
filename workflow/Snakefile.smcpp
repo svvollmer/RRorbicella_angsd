@@ -300,9 +300,8 @@ rule smc_fit:
         mu     = MUT_RATE,
     threads: 8
     resources:
-        mem_mb          = 16000,
-        runtime         = 2880,
-        slurm_partition = "long",
+        mem_mb  = 16000,
+        runtime = 2880,
     shell:
         """
         mkdir -p {params.outdir}
