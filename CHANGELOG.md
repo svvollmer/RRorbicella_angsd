@@ -151,3 +151,50 @@ Development history of the RRorbicella_angsd pipeline.
 - Oann vs Ofav FST (SLURM job, ~17h elapsed, short partition 2-day limit)
 - Seg6 moments results (running)
 - Seg7 SMC++ (Snakefile.smcpp not yet written for Orbicella; gen_time=10yr, μ=1.8e-8)
+
+---
+
+## v0.5 — Seg6 complete, Seg7 SMC++ running, Orbicella LFMM launched (2026-04-09 → 2026-04-13)
+
+**HPC working directory:** `/work/vollmer/orbicella_genomics/`
+
+### Segment 6 — Moments demography: ALL 3 COMPLETE
+
+- oann_vs_ofra ✓ **SC** best model (ΔAIC=796 over IM_a); split ~1.27Mya (g=10yr); secondary contact ~136kya; T2/T1=12%; m=2.52
+- ofav_vs_ofra ✓ **SC** best model (ΔAIC=1764); split ~1.50Mya; SC ~465kya; T2/T1=45%; m=1.30
+- oann_vs_ofav ✓ **IM_a** best model (ΔAIC=2902 over SC); split ~1.90Mya; continuous asymmetric gene flow; m12=0.465 (Ofav→Oann), m21=1.382 (Oann→Ofav)
+- Key result: Ofra pairs with both species via SC; Oann-Ofav shows IM_a (continuous gene flow, no allopatric phase)
+- Windowed FST clarification: Oann-Ofra windowed FST (mean=0.094) is LOWER than Ofav-Ofra (mean=0.229), consistent with more recent/intense SC — opposite of global FST ordering (which used only 33k SFS sites for Oann-Ofra)
+- FST global corrected: Oann-Ofav=0.076 (previously recorded as 0.017 — was raw numerator, not ratio)
+
+### k-mer reference-bias analysis: COMPLETE
+
+- Assessed mapping bias by comparing k-mer sharing between species pairs
+- Oann-Ofra and Ofav-Ofra k-mer sharing similar (Jaccard 0.0031 vs 0.0021) → low Oann-Ofra SFS sites (33k) is genuine divergence, not reference bias
+- Oann-Ofav ~5× higher sharing (Jaccard=0.0115), consistent with IM_a gene flow
+- Fixed bug in kmer_compare.py: `comm -12` was comparing full count lines; fixed with `awk '{print $1}'` before sort
+
+### Segment 7 — SMC++: RUNNING
+
+- `Snakefile.smcpp` written for Orbicella (gen_time=5yr, μ=1.8e-8, 3 species)
+- smc_input and smc_fit submitted; repeated NODE_FAIL on c3024 and c3030 (hardware issue)
+- **Fix:** added `slurm_extra = "'--mail-type=NONE' '--exclude=c3024,c3030'"` to smc_fit rule
+- Current run: jobs 51703721/22/23 PENDING on short partition (48h limit)
+- smc_plot will run automatically after smc_fit completes
+- Discovery `short` partition allows 2 days (2-00:00:00); past apparent 12h timeouts were NODE_FAIL, not time limits
+
+### Orbicella LFMM: RUNNING (job 51703719)
+
+- Standalone SLURM script: `scripts/gea/run_lfmm_orb.slurm`
+- Extended `run_lfmm_thermal.R` (coral-angsd-pipeline) to support Orbicella species:
+  `oann`, `ofav`, `ofra`, `orb_combined` added to species switch block
+- Combined run: `--species orb_combined` (Oann+Ofav+Ofra), K=3, `blup_scaled` phenotype
+  - 109 samples after filter (Oann=39, Ofav=51, Ofra=19); Ofra_6 excluded
+  - Phenotype: `08b_orbicella_blups_LEA.csv`; within-species z-scored BLUPs
+  - Handoff doc: `RR_heat_tolerance_v2/Results/LFMM_handoff.md`
+- **Bug fixed:** missing comma after `combined` case in switch block caused R syntax error
+  on HPC (direct SSH sed edit had introduced the issue); fixed 2026-04-13 via Python replace
+
+### Figures updated
+
+- fst_summary.png — updated with Oann-Ofav FST=0.076 (was placeholder)
