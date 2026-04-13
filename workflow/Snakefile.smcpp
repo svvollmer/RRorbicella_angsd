@@ -303,7 +303,7 @@ rule smc_fit:
         mem_mb        = 32000,
         runtime       = 2880,
         cpus_per_task = 8,
-        slurm_extra   = "'--mail-type=NONE --exclude=c3024,c3030'",
+        slurm_extra   = "'--mail-type=NONE' '--exclude=c3024,c3030'",
     shell:
         """
         mkdir -p {params.outdir}
