@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=lfmm_orb
-#SBATCH --partition=short
-#SBATCH --time=12:00:00
+#SBATCH --partition=long
+#SBATCH --time=48:00:00
 #SBATCH --mem=128G
 #SBATCH --cpus-per-task=8
 #SBATCH --array=0-0
