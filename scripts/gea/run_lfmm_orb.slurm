@@ -41,7 +41,8 @@ Rscript "$PROJDIR/scripts/gea/run_lfmm_thermal.R" \
     --pheno_col  "$PHENO" \
     --exclude    "$WORKDIR/results/lfmm/orb_exclude.txt" \
     --outdir     "$OUTDIR" \
-    --min_maf    0.05 \
+    --min_maf    0.10 \
+    --thin_bp    1000 \
     --max_miss   0.10 \
     --samp_miss  0.30 \
     --threads    "$SLURM_CPUS_PER_TASK"
