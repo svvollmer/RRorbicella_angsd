@@ -25,7 +25,7 @@ default-resources:
   mem_mb: 32000
   runtime: 480
   cpus_per_task: 4
-  slurm_extra: "'--mail-type=NONE'"
+  slurm_extra: "'--mail-type=NONE --exclude=c3024,c3030,d0058,d0080,d0095,d0098,d0109'"
 keep-going: true
 latency-wait: 300
 rerun-incomplete: true
