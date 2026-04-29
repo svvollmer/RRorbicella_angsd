@@ -94,7 +94,8 @@ rule ngsld_estimate_chrom:
         if n_sites > 0:
             import os as _os
             _env = _os.environ.copy()
-            _env["LD_LIBRARY_PATH"] = "/home/s.vollmer/.conda/envs/snakemake2/lib:" + _env.get("LD_LIBRARY_PATH", "")
+            bin_dir = os.path.dirname(ngsld_bin)
+            _env["LD_LIBRARY_PATH"] = bin_dir + ":/home/s.vollmer/.conda/envs/snakemake2/lib:" + _env.get("LD_LIBRARY_PATH", "")
             with open(output.ld_chrom, 'w') as fout:
                 subprocess.run(
                     [ngsld_bin,
