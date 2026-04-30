@@ -303,7 +303,7 @@ rule smc_fit:
         mem_mb          = 32000,
         runtime         = 7200,
         cpus_per_task   = 8,
-        slurm_partition = "long",
+        slurm_partition = "short",
         slurm_extra     = "'--mail-type=NONE' '--exclude=c3024,c3030'",
     shell:
         """
@@ -313,6 +313,7 @@ rule smc_fit:
             --cores {threads} \
             --spline cubic \
             --knots 10 \
+            --em-iterations 20 \
             --regularization-penalty 6.0 \
             --ftol 1e-2 \
             --Nmin 1000 \
