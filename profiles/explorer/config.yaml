@@ -1,0 +1,26 @@
+# Snakemake SLURM profile — Northeastern Explorer HPC
+#
+# Partitions:
+#   short    — 2-day limit, default for most rules
+#   sharing  — 1-hour limit, low-priority shared nodes
+#
+# singularity available at /usr/bin/singularity (no module load needed)
+# /projects/vollmer = same filesystem as /work/vollmer on Discovery
+
+executor: slurm
+jobs: 50
+use-singularity: true
+singularity-args: "--bind /projects --bind /home --bind /scratch --bind /tmp"
+default-resources:
+  slurm_partition: "short"
+  slurm_account: "s.vollmer"
+  mem_mb: 32000
+  runtime: 480
+  cpus_per_task: 4
+  slurm_extra: "'--mail-type=NONE'"
+keep-going: true
+latency-wait: 300
+rerun-incomplete: true
+rerun-triggers:
+  - mtime
+scheduler: greedy

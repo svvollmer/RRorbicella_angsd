@@ -40,8 +40,8 @@ include: "common.smk"
 import os
 
 SMCPP_SIF = "results/smcpp/smcpp_latest.sif"
-ANGSD_SIF = "/work/vollmer/orbicella_genomics/.snakemake/singularity/084f8dcfcfe42901022fa6e05278b43b.simg"
-BIND      = "--bind /work/vollmer --bind /projects/vollmer"
+ANGSD_SIF = os.path.join(os.path.abspath("."), ".snakemake/singularity/084f8dcfcfe42901022fa6e05278b43b.simg")
+BIND      = "--bind " + os.path.abspath(".") + " --bind /home"
 MUT_RATE  = 1.8e-8
 GEN_TIME  = 5   # years; chosen to match Acropora for comparability (true value ~5-10 yr)
 
@@ -101,7 +101,7 @@ rule angsd_call:
     shell:
         """
         mkdir -p results/smcpp/vcf/{wildcards.sp}
-        module load singularity/3.10.3
+        module load singularity/3.10.3 2>/dev/null || true
         singularity exec {BIND} {ANGSD_SIF} angsd \
             -bam {input.bamlist} \
             -ref {input.ref} \
@@ -149,7 +149,7 @@ rule bcf_to_vcf:
         module load bcftools/1.21
         module load samtools/1.19.2
 
-        WORK=$(mktemp -d /work/vollmer/orbicella_genomics/tmp_bcf2vcf.XXXXXXXX)
+        WORK=$(mktemp -d)
         trap "rm -rf $WORK" EXIT
         FIXED_BAMLIST="$WORK/bamlist.txt"
         > "$FIXED_BAMLIST"
@@ -230,7 +230,7 @@ rule make_mask:
         runtime = 30,
     shell:
         """
-        module load singularity/3.10.3
+        module load singularity/3.10.3 2>/dev/null || true
         module load bedtools/2.29.0
         awk 'NR>1 {{print $1"\\t"$2-1"\\t"$2}}' {input.sites} \
             | bedtools merge -i stdin \
@@ -264,7 +264,7 @@ rule vcf2smc:
     shell:
         """
         mkdir -p {params.outdir}
-        module load singularity/3.10.3
+        module load singularity/3.10.3 2>/dev/null || true
         SAMP_ARR=( $(cat {input.samp}) )
         N=${{#SAMP_ARR[@]}}
         SAMPLES=$(IFS=,; echo "${{SAMP_ARR[*]}}")
@@ -308,8 +308,8 @@ rule smc_fit:
     shell:
         """
         mkdir -p {params.outdir}
-        module load singularity/3.10.3
-        singularity exec {BIND} {SMCPP_SIF} python3 /work/vollmer/orbicella_genomics/results/smcpp/smc_wrapper.py estimate \
+        module load singularity/3.10.3 2>/dev/null || true
+        singularity exec {BIND} {SMCPP_SIF} python3 results/smcpp/smc_wrapper.py estimate \
             --cores {threads} \
             --spline cubic \
             --knots 10 \
@@ -340,7 +340,7 @@ rule smc_plot:
     shell:
         """
         mkdir -p {params.outdir}
-        module load singularity/3.10.3
+        module load singularity/3.10.3 2>/dev/null || true
 
         # Combined plot — all three species
         singularity exec {BIND} {SMCPP_SIF} smc++ plot \
