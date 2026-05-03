@@ -245,11 +245,16 @@ rule vcf2smc:
     N_PAIRS distinguished pairs per chromosome; smc++ estimate averages over all.
     Pairs are spaced evenly across the sample list.
     Population label matches the lineage name used in demography bamlists.
+
+    --missing-cutoff 10000: gaps >10kb between SNPs are treated as missing data
+    (handles centromeres and non-callable regions). The VCF is already restricted
+    to callable sites via bcftools mpileup -T, so shorter gaps are monomorphic.
+    Note: do NOT use --mask with callable.bed.gz — vcf2smc --mask expects a BED
+    of MISSING regions, but callable.bed.gz contains CALLABLE regions (the inverse).
     """
     input:
         vcf  = "results/smcpp/vcf/{sp}.merged.vcf.gz",
         tbi  = "results/smcpp/vcf/{sp}.merged.vcf.gz.tbi",
-        mask = "results/smcpp/callable.bed.gz",
         samp = "results/smcpp/vcf/{sp}.samples.txt",
     output:
         expand("results/smcpp/input/{{sp}}/{{chrom}}.pair{pair}.smc.gz",
@@ -274,7 +279,7 @@ rule vcf2smc:
             D1=${{SAMP_ARR[$i1]}}
             D2=${{SAMP_ARR[$i2]}}
             singularity exec {BIND} {SMCPP_SIF} smc++ vcf2smc \
-                --mask {input.mask} \
+                --missing-cutoff 10000 \
                 -d $D1 $D2 \
                 {input.vcf} \
                 {params.outdir}/{wildcards.chrom}.pair${{pair}}.smc.gz \
